@@ -44,6 +44,7 @@ Engineering foundation implementation.
   - API endpoints verified:
     - `GET /` returns `{"service":"FieldOS API"}`.
     - `GET /health` returns `{"status":"ok"}`.
+  - GitHub Release created: `v0.0.1-foundation`.
   - Docker-dependent verification is blocked because Docker is not installed or not available on PATH in this environment.
 
 ## Known Technical Debt
@@ -58,7 +59,6 @@ Engineering foundation implementation.
 - Configure branch protection for `main` and `develop`.
 - Create `develop` branch after remote setup.
 - Verify Docker Compose, Prisma migration, and worker Redis startup on a machine with Docker available.
-- Create the `v0.0.1-foundation` GitHub Release after runtime verification passes.
 - Define product requirements and initial domain boundaries.
 
 ## Architecture Decisions Made
@@ -73,4 +73,5 @@ Engineering foundation implementation.
 - No application code exists yet.
 - Dashboard, API, and worker application scaffolds exist.
 - Local code validation passed for format, lint, typecheck, tests, and build.
+- GitHub Release `v0.0.1-foundation` exists.
 - Docker runtime validation is blocked until Docker is installed or available on PATH.
