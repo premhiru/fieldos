@@ -1,0 +1,37 @@
+name: Feature request
+description: Propose a FieldOS product or platform capability.
+title: "feat: "
+labels: ["feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Purpose: Capture product and platform proposals.
+        Owner: Product
+        Status: Draft
+        Last Updated: 2026-06-30
+        Table of Contents: Problem, Proposal, Users, Success, Risks
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+    validations:
+      required: true
+  - type: textarea
+    id: users
+    attributes:
+      label: Users
+  - type: textarea
+    id: success
+    attributes:
+      label: Success criteria
+  - type: textarea
+    id: risks
+    attributes:
+      label: Risks and tradeoffs
