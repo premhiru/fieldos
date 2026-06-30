@@ -1,42 +1,99 @@
 "use client";
 
-import { Badge, Card, CardContent, CardHeader, CardTitle, PageContainer } from "@fieldos/ui";
+import { Badge, Card, CardContent, CardHeader, CardTitle } from "@fieldos/ui";
+import * as React from "react";
 
-import { useStatusStore } from "../store/status-store";
+import { AppShell } from "../components/app-shell";
+import { AuthGuard } from "../components/auth-guard";
+import { OrganizationOnboarding } from "../components/organization-onboarding";
+import { OrganizationSelector } from "../components/organization-selector";
+import { useOrganizations, useProjects } from "../lib/queries";
+import { useActiveOrganizationStore } from "../store/active-organization-store";
 
-const statuses = [
-  { key: "api", label: "API Status" },
-  { key: "database", label: "Database Status" },
-  { key: "worker", label: "Worker Status" }
-] as const;
+export default function DashboardPage() {
+  return (
+    <AuthGuard>
+      <AppShell>
+        <DashboardContent />
+      </AppShell>
+    </AuthGuard>
+  );
+}
 
-export default function HomePage() {
-  const serviceStatus = useStatusStore();
+function DashboardContent() {
+  const organizationsQuery = useOrganizations();
+  const { activeOrganizationId, setActiveOrganizationId } = useActiveOrganizationStore();
+  const organizations = organizationsQuery.data?.organizations ?? [];
+  const selectedOrganization =
+    organizations.find((organization) => organization.id === activeOrganizationId) ??
+    organizations[0];
+  const projectsQuery = useProjects(selectedOrganization?.id ?? null);
+  const projects = projectsQuery.data?.projects ?? [];
+
+  React.useEffect(() => {
+    if (!activeOrganizationId && organizations[0]) {
+      setActiveOrganizationId(organizations[0].id);
+    }
+  }, [activeOrganizationId, organizations, setActiveOrganizationId]);
+
+  if (organizationsQuery.isLoading) {
+    return <p className="text-sm text-slate-600">Loading dashboard...</p>;
+  }
+
+  if (organizations.length === 0) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-semibold text-slate-950">FieldOS Dashboard</h1>
+        <OrganizationOnboarding />
+      </div>
+    );
+  }
 
   return (
-    <PageContainer className="min-h-screen">
-      <section className="flex flex-col gap-8">
-        <div className="space-y-3">
-          <Badge variant="muted">Engineering Foundation</Badge>
-          <div className="space-y-2">
-            <h1 className="text-4xl font-semibold tracking-normal text-slate-950">FieldOS</h1>
-            <p className="max-w-2xl text-base leading-7 text-slate-600">Engineering Foundation</p>
-          </div>
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-950">FieldOS Dashboard</h1>
+          <p className="text-sm text-slate-600">
+            Active organization: {selectedOrganization?.name}
+          </p>
         </div>
+        <OrganizationSelector organizations={organizations} />
+      </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
-          {statuses.map((item) => (
-            <Card key={item.key}>
-              <CardHeader>
-                <CardTitle>{item.label}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Badge variant="warning">{serviceStatus[item.key]}</Badge>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </section>
-    </PageContainer>
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <CardTitle>Projects</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-semibold text-slate-950">{projects.length}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent projects</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {projects.length === 0 ? (
+            <p className="text-sm text-slate-600">No projects yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {projects.slice(0, 5).map((project) => (
+                <div key={project.id} className="flex items-center justify-between">
+                  <div>
+                    <div className="font-medium text-slate-950">{project.name}</div>
+                    <div className="text-sm text-slate-500">{project.code}</div>
+                  </div>
+                  <Badge variant="muted">{project.status}</Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }

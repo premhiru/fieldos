@@ -24,11 +24,11 @@
 
 FieldOS is the AI Operating System for Field Operations.
 
-The repository is a pnpm and Turborepo monorepo containing a Next.js dashboard, a Fastify API, a standalone Redis-backed worker, and shared packages for UI, database access, authentication contracts, and cross-cutting utilities.
+The repository is a pnpm and Turborepo monorepo containing a Next.js dashboard, a Fastify API, a standalone Redis-backed worker, and shared packages for UI, database access, authentication, and cross-cutting utilities.
 
 ## Architecture
 
-FieldOS starts as a modular monolith with clear package boundaries. The system is intentionally simple: one dashboard, one API, one worker, and a minimal PostgreSQL schema. Packages define reusable capabilities without creating service boundaries before the product requires them.
+FieldOS starts as a modular monolith with clear package boundaries. The current product slice supports JWT-cookie authentication, organization workspaces, organization memberships, and projects.
 
 ```mermaid
 flowchart TD
@@ -38,7 +38,7 @@ flowchart TD
   UI["packages/ui\nReusable UI"]
   DB["packages/db\nPrisma Client"]
   Shared["packages/shared\nEnv, Logger, Utilities"]
-  Auth["packages/auth\nAuth Interfaces"]
+  Auth["packages/auth\nJWT, Passwords, Auth Schemas"]
   Postgres["PostgreSQL"]
   Redis["Redis"]
 
@@ -79,6 +79,13 @@ pnpm db:generate
 pnpm db:migrate
 ```
 
+Test the auth flow:
+
+```bash
+pnpm --filter @fieldos/api test
+pnpm --filter @fieldos/dashboard test
+```
+
 Run the development servers:
 
 ```bash
@@ -116,7 +123,7 @@ apps/
 packages/
   ui/              Shared UI components.
   db/              Prisma schema, migration, client, and database utilities.
-  auth/            Authentication interfaces only.
+  auth/            JWT cookie auth, password hashing, and auth schemas.
   shared/          Environment helpers, logger, constants, and utilities.
 docs/              Product, architecture, UX, database, roadmap, and ADR docs.
 tests/             Cross-cutting and end-to-end tests.
@@ -153,13 +160,20 @@ infrastructure/    Infrastructure definitions.
 - Docker
 - GitHub Actions
 
+## Auth and Tenancy
+
+FieldOS uses JWT session tokens stored in HTTP-only cookies for the MVP. Passwords are hashed with bcrypt. The API owns session validation and tenant authorization.
+
+Organizations are workspaces. Users access organizations through memberships with one of four roles: `OWNER`, `ADMIN`, `MEMBER`, or `VIEWER`.
+
+Project creation is limited to `OWNER` and `ADMIN`. Project reads are scoped to organization membership.
+
 ## Current Roadmap
 
-1. Complete the engineering foundation.
-2. Define the product requirements and initial domain model.
-3. Build the first authenticated dashboard workflow.
-4. Add operational observability and deployment automation.
-5. Introduce AI assistance only after core workflow boundaries are stable.
+1. Complete authentication, organizations, and projects.
+2. Add invite and membership management.
+3. Add operational observability and deployment automation.
+4. Introduce WhatsApp, AI, reports, and tasks only after core workflow boundaries are stable.
 
 ## Contributing Guidelines
 
