@@ -19,7 +19,7 @@
 
 ## Current Milestone
 
-Foundation initialized.
+Engineering foundation implementation.
 
 ## Completed Tasks
 
@@ -32,33 +32,45 @@ Foundation initialized.
   - GitHub pull request templates, issue templates, CODEOWNERS, and CI workflows created.
   - Documentation skeleton created.
   - Initial commit created: `d18eb96 chore: initialize FieldOS engineering foundation`.
+  - Repository pushed to GitHub: `https://github.com/premhiru/fieldos`.
 
 ## In-Progress Tasks
 
-- None.
+- Task 002: Build the Engineering Foundation.
+  - Dashboard, API, worker, and shared packages are implemented.
+  - Code-level validation passes for format, lint, typecheck, tests, and build.
+  - Dashboard startup verified at `http://127.0.0.1:3000`.
+  - API startup verified at `http://127.0.0.1:3001`.
+  - API endpoints verified:
+    - `GET /` returns `{"service":"FieldOS API"}`.
+    - `GET /health` returns `{"status":"ok"}`.
+  - Docker-dependent verification is blocked because Docker is not installed or not available on PATH in this environment.
 
 ## Known Technical Debt
 
-- GitHub remote repository has not been created because no GitHub authentication is available in this environment.
-- CI build and test workflows currently no-op until application or package workspaces are added.
 - CODEOWNERS references `@fieldos/engineering`, which must be replaced or backed by a real GitHub team after the organization is created.
 - Git author identity is configured locally as `FieldOS Engineering <engineering@fieldos.local>` and should be replaced with the company identity when available.
+- Docker is unavailable in the current environment, so `docker compose up`, Prisma migration execution, and worker Redis startup could not be completed locally.
+- Vitest is configured with `--passWithNoTests`; real tests should be added with the first product and infrastructure behavior.
 
 ## Upcoming Milestones
 
-- Create the private GitHub repository `fieldos` once authentication is available.
-- Push `main` to GitHub.
 - Configure branch protection for `main` and `develop`.
 - Create `develop` branch after remote setup.
+- Verify Docker Compose, Prisma migration, and worker Redis startup on a machine with Docker available.
+- Create the `v0.0.1-foundation` GitHub Release after runtime verification passes.
 - Define product requirements and initial domain boundaries.
-- Scaffold the first application and shared packages after product scope is approved.
 
 ## Architecture Decisions Made
 
 - ADR 0001: Build FieldOS as a modular monolith first, with clear package boundaries that can later evolve into services.
+- Prisma 7 is configured with the PostgreSQL driver adapter via `@prisma/adapter-pg`.
+- The API exposes health endpoints without eagerly opening a database connection, so health checks remain available during dependency outages.
 
 ## Deployment Status
 
 - Not deployed.
 - No application code exists yet.
-- Local foundation validation passed for format, lint, and typecheck.
+- Dashboard, API, and worker application scaffolds exist.
+- Local code validation passed for format, lint, typecheck, tests, and build.
+- Docker runtime validation is blocked until Docker is installed or available on PATH.

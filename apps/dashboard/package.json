@@ -1,0 +1,23 @@
+{
+  "name": "@fieldos/dashboard",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "next build",
+    "dev": "next dev --port 3000",
+    "lint": "eslint . --max-warnings=0",
+    "start": "next start --port 3000",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fieldos/shared": "workspace:*",
+    "@fieldos/ui": "workspace:*",
+    "@tanstack/react-query": "^5.90.12",
+    "next": "^16.0.10",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
+    "zustand": "^5.0.9"
+  }
+}
