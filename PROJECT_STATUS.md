@@ -19,7 +19,7 @@
 
 ## Current Milestone
 
-Authentication, organizations, and projects.
+Foundation and authentication baseline verified locally. Ready for the next product milestone.
 
 ## Completed Tasks
 
@@ -33,9 +33,6 @@ Authentication, organizations, and projects.
   - Documentation skeleton created.
   - Initial commit created: `d18eb96 chore: initialize FieldOS engineering foundation`.
   - Repository pushed to GitHub: `https://github.com/premhiru/fieldos`.
-
-## In-Progress Tasks
-
 - Task 002: Build the Engineering Foundation.
   - Dashboard, API, worker, and shared packages are implemented.
   - Code-level validation passes for format, lint, typecheck, tests, and build.
@@ -45,7 +42,8 @@ Authentication, organizations, and projects.
     - `GET /` returns `{"service":"FieldOS API"}`.
     - `GET /health` returns `{"status":"ok"}`.
   - GitHub Release created: `v0.0.1-foundation`.
-  - Docker-dependent verification is blocked because Docker is not installed or not available on PATH in this environment.
+  - Docker Compose verified with PostgreSQL and Redis healthy locally.
+  - Worker Redis startup verified locally.
 - Task 003: Authentication, Organizations, and Projects.
   - JWT cookie auth implemented in the API.
   - Signup, login, logout, and current-user endpoints implemented.
@@ -53,13 +51,18 @@ Authentication, organizations, and projects.
   - Project creation, list, and detail reads implemented.
   - Dashboard auth pages, onboarding, project list, and project detail pages implemented.
   - Code-level validation passes for format, lint, typecheck, tests, and build.
-  - Prisma migration execution is blocked because PostgreSQL is not available in this environment.
+  - Prisma migrations verified against local PostgreSQL.
+  - Dashboard routes verified locally: `/`, `/login`, `/signup`, `/projects`, and `/settings`.
+  - API health verified locally at `http://127.0.0.1:3001/health`.
+
+## In-Progress Tasks
+
+- None.
 
 ## Known Technical Debt
 
 - CODEOWNERS references `@fieldos/engineering`, which must be replaced or backed by a real GitHub team after the organization is created.
 - Git author identity is configured locally as `FieldOS Engineering <engineering@fieldos.local>` and should be replaced with the company identity when available.
-- Docker is unavailable in the current environment, so `docker compose up`, Prisma migration execution, and worker Redis startup could not be completed locally.
 - Vitest is configured with `--passWithNoTests`; real tests should be added with the first product and infrastructure behavior.
 - Auth sessions do not yet support server-side revocation.
 - Invite, membership administration, password reset, and email verification flows are not implemented yet.
@@ -68,7 +71,6 @@ Authentication, organizations, and projects.
 
 - Configure branch protection for `main` and `develop`.
 - Create `develop` branch after remote setup.
-- Verify Docker Compose, Prisma migration, and worker Redis startup on a machine with Docker available.
 - Define product requirements and initial domain boundaries.
 - Add invite and membership management after the basic auth/org/project slice is verified.
 
@@ -86,6 +88,10 @@ Authentication, organizations, and projects.
 - Dashboard, API, and worker application scaffolds exist.
 - Local code validation passed for format, lint, typecheck, tests, and build.
 - GitHub Release `v0.0.1-foundation` exists.
-- Docker runtime validation is blocked until Docker is installed or available on PATH.
+- Docker runtime validation passed locally with PostgreSQL and Redis healthy.
+- Prisma migrations are applied locally.
+- Dashboard is running locally at `http://localhost:3000`.
+- API is running locally at `http://localhost:3001`.
+- Worker Redis startup has been verified locally.
 - Task 003 is not deployed.
-- Task 003 is not complete until the Prisma migration is run successfully against PostgreSQL.
+- Task 003 local verification is complete.
