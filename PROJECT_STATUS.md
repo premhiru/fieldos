@@ -19,7 +19,7 @@
 
 ## Current Milestone
 
-Foundation and authentication baseline verified locally. Ready for the next product milestone.
+Messaging platform implemented and ready for channel adapters.
 
 ## Completed Tasks
 
@@ -54,6 +54,13 @@ Foundation and authentication baseline verified locally. Ready for the next prod
   - Prisma migrations verified against local PostgreSQL.
   - Dashboard routes verified locally: `/`, `/login`, `/signup`, `/projects`, and `/settings`.
   - API health verified locally at `http://127.0.0.1:3001/health`.
+- Task 005: Build the Messaging Platform.
+  - Channel-agnostic conversations, participants, messages, and attachments implemented.
+  - `packages/messaging` added with services, repository interfaces, validation, and tests.
+  - Messaging API endpoints implemented for conversation listing/detail, messages, attachments, and message deletion.
+  - Dashboard inbox list, search, conversation detail, message display, disabled composer, and attachment list implemented.
+  - Seed data script added for one organization, three projects, five conversations, twenty messages, and attachments.
+  - ADR 0003 documents the channel-agnostic messaging platform decision.
 
 ## In-Progress Tasks
 
@@ -66,6 +73,8 @@ Foundation and authentication baseline verified locally. Ready for the next prod
 - Vitest is configured with `--passWithNoTests`; real tests should be added with the first product and infrastructure behavior.
 - Auth sessions do not yet support server-side revocation.
 - Invite, membership administration, password reset, and email verification flows are not implemented yet.
+- Messaging is not real-time yet.
+- Message sending is internal/development-only until channel adapters exist.
 
 ## Upcoming Milestones
 
@@ -73,6 +82,7 @@ Foundation and authentication baseline verified locally. Ready for the next prod
 - Create `develop` branch after remote setup.
 - Define product requirements and initial domain boundaries.
 - Add invite and membership management after the basic auth/org/project slice is verified.
+- Add channel adapters that map external systems into the messaging platform.
 
 ## Architecture Decisions Made
 
@@ -80,12 +90,12 @@ Foundation and authentication baseline verified locally. Ready for the next prod
 - Prisma 7 is configured with the PostgreSQL driver adapter via `@prisma/adapter-pg`.
 - The API exposes health endpoints without eagerly opening a database connection, so health checks remain available during dependency outages.
 - ADR 0002: Use JWT session tokens in HTTP-only cookies for MVP authentication.
+- ADR 0003: Build messaging as a channel-agnostic platform and plug channel adapters into it.
 
 ## Deployment Status
 
 - Not deployed.
-- No application code exists yet.
-- Dashboard, API, and worker application scaffolds exist.
+- Dashboard, API, worker, auth, projects, and messaging application slices exist.
 - Local code validation passed for format, lint, typecheck, tests, and build.
 - GitHub Release `v0.0.1-foundation` exists.
 - Docker runtime validation passed locally with PostgreSQL and Redis healthy.
@@ -95,3 +105,5 @@ Foundation and authentication baseline verified locally. Ready for the next prod
 - Worker Redis startup has been verified locally.
 - Task 003 is not deployed.
 - Task 003 local verification is complete.
+- Task 005 is not deployed.
+- Task 005 local verification is complete: migrations, seed data, tests, build, and dashboard route checks pass.

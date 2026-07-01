@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 const navItems = [
   { href: "/", label: "Dashboard" },
   { href: "/projects", label: "Projects" },
+  { href: "/inbox", label: "Inbox" },
   { href: "/settings", label: "Settings" }
 ];
 
@@ -22,7 +23,7 @@ export function AppShell({ children }: Readonly<{ children: React.ReactNode }>) 
             <Link
               key={item.href}
               className={
-                pathname === item.href
+                pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href))
                   ? "rounded-md bg-slate-950 px-3 py-2 text-sm font-medium text-white"
                   : "rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
               }

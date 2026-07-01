@@ -10,6 +10,16 @@ import {
   verifyPassword,
   verifySessionToken
 } from "@fieldos/auth";
+import {
+  AttachmentService,
+  ConversationService,
+  createAttachmentSchema,
+  createConversationSchema,
+  createMessageSchema,
+  listConversationsSchema,
+  MessageService,
+  MessagingServiceError
+} from "@fieldos/messaging";
 import fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import { ZodError } from "zod";
 
@@ -24,6 +34,8 @@ import {
 import {
   createOrganizationSchema,
   createProjectSchema,
+  conversationParamsSchema,
+  messageParamsSchema,
   organizationParamsSchema,
   projectParamsSchema
 } from "./schemas.js";
@@ -42,6 +54,9 @@ declare module "fastify" {
 
 export function buildServer(options: BuildServerOptions = {}) {
   const repository = options.repository ?? createPrismaRepository();
+  const conversationService = new ConversationService(repository);
+  const messageService = new MessageService(repository);
+  const attachmentService = new AttachmentService(repository);
   const server = fastify({
     logger: {
       level: process.env.LOG_LEVEL ?? "info"
@@ -59,6 +74,12 @@ export function buildServer(options: BuildServerOptions = {}) {
       return reply.status(400).send({
         error: "Validation failed.",
         issues: error.issues
+      });
+    }
+
+    if (error instanceof MessagingServiceError) {
+      return reply.status(error.code === "NOT_FOUND" ? 404 : 403).send({
+        error: error.message
       });
     }
 
@@ -225,6 +246,67 @@ export function buildServer(options: BuildServerOptions = {}) {
     return {
       project
     };
+  });
+
+  server.get("/conversations", { preHandler: requireAuth }, async (request) => {
+    const query = listConversationsSchema.parse(request.query);
+    const user = requireCurrentUser(request);
+
+    return {
+      conversations: await conversationService.listConversations(user.id, query)
+    };
+  });
+
+  server.post("/conversations", { preHandler: requireAuth }, async (request) => {
+    const body = createConversationSchema.parse(request.body);
+    const user = requireCurrentUser(request);
+
+    return {
+      conversation: await conversationService.createConversation(user.id, body)
+    };
+  });
+
+  server.get("/conversations/:id", { preHandler: requireAuth }, async (request) => {
+    const params = conversationParamsSchema.parse(request.params);
+    const user = requireCurrentUser(request);
+
+    return {
+      conversation: await conversationService.getConversation(user.id, params.id)
+    };
+  });
+
+  server.get("/conversations/:id/messages", { preHandler: requireAuth }, async (request) => {
+    const params = conversationParamsSchema.parse(request.params);
+    const user = requireCurrentUser(request);
+
+    return {
+      messages: await messageService.listMessages(user.id, params.id)
+    };
+  });
+
+  server.post("/messages", { preHandler: requireAuth }, async (request) => {
+    const body = createMessageSchema.parse(request.body);
+    const user = requireCurrentUser(request);
+
+    return {
+      message: await messageService.sendMessage(user.id, body)
+    };
+  });
+
+  server.post("/attachments", { preHandler: requireAuth }, async (request) => {
+    const body = createAttachmentSchema.parse(request.body);
+    const user = requireCurrentUser(request);
+
+    return {
+      attachment: await attachmentService.addAttachment(user.id, body)
+    };
+  });
+
+  server.delete("/messages/:id", { preHandler: requireAuth }, async (request) => {
+    const params = messageParamsSchema.parse(request.params);
+    const user = requireCurrentUser(request);
+
+    return messageService.deleteMessage(user.id, params.id);
   });
 
   server.addHook("onClose", async () => {

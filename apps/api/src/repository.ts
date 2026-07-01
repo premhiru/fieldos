@@ -1,4 +1,15 @@
 import type { MembershipRole, PrismaClient, ProjectStatus } from "@fieldos/db";
+import type {
+  AttachmentRecord,
+  ConversationRecord,
+  CreateAttachmentInput,
+  CreateConversationInput,
+  CreateMessageInput,
+  CreateParticipantInput,
+  MessageRecord,
+  MessagingRepository,
+  ParticipantRecord
+} from "@fieldos/messaging";
 
 export type Role = MembershipRole;
 export type Status = ProjectStatus;
@@ -41,7 +52,7 @@ export interface ProjectRecord {
   updatedAt: Date;
 }
 
-export interface AppRepository {
+export interface AppRepository extends MessagingRepository {
   createOrganization(input: {
     name: string;
     ownerUserId: string;
@@ -241,6 +252,249 @@ export function createPrismaRepository(): AppRepository {
           organizationId
         }
       });
+    },
+
+    async userBelongsToOrganization(userId, organizationId) {
+      const prisma = await getPrisma();
+      const membership = await prisma.membership.findUnique({
+        where: {
+          userId_organizationId: {
+            organizationId,
+            userId
+          }
+        }
+      });
+
+      return Boolean(membership);
+    },
+
+    async projectBelongsToOrganization(projectId, organizationId) {
+      const prisma = await getPrisma();
+      const project = await prisma.project.findFirst({
+        select: {
+          id: true
+        },
+        where: {
+          id: projectId,
+          organizationId
+        }
+      });
+
+      return Boolean(project);
+    },
+
+    async createConversation(input: Required<CreateConversationInput>) {
+      const prisma = await getPrisma();
+      const conversation = await prisma.conversation.create({
+        data: input,
+        include: conversationInclude()
+      });
+
+      return toConversationRecord(conversation);
+    },
+
+    async listConversations(input) {
+      const prisma = await getPrisma();
+      const search = input.search?.trim();
+      const conversations = await prisma.conversation.findMany({
+        include: conversationInclude(),
+        orderBy: [
+          {
+            lastMessageAt: "desc"
+          },
+          {
+            updatedAt: "desc"
+          }
+        ],
+        where: {
+          organizationId: input.organizationId,
+          ...(search
+            ? {
+                OR: [
+                  {
+                    title: {
+                      contains: search,
+                      mode: "insensitive"
+                    }
+                  },
+                  {
+                    messages: {
+                      some: {
+                        body: {
+                          contains: search,
+                          mode: "insensitive"
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            : {})
+        }
+      });
+
+      return conversations.map(toConversationRecord);
+    },
+
+    async getConversation(conversationId) {
+      const prisma = await getPrisma();
+      const conversation = await prisma.conversation.findUnique({
+        include: conversationInclude(),
+        where: {
+          id: conversationId
+        }
+      });
+
+      return conversation ? toConversationRecord(conversation) : null;
+    },
+
+    async findConversationContext(conversationId) {
+      const prisma = await getPrisma();
+      return prisma.conversation.findUnique({
+        select: {
+          id: true,
+          organizationId: true
+        },
+        where: {
+          id: conversationId
+        }
+      });
+    },
+
+    async addParticipant(input: CreateParticipantInput) {
+      const prisma = await getPrisma();
+      return prisma.participant.create({
+        data: input
+      });
+    },
+
+    async findParticipant(participantId) {
+      const prisma = await getPrisma();
+      return prisma.participant.findUnique({
+        where: {
+          id: participantId
+        }
+      });
+    },
+
+    async createMessage(input: CreateMessageInput) {
+      const prisma = await getPrisma();
+      const message = await prisma.$transaction(async (tx) => {
+        const created = await tx.message.create({
+          data: input,
+          include: messageInclude()
+        });
+
+        await tx.conversation.update({
+          data: {
+            lastMessageAt: input.occurredAt
+          },
+          where: {
+            id: input.conversationId
+          }
+        });
+
+        return created;
+      });
+
+      return toMessageRecord(message);
+    },
+
+    async listMessages(conversationId) {
+      const prisma = await getPrisma();
+      const messages = await prisma.message.findMany({
+        include: messageInclude(),
+        orderBy: {
+          occurredAt: "asc"
+        },
+        where: {
+          conversationId
+        }
+      });
+
+      return messages.map(toMessageRecord);
+    },
+
+    async findMessageContext(messageId) {
+      const prisma = await getPrisma();
+      const message = await prisma.message.findUnique({
+        select: {
+          conversation: {
+            select: {
+              id: true,
+              organizationId: true
+            }
+          },
+          id: true
+        },
+        where: {
+          id: messageId
+        }
+      });
+
+      return message
+        ? {
+            conversationId: message.conversation.id,
+            id: message.id,
+            organizationId: message.conversation.organizationId
+          }
+        : null;
+    },
+
+    async createAttachment(input: CreateAttachmentInput & { conversationId: string }) {
+      const prisma = await getPrisma();
+      return prisma.attachment.create({
+        data: input
+      });
+    },
+
+    async deleteMessage(messageId) {
+      const prisma = await getPrisma();
+
+      return prisma.$transaction(async (tx) => {
+        const message = await tx.message.findUnique({
+          select: {
+            conversationId: true,
+            id: true
+          },
+          where: {
+            id: messageId
+          }
+        });
+
+        if (!message) {
+          return false;
+        }
+
+        await tx.message.delete({
+          where: {
+            id: messageId
+          }
+        });
+
+        const latestMessage = await tx.message.findFirst({
+          orderBy: {
+            occurredAt: "desc"
+          },
+          select: {
+            occurredAt: true
+          },
+          where: {
+            conversationId: message.conversationId
+          }
+        });
+
+        await tx.conversation.update({
+          data: {
+            lastMessageAt: latestMessage?.occurredAt ?? null
+          },
+          where: {
+            id: message.conversationId
+          }
+        });
+
+        return true;
+      });
     }
   };
 }
@@ -256,5 +510,76 @@ function toSafeUser(user: StoredUser): SafeUser {
     id: user.id,
     name: user.name,
     updatedAt: user.updatedAt
+  };
+}
+
+function conversationInclude() {
+  return {
+    messages: {
+      orderBy: {
+        occurredAt: "desc" as const
+      },
+      select: {
+        body: true
+      },
+      take: 1
+    },
+    project: {
+      select: {
+        code: true,
+        id: true,
+        name: true
+      }
+    }
+  };
+}
+
+function messageInclude() {
+  return {
+    attachments: true,
+    senderParticipant: true
+  };
+}
+
+function toConversationRecord(
+  conversation: Omit<ConversationRecord, "lastMessageBody" | "project"> & {
+    messages: Array<{ body: string | null }>;
+    project: ConversationRecord["project"];
+  }
+): ConversationRecord {
+  return {
+    channel: conversation.channel,
+    createdAt: conversation.createdAt,
+    externalId: conversation.externalId,
+    id: conversation.id,
+    isGroup: conversation.isGroup,
+    lastMessageAt: conversation.lastMessageAt,
+    lastMessageBody: conversation.messages[0]?.body ?? null,
+    organizationId: conversation.organizationId,
+    project: conversation.project,
+    projectId: conversation.projectId,
+    title: conversation.title,
+    updatedAt: conversation.updatedAt
+  };
+}
+
+function toMessageRecord(
+  message: Omit<MessageRecord, "attachments" | "senderParticipant"> & {
+    attachments: AttachmentRecord[];
+    senderParticipant: ParticipantRecord;
+  }
+): MessageRecord {
+  return {
+    attachments: message.attachments,
+    body: message.body,
+    conversationId: message.conversationId,
+    createdAt: message.createdAt,
+    direction: message.direction,
+    externalMessageId: message.externalMessageId,
+    id: message.id,
+    occurredAt: message.occurredAt,
+    senderParticipant: message.senderParticipant,
+    senderParticipantId: message.senderParticipantId,
+    type: message.type
   };
 }

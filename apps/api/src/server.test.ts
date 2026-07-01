@@ -1,4 +1,16 @@
 import type { FastifyInstance } from "fastify";
+import type {
+  AttachmentRecord,
+  ConversationContext,
+  ConversationRecord,
+  CreateAttachmentInput,
+  CreateConversationInput,
+  CreateMessageInput,
+  CreateParticipantInput,
+  MessageContext,
+  MessageRecord,
+  ParticipantRecord
+} from "@fieldos/messaging";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
@@ -139,6 +151,120 @@ describe("FieldOS API auth and tenancy", () => {
 
     expect(response.statusCode).toBe(403);
   });
+
+  it("creates and lists conversations for a member organization", async () => {
+    const cookie = await signup(server);
+    const organization = await createOrganization(server, cookie);
+
+    const createResponse = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "POST",
+      payload: {
+        channel: "EMAIL",
+        externalId: "external-conversation-1",
+        organizationId: organization.id,
+        title: "Loading dock access"
+      },
+      url: "/conversations"
+    });
+
+    expect(createResponse.statusCode).toBe(200);
+
+    const listResponse = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "GET",
+      url: `/conversations?organizationId=${organization.id}&search=dock`
+    });
+
+    expect(listResponse.statusCode).toBe(200);
+    expect(listResponse.json().conversations).toHaveLength(1);
+  });
+
+  it("adds a message and attachment, then deletes the message", async () => {
+    const cookie = await signup(server);
+    const organization = await createOrganization(server, cookie);
+    const conversation = await repository.createConversation({
+      channel: "SMS",
+      externalId: "external-conversation-2",
+      isGroup: false,
+      lastMessageAt: null,
+      organizationId: organization.id,
+      projectId: null,
+      title: "Crew check-in"
+    });
+    const participant = await repository.addParticipant({
+      conversationId: conversation.id,
+      displayName: "Crew Lead",
+      externalIdentifier: "crew-lead",
+      role: "operator"
+    });
+
+    const messageResponse = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "POST",
+      payload: {
+        body: "Arrived on site.",
+        conversationId: conversation.id,
+        direction: "INBOUND",
+        occurredAt: "2026-06-30T00:00:00.000Z",
+        senderParticipantId: participant.id,
+        type: "TEXT"
+      },
+      url: "/messages"
+    });
+
+    expect(messageResponse.statusCode).toBe(200);
+
+    const attachmentResponse = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "POST",
+      payload: {
+        filename: "site-photo.jpg",
+        messageId: messageResponse.json().message.id,
+        mimeType: "image/jpeg",
+        size: 2048,
+        storageKey: "attachments/site-photo.jpg"
+      },
+      url: "/attachments"
+    });
+
+    expect(attachmentResponse.statusCode).toBe(200);
+
+    const deleteResponse = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "DELETE",
+      url: `/messages/${messageResponse.json().message.id}`
+    });
+
+    expect(deleteResponse.statusCode).toBe(200);
+    expect(deleteResponse.json()).toEqual({ ok: true });
+  });
+
+  it("rejects conversation access for non-members", async () => {
+    const ownerCookie = await signup(server, "owner@example.com");
+    const organization = await createOrganization(server, ownerCookie);
+    const outsiderCookie = await signup(server, "outsider@example.com");
+
+    const response = await server.inject({
+      headers: {
+        cookie: outsiderCookie
+      },
+      method: "GET",
+      url: `/conversations?organizationId=${organization.id}`
+    });
+
+    expect(response.statusCode).toBe(403);
+  });
 });
 
 async function signup(
@@ -184,8 +310,12 @@ async function createOrganization(
 }
 
 class InMemoryRepository implements AppRepository {
+  attachments: AttachmentRecord[] = [];
+  conversations: ConversationRecord[] = [];
   memberships: MembershipRecord[] = [];
+  messages: MessageRecord[] = [];
   organizations: Omit<OrganizationRecord, "role">[] = [];
+  participants: ParticipantRecord[] = [];
   projects: ProjectRecord[] = [];
   users: StoredUser[] = [];
 
@@ -235,6 +365,85 @@ class InMemoryRepository implements AppRepository {
     return project;
   }
 
+  async createConversation(input: Required<CreateConversationInput>): Promise<ConversationRecord> {
+    const now = new Date();
+    const project = input.projectId
+      ? this.projects.find((candidate) => candidate.id === input.projectId)
+      : null;
+    const conversation = {
+      ...input,
+      createdAt: now,
+      id: nextId("conversation"),
+      lastMessageBody: null,
+      project: project
+        ? {
+            code: project.code,
+            id: project.id,
+            name: project.name
+          }
+        : null,
+      updatedAt: now
+    };
+    this.conversations.push(conversation);
+    return conversation;
+  }
+
+  async addParticipant(input: CreateParticipantInput): Promise<ParticipantRecord> {
+    const participant = {
+      ...input,
+      createdAt: new Date(),
+      id: nextId("participant")
+    };
+    this.participants.push(participant);
+    return participant;
+  }
+
+  async createMessage(input: CreateMessageInput): Promise<MessageRecord> {
+    const participant = await this.findParticipant(input.senderParticipantId);
+
+    if (!participant) {
+      throw new Error("participant missing in test repository");
+    }
+
+    const message = {
+      ...input,
+      attachments: [],
+      body: input.body ?? null,
+      createdAt: new Date(),
+      externalMessageId: input.externalMessageId ?? null,
+      id: nextId("message"),
+      senderParticipant: participant
+    };
+    this.messages.push(message);
+
+    const conversation = this.conversations.find(
+      (candidate) => candidate.id === input.conversationId
+    );
+    if (conversation) {
+      conversation.lastMessageAt = input.occurredAt;
+      conversation.lastMessageBody = input.body ?? null;
+      conversation.updatedAt = new Date();
+    }
+
+    return message;
+  }
+
+  async createAttachment(
+    input: CreateAttachmentInput & { conversationId: string }
+  ): Promise<AttachmentRecord> {
+    const attachment = {
+      ...input,
+      createdAt: new Date(),
+      id: nextId("attachment")
+    };
+    this.attachments.push(attachment);
+
+    const message = this.messages.find((candidate) => candidate.id === input.messageId);
+    message?.attachments.push(attachment);
+
+    return attachment;
+  }
+
   async createUser(input: {
     email: string;
     name: string;
@@ -259,6 +468,49 @@ class InMemoryRepository implements AppRepository {
         (membership) => membership.userId === userId && membership.organizationId === organizationId
       ) ?? null
     );
+  }
+
+  async userBelongsToOrganization(userId: string, organizationId: string): Promise<boolean> {
+    return Boolean(await this.findMembership(userId, organizationId));
+  }
+
+  async projectBelongsToOrganization(projectId: string, organizationId: string): Promise<boolean> {
+    return this.projects.some(
+      (project) => project.id === projectId && project.organizationId === organizationId
+    );
+  }
+
+  async findConversationContext(conversationId: string): Promise<ConversationContext | null> {
+    const conversation = this.conversations.find((candidate) => candidate.id === conversationId);
+    return conversation
+      ? {
+          id: conversation.id,
+          organizationId: conversation.organizationId
+        }
+      : null;
+  }
+
+  async findMessageContext(messageId: string): Promise<MessageContext | null> {
+    const message = this.messages.find((candidate) => candidate.id === messageId);
+    const conversation = message
+      ? this.conversations.find((candidate) => candidate.id === message.conversationId)
+      : null;
+
+    return message && conversation
+      ? {
+          conversationId: conversation.id,
+          id: message.id,
+          organizationId: conversation.organizationId
+        }
+      : null;
+  }
+
+  async findParticipant(participantId: string): Promise<ParticipantRecord | null> {
+    return this.participants.find((participant) => participant.id === participantId) ?? null;
+  }
+
+  async getConversation(conversationId: string): Promise<ConversationRecord | null> {
+    return this.conversations.find((conversation) => conversation.id === conversationId) ?? null;
   }
 
   async findProjectForUser(userId: string, projectId: string): Promise<ProjectRecord | null> {
@@ -306,6 +558,42 @@ class InMemoryRepository implements AppRepository {
     return membership
       ? this.projects.filter((project) => project.organizationId === organizationId)
       : [];
+  }
+
+  async listConversations(input: {
+    organizationId: string;
+    search?: string;
+  }): Promise<ConversationRecord[]> {
+    const search = input.search?.toLowerCase() ?? "";
+
+    return this.conversations.filter((conversation) => {
+      const messages = this.messages.filter(
+        (message) => message.conversationId === conversation.id
+      );
+
+      return (
+        conversation.organizationId === input.organizationId &&
+        (!search ||
+          conversation.title.toLowerCase().includes(search) ||
+          messages.some((message) => message.body?.toLowerCase().includes(search)))
+      );
+    });
+  }
+
+  async listMessages(conversationId: string): Promise<MessageRecord[]> {
+    return this.messages.filter((message) => message.conversationId === conversationId);
+  }
+
+  async deleteMessage(messageId: string): Promise<boolean> {
+    const index = this.messages.findIndex((message) => message.id === messageId);
+
+    if (index === -1) {
+      return false;
+    }
+
+    this.messages.splice(index, 1);
+    this.attachments = this.attachments.filter((attachment) => attachment.messageId !== messageId);
+    return true;
   }
 }
 

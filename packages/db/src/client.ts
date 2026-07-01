@@ -5,11 +5,14 @@ declare global {
   var fieldosPrisma: PrismaClient | undefined;
 }
 
+const databaseUrl =
+  process.env.DATABASE_URL ?? "postgresql://fieldos:fieldos@localhost:5432/fieldos?schema=public";
+
 export const prisma =
   globalThis.fieldosPrisma ??
   new PrismaClient({
     adapter: new PrismaPg({
-      connectionString: process.env.DATABASE_URL
+      connectionString: databaseUrl
     }),
     log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error", "warn"]
   });

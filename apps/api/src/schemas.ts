@@ -8,6 +8,14 @@ export const projectParamsSchema = z.object({
   projectId: z.string().min(1)
 });
 
+export const conversationParamsSchema = z.object({
+  id: z.string().min(1)
+});
+
+export const messageParamsSchema = z.object({
+  id: z.string().min(1)
+});
+
 export const createOrganizationSchema = z.object({
   name: z.string().trim().min(1).max(120),
   slug: z

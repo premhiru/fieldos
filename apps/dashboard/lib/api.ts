@@ -1,6 +1,9 @@
 export type MembershipRole = "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
 
 export type ProjectStatus = "ACTIVE" | "PAUSED" | "COMPLETED" | "ARCHIVED";
+export type Channel = "WHATSAPP" | "EMAIL" | "SLACK" | "TEAMS" | "SMS";
+export type MessageDirection = "INBOUND" | "OUTBOUND";
+export type MessageType = "TEXT" | "IMAGE" | "DOCUMENT" | "VOICE" | "VIDEO" | "SYSTEM";
 
 export interface User {
   id: string;
@@ -21,6 +24,61 @@ export interface Project {
   name: string;
   organizationId: string;
   status: ProjectStatus;
+}
+
+export interface ProjectReference {
+  id: string;
+  code: string;
+  name: string;
+}
+
+export interface Conversation {
+  id: string;
+  organizationId: string;
+  projectId: string | null;
+  externalId: string;
+  channel: Channel;
+  title: string;
+  isGroup: boolean;
+  lastMessageAt: string | null;
+  lastMessageBody: string | null;
+  project: ProjectReference | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Participant {
+  id: string;
+  conversationId: string;
+  displayName: string;
+  externalIdentifier: string;
+  role: string;
+  createdAt: string;
+}
+
+export interface Attachment {
+  id: string;
+  messageId: string;
+  conversationId: string;
+  filename: string;
+  mimeType: string;
+  storageKey: string;
+  size: number;
+  createdAt: string;
+}
+
+export interface Message {
+  id: string;
+  conversationId: string;
+  senderParticipantId: string;
+  senderParticipant: Participant;
+  direction: MessageDirection;
+  type: MessageType;
+  body: string | null;
+  externalMessageId: string | null;
+  occurredAt: string;
+  createdAt: string;
+  attachments: Attachment[];
 }
 
 class DashboardApiError extends Error {
@@ -77,8 +135,21 @@ export const api = {
       body: JSON.stringify(body),
       method: "POST"
     }),
+  getConversation: (conversationId: string) =>
+    apiRequest<{ conversation: Conversation }>(`/conversations/${conversationId}`),
   getMe: () => apiRequest<{ user: User }>("/auth/me"),
   getProject: (projectId: string) => apiRequest<{ project: Project }>(`/projects/${projectId}`),
+  listConversationMessages: (conversationId: string) =>
+    apiRequest<{ messages: Message[] }>(`/conversations/${conversationId}/messages`),
+  listConversations: (organizationId: string, search = "") => {
+    const params = new URLSearchParams({ organizationId });
+
+    if (search.trim()) {
+      params.set("search", search.trim());
+    }
+
+    return apiRequest<{ conversations: Conversation[] }>(`/conversations?${params.toString()}`);
+  },
   listOrganizations: () => apiRequest<{ organizations: Organization[] }>("/organizations"),
   listProjects: (organizationId: string) =>
     apiRequest<{ projects: Project[] }>(`/organizations/${organizationId}/projects`),

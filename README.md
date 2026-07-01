@@ -24,11 +24,11 @@
 
 FieldOS is the AI Operating System for Field Operations.
 
-The repository is a pnpm and Turborepo monorepo containing a Next.js dashboard, a Fastify API, a standalone Redis-backed worker, and shared packages for UI, database access, authentication, and cross-cutting utilities.
+The repository is a pnpm and Turborepo monorepo containing a Next.js dashboard, a Fastify API, a standalone Redis-backed worker, and shared packages for UI, database access, authentication, messaging, and cross-cutting utilities.
 
 ## Architecture
 
-FieldOS starts as a modular monolith with clear package boundaries. The current product slice supports JWT-cookie authentication, organization workspaces, organization memberships, and projects.
+FieldOS starts as a modular monolith with clear package boundaries. The current product slice supports JWT-cookie authentication, organization workspaces, organization memberships, projects, and a channel-agnostic messaging foundation.
 
 ```mermaid
 flowchart TD
@@ -39,6 +39,7 @@ flowchart TD
   DB["packages/db\nPrisma Client"]
   Shared["packages/shared\nEnv, Logger, Utilities"]
   Auth["packages/auth\nJWT, Passwords, Auth Schemas"]
+  Messaging["packages/messaging\nConversations, Messages, Attachments"]
   Postgres["PostgreSQL"]
   Redis["Redis"]
 
@@ -46,6 +47,7 @@ flowchart TD
   Dashboard --> Shared
   API --> DB
   API --> Shared
+  API --> Messaging
   Worker --> Shared
   Worker --> Redis
   DB --> Postgres
@@ -77,6 +79,7 @@ Generate Prisma client and apply migrations:
 ```bash
 pnpm db:generate
 pnpm db:migrate
+pnpm db:seed
 ```
 
 Test the auth flow:
@@ -111,6 +114,7 @@ pnpm format
 pnpm typecheck
 pnpm db:generate
 pnpm db:migrate
+pnpm db:seed
 ```
 
 ## Repository Layout
@@ -124,6 +128,7 @@ packages/
   ui/              Shared UI components.
   db/              Prisma schema, migration, client, and database utilities.
   auth/            JWT cookie auth, password hashing, and auth schemas.
+  messaging/       Channel-agnostic conversation, message, and attachment services.
   shared/          Environment helpers, logger, constants, and utilities.
 docs/              Product, architecture, UX, database, roadmap, and ADR docs.
 tests/             Cross-cutting and end-to-end tests.
@@ -168,12 +173,18 @@ Organizations are workspaces. Users access organizations through memberships wit
 
 Project creation is limited to `OWNER` and `ADMIN`. Project reads are scoped to organization membership.
 
+## Messaging
+
+FieldOS models all channel communication as conversations, participants, messages, and attachments. Messaging services are channel-agnostic. Channel adapters map external systems into the core model rather than changing the model itself.
+
+Supported channel values are `WHATSAPP`, `EMAIL`, `SLACK`, `TEAMS`, and `SMS`.
+
 ## Current Roadmap
 
-1. Complete authentication, organizations, and projects.
+1. Complete the unified messaging platform.
 2. Add invite and membership management.
 3. Add operational observability and deployment automation.
-4. Introduce WhatsApp, AI, reports, and tasks only after core workflow boundaries are stable.
+4. Introduce channel adapters, AI, reports, and tasks only after core workflow boundaries are stable.
 
 ## Contributing Guidelines
 

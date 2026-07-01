@@ -83,6 +83,9 @@ importers:
       '@fieldos/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@fieldos/messaging':
+        specifier: workspace:*
+        version: link:../../packages/messaging
       '@fieldos/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -181,6 +184,15 @@ importers:
       prisma:
         specifier: ^7.2.0
         version: 7.8.0(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(typescript@5.9.3)
+      tsx:
+        specifier: ^4.21.0
+        version: 4.22.4
+
+  packages/messaging:
+    dependencies:
+      zod:
+        specifier: ^4.2.1
+        version: 4.4.3
 
   packages/shared:
     dependencies:

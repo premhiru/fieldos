@@ -26,3 +26,12 @@ export function useProjects(organizationId: string | null) {
     retry: false
   });
 }
+
+export function useConversations(organizationId: string | null, search: string) {
+  return useQuery({
+    enabled: Boolean(organizationId),
+    queryFn: () => api.listConversations(organizationId ?? "", search),
+    queryKey: ["conversations", organizationId, search],
+    retry: false
+  });
+}
