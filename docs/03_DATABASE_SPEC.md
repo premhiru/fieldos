@@ -5,13 +5,14 @@
 | Purpose      | Define the data model, ownership boundaries, migration policy, and database standards. |
 | Owner        | Engineering                                                                            |
 | Status       | Draft                                                                                  |
-| Last Updated | 2026-06-30                                                                             |
+| Last Updated | 2026-07-01                                                                             |
 
 ## Table of Contents
 
 - [Data Principles](#data-principles)
 - [Domain Model](#domain-model)
 - [Messaging Model](#messaging-model)
+- [WhatsApp Connector Model](#whatsapp-connector-model)
 - [Schema Ownership](#schema-ownership)
 - [Migration Policy](#migration-policy)
 - [Retention and Compliance](#retention-and-compliance)
@@ -33,6 +34,8 @@ Current MVP models:
 - `Participant`: Sender or actor inside a conversation.
 - `Message`: Inbound, outbound, or system event inside a conversation.
 - `Attachment`: File metadata attached to a message.
+- `WhatsAppAccount`: A WhatsApp connector account owned by an organization.
+- `WhatsAppChatMapping`: Connector-specific mapping between a WhatsApp chat JID, a generic conversation, and an optional project.
 
 Membership roles:
 
@@ -83,6 +86,37 @@ Key constraints:
 - `Message.externalMessageId` is unique per conversation when present.
 - Attachments cascade with their messages.
 
+## WhatsApp Connector Model
+
+WhatsApp connector data is intentionally separate from the generic messaging model.
+
+`WhatsAppAccount` fields:
+
+- `organizationId`: Owning organization.
+- `displayName`: Operator-facing account label.
+- `phoneNumber`: Populated after a successful WhatsApp connection when available.
+- `connectorType`: `BAILEYS` now, with `META_CLOUD` reserved for the official API path.
+- `status`: `PENDING_QR`, `CONNECTING`, `CONNECTED`, `DISCONNECTED`, or `ERROR`.
+- `sessionKey`: Stable storage key for session material.
+- `lastConnectedAt`, `lastDisconnectedAt`, and `lastMessageAt`: Operational timestamps.
+
+`WhatsAppChatMapping` fields:
+
+- `organizationId`: Owning organization.
+- `whatsappAccountId`: Source WhatsApp account.
+- `conversationId`: Generic conversation created from the WhatsApp chat.
+- `projectId`: Optional project assignment.
+- `jid`: WhatsApp chat JID.
+- `chatName`: Last known chat or group display name.
+- `isGroup`: Whether the JID is a group chat.
+
+Key constraints:
+
+- `WhatsAppAccount.sessionKey` is unique.
+- `WhatsAppChatMapping` is unique by `whatsappAccountId` and `jid`.
+- A generic conversation can have only one WhatsApp chat mapping.
+- Chat mappings cascade with their account and conversation.
+
 ## Schema Ownership
 
 `packages/db/prisma/schema.prisma` is the source of truth for the database schema. Migrations live in `packages/db/prisma/migrations`.
@@ -111,3 +145,4 @@ Placeholder.
 
 - Invite flow and membership management are not implemented yet.
 - Session revocation and password reset tables are not implemented yet.
+- Production object storage tables or metadata are not implemented yet.

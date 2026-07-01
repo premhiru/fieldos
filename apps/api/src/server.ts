@@ -1,5 +1,6 @@
 import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
+import { RedisWhatsAppQrStore, type WhatsAppQrStore } from "@fieldos/baileys-whatsapp/qr-store";
 import {
   AUTH_COOKIE_NAME,
   hashPassword,
@@ -21,6 +22,7 @@ import {
   MessagingServiceError
 } from "@fieldos/messaging";
 import fastify, { type FastifyReply, type FastifyRequest } from "fastify";
+import { Redis } from "ioredis";
 import { ZodError } from "zod";
 
 import { apiEnv } from "./env.js";
@@ -35,14 +37,20 @@ import {
   createOrganizationSchema,
   createProjectSchema,
   conversationParamsSchema,
+  createWhatsAppAccountSchema,
   messageParamsSchema,
   organizationParamsSchema,
-  projectParamsSchema
+  projectParamsSchema,
+  updateWhatsAppChatMappingSchema,
+  whatsappAccountParamsSchema,
+  whatsappAccountsQuerySchema,
+  whatsappChatMappingParamsSchema
 } from "./schemas.js";
 
 const writableRoles = new Set<Role>(["OWNER", "ADMIN"]);
 
 export interface BuildServerOptions {
+  qrStore?: WhatsAppQrStore;
   repository?: AppRepository;
 }
 
@@ -57,6 +65,8 @@ export function buildServer(options: BuildServerOptions = {}) {
   const conversationService = new ConversationService(repository);
   const messageService = new MessageService(repository);
   const attachmentService = new AttachmentService(repository);
+  const qrRedis = options.qrStore ? null : new Redis(apiEnv.REDIS_URL, { lazyConnect: true });
+  const qrStore = options.qrStore ?? new RedisWhatsAppQrStore(qrRedis as Redis);
   const server = fastify({
     logger: {
       level: process.env.LOG_LEVEL ?? "info"
@@ -309,7 +319,105 @@ export function buildServer(options: BuildServerOptions = {}) {
     return messageService.deleteMessage(user.id, params.id);
   });
 
+  server.get("/whatsapp/accounts", { preHandler: requireAuth }, async (request) => {
+    const query = whatsappAccountsQuerySchema.parse(request.query);
+    const user = requireCurrentUser(request);
+    await requireOrganizationMembership(user.id, query.organizationId);
+
+    return {
+      accounts: await repository.listWhatsAppAccounts(query.organizationId)
+    };
+  });
+
+  server.post("/whatsapp/accounts", { preHandler: requireAuth }, async (request) => {
+    const body = createWhatsAppAccountSchema.parse(request.body);
+    const user = requireCurrentUser(request);
+    await requireWritableOrganizationRole(user.id, body.organizationId);
+
+    return {
+      account: await repository.createWhatsAppAccount(body)
+    };
+  });
+
+  server.get("/whatsapp/accounts/:id", { preHandler: requireAuth }, async (request) => {
+    const params = whatsappAccountParamsSchema.parse(request.params);
+    const account = await requireWhatsAppAccountAccess(requireCurrentUser(request).id, params.id);
+
+    return {
+      account
+    };
+  });
+
+  server.post("/whatsapp/accounts/:id/connect", { preHandler: requireAuth }, async (request) => {
+    const params = whatsappAccountParamsSchema.parse(request.params);
+    const account = await requireWhatsAppAccountAccess(requireCurrentUser(request).id, params.id);
+    await requireWritableOrganizationRole(requireCurrentUser(request).id, account.organizationId);
+
+    return {
+      account: await repository.updateWhatsAppAccountStatus(account.id, "PENDING_QR")
+    };
+  });
+
+  server.post("/whatsapp/accounts/:id/disconnect", { preHandler: requireAuth }, async (request) => {
+    const params = whatsappAccountParamsSchema.parse(request.params);
+    const account = await requireWhatsAppAccountAccess(requireCurrentUser(request).id, params.id);
+    await requireWritableOrganizationRole(requireCurrentUser(request).id, account.organizationId);
+    await qrStore.remove(account.id);
+
+    return {
+      account: await repository.updateWhatsAppAccountStatus(account.id, "DISCONNECTED")
+    };
+  });
+
+  server.get("/whatsapp/accounts/:id/qr", { preHandler: requireAuth }, async (request) => {
+    const params = whatsappAccountParamsSchema.parse(request.params);
+    const account = await requireWhatsAppAccountAccess(requireCurrentUser(request).id, params.id);
+
+    return {
+      qr: await qrStore.get(account.id),
+      status: account.status
+    };
+  });
+
+  server.get("/whatsapp/accounts/:id/chats", { preHandler: requireAuth }, async (request) => {
+    const params = whatsappAccountParamsSchema.parse(request.params);
+    const account = await requireWhatsAppAccountAccess(requireCurrentUser(request).id, params.id);
+
+    return {
+      chats: await repository.listWhatsAppChatMappings(account.id)
+    };
+  });
+
+  server.patch("/whatsapp/chat-mappings/:id", { preHandler: requireAuth }, async (request) => {
+    const params = whatsappChatMappingParamsSchema.parse(request.params);
+    const body = updateWhatsAppChatMappingSchema.parse(request.body);
+    const mapping = await findWhatsAppChatMappingForUser(requireCurrentUser(request).id, params.id);
+    await requireWritableOrganizationRole(requireCurrentUser(request).id, mapping.organizationId);
+
+    if (body.projectId) {
+      const project = await repository.findProjectForUser(
+        requireCurrentUser(request).id,
+        body.projectId
+      );
+
+      if (!project || project.organizationId !== mapping.organizationId) {
+        throw notFound("Project not found.");
+      }
+    }
+
+    return {
+      chat: await repository.updateWhatsAppChatMapping({
+        mappingId: params.id,
+        projectId: body.projectId
+      })
+    };
+  });
+
   server.addHook("onClose", async () => {
+    if (qrRedis) {
+      await qrRedis.quit();
+    }
+
     await repository.disconnect();
   });
 
@@ -339,6 +447,56 @@ export function buildServer(options: BuildServerOptions = {}) {
       ...getCookieBaseOptions(),
       maxAge: sessionDurationSeconds
     });
+  }
+
+  async function requireOrganizationMembership(userId: string, organizationId: string) {
+    const membership = await repository.findMembership(userId, organizationId);
+
+    if (!membership) {
+      throw notFound("Organization not found.");
+    }
+
+    return membership;
+  }
+
+  async function requireWritableOrganizationRole(userId: string, organizationId: string) {
+    const membership = await requireOrganizationMembership(userId, organizationId);
+
+    if (!writableRoles.has(membership.role)) {
+      throw forbidden();
+    }
+
+    return membership;
+  }
+
+  async function requireWhatsAppAccountAccess(userId: string, accountId: string) {
+    const account = await repository.getWhatsAppAccount(accountId);
+
+    if (!account) {
+      throw notFound("WhatsApp account not found.");
+    }
+
+    await requireOrganizationMembership(userId, account.organizationId);
+    return account;
+  }
+
+  async function findWhatsAppChatMappingForUser(userId: string, mappingId: string) {
+    const organizations = await repository.listOrganizations(userId);
+
+    for (const organization of organizations) {
+      const accounts = await repository.listWhatsAppAccounts(organization.id);
+
+      for (const account of accounts) {
+        const mappings = await repository.listWhatsAppChatMappings(account.id);
+        const mapping = mappings.find((candidate) => candidate.id === mappingId);
+
+        if (mapping) {
+          return mapping;
+        }
+      }
+    }
+
+    throw notFound("WhatsApp chat mapping not found.");
   }
 
   return server;

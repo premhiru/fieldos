@@ -1,4 +1,6 @@
 import { Redis } from "ioredis";
+import { BaileysWhatsAppSessionManager, RedisWhatsAppQrStore } from "@fieldos/baileys-whatsapp";
+import { prisma } from "@fieldos/db";
 
 import { createLogger } from "@fieldos/shared";
 
@@ -9,6 +11,14 @@ const redis = new Redis(workerEnv.REDIS_URL, {
   lazyConnect: true,
   maxRetriesPerRequest: 3
 });
+const whatsappSessionManager = new BaileysWhatsAppSessionManager(
+  prisma,
+  new RedisWhatsAppQrStore(redis),
+  {
+    pollIntervalMs: workerEnv.WHATSAPP_SESSION_POLL_INTERVAL_MS,
+    rootStoragePath: workerEnv.WHATSAPP_STORAGE_PATH
+  }
+);
 
 redis.on("error", (error: Error) => {
   logger.warn({ error }, "redis connection error");
@@ -19,6 +29,7 @@ let heartbeat: NodeJS.Timeout | undefined;
 async function start() {
   await redis.connect();
   await redis.ping();
+  await whatsappSessionManager.start();
 
   logger.info("worker started and waiting for jobs");
 
@@ -34,7 +45,9 @@ async function shutdown(signal: NodeJS.Signals) {
     clearInterval(heartbeat);
   }
 
+  await whatsappSessionManager.stop();
   await redis.quit();
+  await prisma.$disconnect();
 }
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {

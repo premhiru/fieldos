@@ -11,6 +11,7 @@ import type {
   MessageRecord,
   ParticipantRecord
 } from "@fieldos/messaging";
+import type { WhatsAppQrStore } from "@fieldos/baileys-whatsapp/qr-store";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
@@ -21,7 +22,9 @@ import type {
   Role,
   SafeUser,
   Status,
-  StoredUser
+  StoredUser,
+  WhatsAppAccountRecord,
+  WhatsAppChatMappingRecord
 } from "./repository.js";
 
 vi.stubEnv("CORS_ORIGIN", "http://localhost:3000");
@@ -42,7 +45,7 @@ describe("FieldOS API auth and tenancy", () => {
 
   beforeEach(() => {
     repository = new InMemoryRepository();
-    server = buildServer({ repository });
+    server = buildServer({ qrStore: new InMemoryQrStore(), repository });
   });
 
   it("signs up a user", async () => {
@@ -265,6 +268,130 @@ describe("FieldOS API auth and tenancy", () => {
 
     expect(response.statusCode).toBe(403);
   });
+
+  it("creates a WhatsApp account as organization owner", async () => {
+    const cookie = await signup(server);
+    const organization = await createOrganization(server, cookie);
+
+    const response = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "POST",
+      payload: {
+        displayName: "Dispatch line",
+        organizationId: organization.id
+      },
+      url: "/whatsapp/accounts"
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().account.status).toBe("PENDING_QR");
+  });
+
+  it("enforces admin-only WhatsApp connect and disconnect", async () => {
+    const ownerCookie = await signup(server, "owner@example.com");
+    const organization = await createOrganization(server, ownerCookie);
+    const account = await repository.createWhatsAppAccount({
+      displayName: "Dispatch line",
+      organizationId: organization.id
+    });
+    const memberCookie = await signup(server, "member@example.com");
+    const member = repository.users.find((user) => user.email === "member@example.com");
+
+    if (!member) {
+      throw new Error("member user was not created");
+    }
+
+    repository.addMembership(member.id, organization.id, "MEMBER");
+
+    const memberConnect = await server.inject({
+      headers: {
+        cookie: memberCookie
+      },
+      method: "POST",
+      url: `/whatsapp/accounts/${account.id}/connect`
+    });
+
+    expect(memberConnect.statusCode).toBe(403);
+
+    const ownerConnect = await server.inject({
+      headers: {
+        cookie: ownerCookie
+      },
+      method: "POST",
+      url: `/whatsapp/accounts/${account.id}/connect`
+    });
+
+    expect(ownerConnect.statusCode).toBe(200);
+  });
+
+  it("maps a WhatsApp chat to a project", async () => {
+    const cookie = await signup(server);
+    const organization = await createOrganization(server, cookie);
+    const project = await repository.createProject({
+      code: "MAP-001",
+      name: "Mapping project",
+      organizationId: organization.id,
+      status: "ACTIVE"
+    });
+    const account = await repository.createWhatsAppAccount({
+      displayName: "Dispatch line",
+      organizationId: organization.id
+    });
+    const conversation = await repository.createConversation({
+      channel: "WHATSAPP",
+      externalId: "15551234567@s.whatsapp.net",
+      isGroup: false,
+      lastMessageAt: null,
+      organizationId: organization.id,
+      projectId: null,
+      title: "Field contact"
+    });
+    const mapping = repository.addWhatsAppChatMapping({
+      accountId: account.id,
+      conversationId: conversation.id,
+      jid: "15551234567@s.whatsapp.net",
+      organizationId: organization.id
+    });
+
+    const response = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "PATCH",
+      payload: {
+        projectId: project.id
+      },
+      url: `/whatsapp/chat-mappings/${mapping.id}`
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().chat.project.id).toBe(project.id);
+    expect(repository.conversations.find((item) => item.id === conversation.id)?.projectId).toBe(
+      project.id
+    );
+  });
+
+  it("prevents cross-organization WhatsApp account access", async () => {
+    const ownerCookie = await signup(server, "owner@example.com");
+    const organization = await createOrganization(server, ownerCookie);
+    const account = await repository.createWhatsAppAccount({
+      displayName: "Dispatch line",
+      organizationId: organization.id
+    });
+    const outsiderCookie = await signup(server, "outsider@example.com");
+
+    const response = await server.inject({
+      headers: {
+        cookie: outsiderCookie
+      },
+      method: "GET",
+      url: `/whatsapp/accounts/${account.id}`
+    });
+
+    expect(response.statusCode).toBe(404);
+  });
 });
 
 async function signup(
@@ -318,6 +445,8 @@ class InMemoryRepository implements AppRepository {
   participants: ParticipantRecord[] = [];
   projects: ProjectRecord[] = [];
   users: StoredUser[] = [];
+  whatsAppAccounts: WhatsAppAccountRecord[] = [];
+  whatsAppChatMappings: WhatsAppChatMappingRecord[] = [];
 
   addMembership(userId: string, organizationId: string, role: Role): MembershipRecord {
     const membership = {
@@ -386,6 +515,66 @@ class InMemoryRepository implements AppRepository {
     };
     this.conversations.push(conversation);
     return conversation;
+  }
+
+  async createWhatsAppAccount(input: {
+    displayName: string;
+    organizationId: string;
+  }): Promise<WhatsAppAccountRecord> {
+    const now = new Date();
+    const account = {
+      connectorType: "BAILEYS" as const,
+      createdAt: now,
+      displayName: input.displayName,
+      id: nextId("whatsapp_account"),
+      lastConnectedAt: null,
+      lastDisconnectedAt: null,
+      lastMessageAt: null,
+      organizationId: input.organizationId,
+      phoneNumber: null,
+      sessionKey: `baileys/${input.organizationId}/${nextId("session")}`,
+      status: "PENDING_QR" as const,
+      updatedAt: now
+    };
+    this.whatsAppAccounts.push(account);
+    return account;
+  }
+
+  addWhatsAppChatMapping(input: {
+    accountId: string;
+    conversationId: string;
+    jid: string;
+    organizationId: string;
+  }): WhatsAppChatMappingRecord {
+    const now = new Date();
+    const conversation = this.conversations.find(
+      (candidate) => candidate.id === input.conversationId
+    );
+
+    if (!conversation) {
+      throw new Error("conversation missing in test repository");
+    }
+
+    const mapping = {
+      chatName: conversation.title,
+      conversation: {
+        id: conversation.id,
+        projectId: conversation.projectId,
+        title: conversation.title
+      },
+      conversationId: input.conversationId,
+      createdAt: now,
+      id: nextId("whatsapp_chat"),
+      isGroup: false,
+      jid: input.jid,
+      organizationId: input.organizationId,
+      project: null,
+      projectId: null,
+      updatedAt: now,
+      whatsappAccountId: input.accountId
+    };
+    this.whatsAppChatMappings.push(mapping);
+    return mapping;
   }
 
   async addParticipant(input: CreateParticipantInput): Promise<ParticipantRecord> {
@@ -560,6 +749,68 @@ class InMemoryRepository implements AppRepository {
       : [];
   }
 
+  async getWhatsAppAccount(accountId: string): Promise<WhatsAppAccountRecord | null> {
+    return this.whatsAppAccounts.find((account) => account.id === accountId) ?? null;
+  }
+
+  async listWhatsAppAccounts(organizationId: string): Promise<WhatsAppAccountRecord[]> {
+    return this.whatsAppAccounts.filter((account) => account.organizationId === organizationId);
+  }
+
+  async updateWhatsAppAccountStatus(
+    accountId: string,
+    status: WhatsAppAccountRecord["status"]
+  ): Promise<WhatsAppAccountRecord> {
+    const account = this.whatsAppAccounts.find((candidate) => candidate.id === accountId);
+
+    if (!account) {
+      throw new Error("WhatsApp account missing in test repository");
+    }
+
+    account.status = status;
+    account.updatedAt = new Date();
+    return account;
+  }
+
+  async listWhatsAppChatMappings(accountId: string): Promise<WhatsAppChatMappingRecord[]> {
+    return this.whatsAppChatMappings.filter((mapping) => mapping.whatsappAccountId === accountId);
+  }
+
+  async updateWhatsAppChatMapping(input: {
+    mappingId: string;
+    projectId: string | null;
+  }): Promise<WhatsAppChatMappingRecord> {
+    const mapping = this.whatsAppChatMappings.find((candidate) => candidate.id === input.mappingId);
+
+    if (!mapping) {
+      throw new Error("WhatsApp chat mapping missing in test repository");
+    }
+
+    const project = input.projectId
+      ? this.projects.find((candidate) => candidate.id === input.projectId)
+      : null;
+    mapping.projectId = input.projectId;
+    mapping.project = project
+      ? {
+          code: project.code,
+          id: project.id,
+          name: project.name
+        }
+      : null;
+    mapping.conversation.projectId = input.projectId;
+    mapping.updatedAt = new Date();
+
+    const conversation = this.conversations.find(
+      (candidate) => candidate.id === mapping.conversationId
+    );
+    if (conversation) {
+      conversation.projectId = input.projectId;
+      conversation.project = mapping.project;
+    }
+
+    return mapping;
+  }
+
   async listConversations(input: {
     organizationId: string;
     search?: string;
@@ -612,4 +863,20 @@ function toSafeUser(user: StoredUser): SafeUser {
     name: user.name,
     updatedAt: user.updatedAt
   };
+}
+
+class InMemoryQrStore implements WhatsAppQrStore {
+  private readonly codes = new Map<string, string>();
+
+  async get(accountId: string): Promise<string | null> {
+    return this.codes.get(accountId) ?? null;
+  }
+
+  async remove(accountId: string): Promise<void> {
+    this.codes.delete(accountId);
+  }
+
+  async set(accountId: string, qrCode: string): Promise<void> {
+    this.codes.set(accountId, qrCode);
+  }
 }

@@ -16,6 +16,27 @@ export const messageParamsSchema = z.object({
   id: z.string().min(1)
 });
 
+export const whatsappAccountParamsSchema = z.object({
+  id: z.string().min(1)
+});
+
+export const whatsappChatMappingParamsSchema = z.object({
+  id: z.string().min(1)
+});
+
+export const whatsappAccountsQuerySchema = z.object({
+  organizationId: z.string().trim().min(1)
+});
+
+export const createWhatsAppAccountSchema = z.object({
+  displayName: z.string().trim().min(1).max(120),
+  organizationId: z.string().trim().min(1)
+});
+
+export const updateWhatsAppChatMappingSchema = z.object({
+  projectId: z.string().trim().min(1).nullable()
+});
+
 export const createOrganizationSchema = z.object({
   name: z.string().trim().min(1).max(120),
   slug: z

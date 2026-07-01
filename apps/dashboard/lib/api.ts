@@ -81,6 +81,44 @@ export interface Message {
   attachments: Attachment[];
 }
 
+export type WhatsAppConnectorType = "BAILEYS" | "META_CLOUD";
+export type WhatsAppAccountStatus =
+  "PENDING_QR" | "CONNECTING" | "CONNECTED" | "DISCONNECTED" | "ERROR";
+
+export interface WhatsAppAccount {
+  id: string;
+  organizationId: string;
+  displayName: string;
+  phoneNumber: string | null;
+  connectorType: WhatsAppConnectorType;
+  status: WhatsAppAccountStatus;
+  sessionKey: string;
+  lastConnectedAt: string | null;
+  lastDisconnectedAt: string | null;
+  lastMessageAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WhatsAppChatMapping {
+  id: string;
+  organizationId: string;
+  whatsappAccountId: string;
+  conversationId: string;
+  projectId: string | null;
+  jid: string;
+  chatName: string | null;
+  isGroup: boolean;
+  createdAt: string;
+  updatedAt: string;
+  project: ProjectReference | null;
+  conversation: {
+    id: string;
+    title: string;
+    projectId: string | null;
+  };
+}
+
 class DashboardApiError extends Error {
   constructor(
     message: string,
@@ -139,6 +177,10 @@ export const api = {
     apiRequest<{ conversation: Conversation }>(`/conversations/${conversationId}`),
   getMe: () => apiRequest<{ user: User }>("/auth/me"),
   getProject: (projectId: string) => apiRequest<{ project: Project }>(`/projects/${projectId}`),
+  getWhatsAppQr: (accountId: string) =>
+    apiRequest<{ qr: string | null; status: WhatsAppAccountStatus }>(
+      `/whatsapp/accounts/${accountId}/qr`
+    ),
   listConversationMessages: (conversationId: string) =>
     apiRequest<{ messages: Message[] }>(`/conversations/${conversationId}/messages`),
   listConversations: (organizationId: string, search = "") => {
@@ -153,6 +195,12 @@ export const api = {
   listOrganizations: () => apiRequest<{ organizations: Organization[] }>("/organizations"),
   listProjects: (organizationId: string) =>
     apiRequest<{ projects: Project[] }>(`/organizations/${organizationId}/projects`),
+  listWhatsAppAccounts: (organizationId: string) => {
+    const params = new URLSearchParams({ organizationId });
+    return apiRequest<{ accounts: WhatsAppAccount[] }>(`/whatsapp/accounts?${params.toString()}`);
+  },
+  listWhatsAppChats: (accountId: string) =>
+    apiRequest<{ chats: WhatsAppChatMapping[] }>(`/whatsapp/accounts/${accountId}/chats`),
   login: (body: { email: string; password: string }) =>
     apiRequest<{ user: User }>("/auth/login", {
       body: JSON.stringify(body),
@@ -162,9 +210,27 @@ export const api = {
     apiRequest<{ ok: true }>("/auth/logout", {
       method: "POST"
     }),
+  connectWhatsAppAccount: (accountId: string) =>
+    apiRequest<{ account: WhatsAppAccount }>(`/whatsapp/accounts/${accountId}/connect`, {
+      method: "POST"
+    }),
+  createWhatsAppAccount: (body: { displayName: string; organizationId: string }) =>
+    apiRequest<{ account: WhatsAppAccount }>("/whatsapp/accounts", {
+      body: JSON.stringify(body),
+      method: "POST"
+    }),
+  disconnectWhatsAppAccount: (accountId: string) =>
+    apiRequest<{ account: WhatsAppAccount }>(`/whatsapp/accounts/${accountId}/disconnect`, {
+      method: "POST"
+    }),
   signup: (body: { email: string; name: string; password: string }) =>
     apiRequest<{ user: User }>("/auth/signup", {
       body: JSON.stringify(body),
       method: "POST"
+    }),
+  updateWhatsAppChatMapping: (mappingId: string, body: { projectId: string | null }) =>
+    apiRequest<{ chat: WhatsAppChatMapping }>(`/whatsapp/chat-mappings/${mappingId}`, {
+      body: JSON.stringify(body),
+      method: "PATCH"
     })
 };

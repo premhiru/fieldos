@@ -39,6 +39,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Local connector/session storage
+.storage/
+
 # macOS
 .DS_Store
 .AppleDouble
@@ -54,4 +57,3 @@ Icon
 Thumbs.db
 *.swp
 *.swo
-

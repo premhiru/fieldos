@@ -10,6 +10,7 @@ import type {
   MessagingRepository,
   ParticipantRecord
 } from "@fieldos/messaging";
+import { randomUUID } from "node:crypto";
 
 export type Role = MembershipRole;
 export type Status = ProjectStatus;
@@ -52,6 +53,44 @@ export interface ProjectRecord {
   updatedAt: Date;
 }
 
+export interface WhatsAppAccountRecord {
+  id: string;
+  organizationId: string;
+  displayName: string;
+  phoneNumber: string | null;
+  connectorType: "BAILEYS" | "META_CLOUD";
+  status: "PENDING_QR" | "CONNECTING" | "CONNECTED" | "DISCONNECTED" | "ERROR";
+  sessionKey: string;
+  lastConnectedAt: Date | null;
+  lastDisconnectedAt: Date | null;
+  lastMessageAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface WhatsAppChatMappingRecord {
+  id: string;
+  organizationId: string;
+  whatsappAccountId: string;
+  conversationId: string;
+  projectId: string | null;
+  jid: string;
+  chatName: string | null;
+  isGroup: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  project: {
+    id: string;
+    code: string;
+    name: string;
+  } | null;
+  conversation: {
+    id: string;
+    title: string;
+    projectId: string | null;
+  };
+}
+
 export interface AppRepository extends MessagingRepository {
   createOrganization(input: {
     name: string;
@@ -74,8 +113,23 @@ export interface AppRepository extends MessagingRepository {
     userId: string,
     organizationId: string
   ): Promise<OrganizationRecord | null>;
+  createWhatsAppAccount(input: {
+    displayName: string;
+    organizationId: string;
+  }): Promise<WhatsAppAccountRecord>;
+  getWhatsAppAccount(accountId: string): Promise<WhatsAppAccountRecord | null>;
+  listWhatsAppAccounts(organizationId: string): Promise<WhatsAppAccountRecord[]>;
+  listWhatsAppChatMappings(accountId: string): Promise<WhatsAppChatMappingRecord[]>;
   listOrganizations(userId: string): Promise<OrganizationRecord[]>;
   listProjects(userId: string, organizationId: string): Promise<ProjectRecord[]>;
+  updateWhatsAppAccountStatus(
+    accountId: string,
+    status: WhatsAppAccountRecord["status"]
+  ): Promise<WhatsAppAccountRecord>;
+  updateWhatsAppChatMapping(input: {
+    mappingId: string;
+    projectId: string | null;
+  }): Promise<WhatsAppChatMappingRecord>;
 }
 
 export function createPrismaRepository(): AppRepository {
@@ -251,6 +305,95 @@ export function createPrismaRepository(): AppRepository {
         where: {
           organizationId
         }
+      });
+    },
+
+    async createWhatsAppAccount(input) {
+      const prisma = await getPrisma();
+      return prisma.whatsAppAccount.create({
+        data: {
+          connectorType: "BAILEYS",
+          displayName: input.displayName,
+          organizationId: input.organizationId,
+          sessionKey: `baileys/${input.organizationId}/${randomUUID()}`,
+          status: "PENDING_QR"
+        }
+      });
+    },
+
+    async getWhatsAppAccount(accountId) {
+      const prisma = await getPrisma();
+      return prisma.whatsAppAccount.findUnique({
+        where: {
+          id: accountId
+        }
+      });
+    },
+
+    async listWhatsAppAccounts(organizationId) {
+      const prisma = await getPrisma();
+      return prisma.whatsAppAccount.findMany({
+        orderBy: {
+          createdAt: "desc"
+        },
+        where: {
+          organizationId
+        }
+      });
+    },
+
+    async updateWhatsAppAccountStatus(accountId, status) {
+      const prisma = await getPrisma();
+      const now = new Date();
+      return prisma.whatsAppAccount.update({
+        data: {
+          ...(status === "CONNECTED" ? { lastConnectedAt: now } : {}),
+          ...(status === "DISCONNECTED" ? { lastDisconnectedAt: now } : {}),
+          status
+        },
+        where: {
+          id: accountId
+        }
+      });
+    },
+
+    async listWhatsAppChatMappings(accountId) {
+      const prisma = await getPrisma();
+      return prisma.whatsAppChatMapping.findMany({
+        include: whatsappChatMappingInclude(),
+        orderBy: {
+          updatedAt: "desc"
+        },
+        where: {
+          whatsappAccountId: accountId
+        }
+      });
+    },
+
+    async updateWhatsAppChatMapping(input) {
+      const prisma = await getPrisma();
+
+      return prisma.$transaction(async (tx) => {
+        const mapping = await tx.whatsAppChatMapping.update({
+          data: {
+            projectId: input.projectId
+          },
+          include: whatsappChatMappingInclude(),
+          where: {
+            id: input.mappingId
+          }
+        });
+
+        await tx.conversation.update({
+          data: {
+            projectId: input.projectId
+          },
+          where: {
+            id: mapping.conversationId
+          }
+        });
+
+        return mapping;
       });
     },
 
@@ -538,6 +681,25 @@ function messageInclude() {
   return {
     attachments: true,
     senderParticipant: true
+  };
+}
+
+function whatsappChatMappingInclude() {
+  return {
+    conversation: {
+      select: {
+        id: true,
+        projectId: true,
+        title: true
+      }
+    },
+    project: {
+      select: {
+        code: true,
+        id: true,
+        name: true
+      }
+    }
   };
 }
 

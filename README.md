@@ -5,7 +5,7 @@
 | Purpose      | Introduce the FieldOS engineering foundation, repository layout, and development workflow. |
 | Owner        | Founding Engineering                                                                       |
 | Status       | Active                                                                                     |
-| Last Updated | 2026-06-30                                                                                 |
+| Last Updated | 2026-07-01                                                                                 |
 
 ## Table of Contents
 
@@ -24,11 +24,11 @@
 
 FieldOS is the AI Operating System for Field Operations.
 
-The repository is a pnpm and Turborepo monorepo containing a Next.js dashboard, a Fastify API, a standalone Redis-backed worker, and shared packages for UI, database access, authentication, messaging, and cross-cutting utilities.
+The repository is a pnpm and Turborepo monorepo containing a Next.js dashboard, a Fastify API, a standalone Redis-backed worker, shared packages for UI, database access, authentication, messaging, cross-cutting utilities, and a Baileys-based WhatsApp adapter.
 
 ## Architecture
 
-FieldOS starts as a modular monolith with clear package boundaries. The current product slice supports JWT-cookie authentication, organization workspaces, organization memberships, projects, and a channel-agnostic messaging foundation.
+FieldOS starts as a modular monolith with clear package boundaries. The current product slice supports JWT-cookie authentication, organization workspaces, organization memberships, projects, a channel-agnostic messaging foundation, and a WhatsApp Web connector that feeds messages into the unified inbox.
 
 ```mermaid
 flowchart TD
@@ -40,6 +40,7 @@ flowchart TD
   Shared["packages/shared\nEnv, Logger, Utilities"]
   Auth["packages/auth\nJWT, Passwords, Auth Schemas"]
   Messaging["packages/messaging\nConversations, Messages, Attachments"]
+  WhatsApp["packages/integrations/whatsapp/baileys\nBaileys Adapter"]
   Postgres["PostgreSQL"]
   Redis["Redis"]
 
@@ -49,6 +50,9 @@ flowchart TD
   API --> Shared
   API --> Messaging
   Worker --> Shared
+  Worker --> WhatsApp
+  WhatsApp --> DB
+  WhatsApp --> Messaging
   Worker --> Redis
   DB --> Postgres
   Auth --> Shared
@@ -128,6 +132,9 @@ packages/
   ui/              Shared UI components.
   db/              Prisma schema, migration, client, and database utilities.
   auth/            JWT cookie auth, password hashing, and auth schemas.
+  integrations/
+    whatsapp/
+      baileys/     WhatsApp Web adapter that ingests messages through Baileys.
   messaging/       Channel-agnostic conversation, message, and attachment services.
   shared/          Environment helpers, logger, constants, and utilities.
 docs/              Product, architecture, UX, database, roadmap, and ADR docs.
@@ -179,12 +186,18 @@ FieldOS models all channel communication as conversations, participants, message
 
 Supported channel values are `WHATSAPP`, `EMAIL`, `SLACK`, `TEAMS`, and `SMS`.
 
+## WhatsApp Connector
+
+The current WhatsApp connector uses the maintained Baileys package for WhatsApp Web pairing. Accounts are created and managed from dashboard settings. QR payloads are exchanged through Redis, session files and media are stored under `.storage`, and inbound messages are normalized into the generic messaging tables.
+
+Use dedicated business numbers only. Do not connect personal WhatsApp accounts. FieldOS will add the official Meta WhatsApp Cloud API path for production enterprise deployments later.
+
 ## Current Roadmap
 
-1. Complete the unified messaging platform.
+1. Validate WhatsApp QR pairing with dedicated business test numbers.
 2. Add invite and membership management.
 3. Add operational observability and deployment automation.
-4. Introduce channel adapters, AI, reports, and tasks only after core workflow boundaries are stable.
+4. Introduce AI, reports, tasks, and official Meta WhatsApp Cloud API support only after core workflow boundaries are stable.
 
 ## Contributing Guidelines
 

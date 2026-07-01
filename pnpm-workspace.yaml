@@ -1,17 +1,22 @@
 packages:
   - "apps/*"
   - "packages/*"
+  - "packages/integrations/*/*"
   - "tests/*"
   - "scripts/*"
   - "infrastructure/*"
+
+blockExoticSubdeps: false
 
 onlyBuiltDependencies:
   - "@prisma/engines"
   - "esbuild"
   - "prisma"
+  - "protobufjs"
   - "sharp"
 allowBuilds:
   "@prisma/engines": true
   esbuild: true
   prisma: true
+  protobufjs: true
   sharp: true
