@@ -125,7 +125,7 @@ WhatsApp connector is live and being hardened with production pairing feedback.
 ## Deployment Status
 
 - Dashboard deployed to Vercel production: `https://fieldos-sand.vercel.app`.
-- Latest Vercel deployment URL: `https://fieldos-ng16y7af8-premhirus-projects.vercel.app`.
+- Latest Vercel deployment URL: `https://fieldos-i9chkg25a-premhirus-projects.vercel.app`.
 - Backend deployed to Railway.
   - API deployed at `https://fieldos-api-production.up.railway.app`.
   - API health verified at `https://fieldos-api-production.up.railway.app/health`.
@@ -147,6 +147,7 @@ WhatsApp connector is live and being hardened with production pairing feedback.
 - WhatsApp reconnect UI hardening completed.
   - Settings starts QR polling immediately after Connect/Reconnect is clicked.
   - The QR pairing panel is shown above existing chats/groups while reconnecting.
+  - Dashboard redeployed and aliased to `https://fieldos-sand.vercel.app`.
 - Vercel `NEXT_PUBLIC_API_URL` is configured for production.
 - Dashboard redeployed to Vercel production with the Railway API URL.
 - Dashboard, API, worker, auth, projects, messaging, and Baileys WhatsApp connector application slices exist.
