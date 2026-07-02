@@ -11,6 +11,7 @@ import {
 } from "@whiskeysockets/baileys";
 import type { PrismaClient } from "@fieldos/db";
 import { createLogger } from "@fieldos/shared";
+import { randomUUID } from "node:crypto";
 import pino from "pino";
 
 import { decideWhatsAppIngestion } from "./ingestion-policy.js";
@@ -124,6 +125,9 @@ export class BaileysWhatsAppSessionManager {
       socket
     });
 
+    let hasOpened = false;
+    let hasQr = false;
+
     socket.ev.on("creds.update", saveCreds);
     socket.ev.on("chats.upsert", async (chats: BaileysEventMap["chats.upsert"]) => {
       for (const chat of chats) {
@@ -209,6 +213,7 @@ export class BaileysWhatsAppSessionManager {
     socket.ev.on("connection.update", async (update: BaileysEventMap["connection.update"]) => {
       try {
         if (update.qr) {
+          hasQr = true;
           this.logger.info({ accountId: account.id }, "WhatsApp QR generated");
           await this.qrStore.set(account.id, update.qr);
           await this.prisma.whatsAppAccount.update({
@@ -222,6 +227,7 @@ export class BaileysWhatsAppSessionManager {
         }
 
         if (update.connection === "open") {
+          hasOpened = true;
           this.logger.info({ accountId: account.id }, "WhatsApp session connected");
           await this.qrStore.remove(account.id);
           await this.prisma.whatsAppAccount.update({
@@ -241,6 +247,11 @@ export class BaileysWhatsAppSessionManager {
           const statusCode = getDisconnectStatusCode(update.lastDisconnect?.error);
           const loggedOut = statusCode === DisconnectReason.loggedOut;
           const recoverableDisconnect = isRecoverableDisconnect(statusCode);
+          const stalePrePairingSession =
+            recoverableDisconnect &&
+            statusCode === DisconnectReason.connectionClosed &&
+            !hasOpened &&
+            !hasQr;
           const nextStatus = loggedOut
             ? "DISCONNECTED"
             : recoverableDisconnect
@@ -252,10 +263,19 @@ export class BaileysWhatsAppSessionManager {
             "WhatsApp session disconnected"
           );
           await this.qrStore.remove(account.id);
-          await this.prisma.whatsAppAccount.update({
+          const updatedAccount = await this.prisma.whatsAppAccount.update({
             data: {
               lastDisconnectedAt: new Date(),
-              status: nextStatus
+              sessionKey: stalePrePairingSession
+                ? `baileys/${account.organizationId}/${randomUUID()}`
+                : undefined,
+              status: stalePrePairingSession ? "PENDING_QR" : nextStatus
+            },
+            select: {
+              displayName: true,
+              id: true,
+              organizationId: true,
+              sessionKey: true
             },
             where: {
               id: account.id
@@ -263,18 +283,27 @@ export class BaileysWhatsAppSessionManager {
           });
           this.sessions.delete(account.id);
 
+          if (stalePrePairingSession) {
+            this.logger.info(
+              { accountId: account.id, statusCode },
+              "rotated stale WhatsApp pairing session"
+            );
+          }
+
           if (recoverableDisconnect) {
             setTimeout(() => {
               if (this.sessions.has(account.id)) {
                 return;
               }
 
-              this.startSession(account).catch((error: unknown) => {
-                this.logger.error(
-                  { accountId: account.id, error },
-                  "WhatsApp session restart failed"
-                );
-              });
+              this.startSession(stalePrePairingSession ? updatedAccount : account).catch(
+                (error: unknown) => {
+                  this.logger.error(
+                    { accountId: account.id, error },
+                    "WhatsApp session restart failed"
+                  );
+                }
+              );
             }, 1_000);
           }
         }
