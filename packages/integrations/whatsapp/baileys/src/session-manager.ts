@@ -179,22 +179,40 @@ export class BaileysWhatsAppSessionManager {
         if (update.connection === "close") {
           const statusCode = getDisconnectStatusCode(update.lastDisconnect?.error);
           const loggedOut = statusCode === DisconnectReason.loggedOut;
+          const restartRequired =
+            statusCode === DisconnectReason.restartRequired || statusCode === 515;
+          const nextStatus = loggedOut ? "DISCONNECTED" : restartRequired ? "CONNECTING" : "ERROR";
 
           this.logger.warn(
-            { accountId: account.id, loggedOut, statusCode },
+            { accountId: account.id, loggedOut, restartRequired, statusCode },
             "WhatsApp session disconnected"
           );
           await this.qrStore.remove(account.id);
           await this.prisma.whatsAppAccount.update({
             data: {
               lastDisconnectedAt: new Date(),
-              status: loggedOut ? "DISCONNECTED" : "ERROR"
+              status: nextStatus
             },
             where: {
               id: account.id
             }
           });
           this.sessions.delete(account.id);
+
+          if (restartRequired) {
+            setTimeout(() => {
+              if (this.sessions.has(account.id)) {
+                return;
+              }
+
+              this.startSession(account).catch((error: unknown) => {
+                this.logger.error(
+                  { accountId: account.id, error },
+                  "WhatsApp session restart failed"
+                );
+              });
+            }, 1_000);
+          }
         }
       } catch (error: unknown) {
         this.logger.error({ accountId: account.id, error }, "WhatsApp connection update failed");
