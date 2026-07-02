@@ -112,10 +112,10 @@ Default local services:
 FieldOS uses Vercel for the dashboard and Railway for the first backend hosting target.
 
 - Dashboard: `https://fieldos-sand.vercel.app`
-- API: Railway service using `infrastructure/railway/api.railway.json`
-- Worker: Railway service using `infrastructure/railway/worker.railway.json`
-- PostgreSQL: Railway managed PostgreSQL
-- Redis: Railway managed Redis
+- API: `https://fieldos-api-production.up.railway.app`
+- Worker: Railway service `fieldos-worker`
+- PostgreSQL: Railway managed PostgreSQL service `Postgres`
+- Redis: Railway managed Redis service `Redis`
 
 See [docs/09_DEPLOYMENT.md](./docs/09_DEPLOYMENT.md) for the full deployment plan, service variables, and verification steps.
 

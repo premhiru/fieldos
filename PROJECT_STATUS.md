@@ -119,10 +119,15 @@ Explicit WhatsApp chat activation implemented and ready for live QR pairing vali
 ## Deployment Status
 
 - Dashboard deployed to Vercel production: `https://fieldos-sand.vercel.app`.
-- Latest Vercel deployment URL: `https://fieldos-ldzibt9p0-premhirus-projects.vercel.app`.
-- Backend hosting target selected: Railway for API, worker, PostgreSQL, and Redis.
-- Railway config files prepared under `infrastructure/railway/`.
-- Railway deployment is blocked on authentication: `railway login` or `RAILWAY_TOKEN` is required.
+- Latest Vercel deployment URL: `https://fieldos-ng16y7af8-premhirus-projects.vercel.app`.
+- Backend deployed to Railway.
+  - API deployed at `https://fieldos-api-production.up.railway.app`.
+  - API health verified at `https://fieldos-api-production.up.railway.app/health`.
+  - Worker deployed and verified running with startup log: `worker started and waiting for jobs`.
+  - Railway PostgreSQL service `Postgres` is deployed and migrations are applied.
+  - Railway Redis service `Redis` is deployed.
+- Vercel `NEXT_PUBLIC_API_URL` is configured for production.
+- Dashboard redeployed to Vercel production with the Railway API URL.
 - Dashboard, API, worker, auth, projects, messaging, and Baileys WhatsApp connector application slices exist.
 - Local code validation passed for format, lint, typecheck, tests, and build.
 - GitHub Release `v0.0.1-foundation` exists.
@@ -131,15 +136,6 @@ Explicit WhatsApp chat activation implemented and ready for live QR pairing vali
 - Dashboard is running locally at `http://localhost:3000`.
 - API is running locally at `http://localhost:3001`.
 - Worker Redis startup has been verified locally.
-- API, worker, PostgreSQL, and Redis are not deployed to production yet.
-- Deployed dashboard currently needs a hosted `NEXT_PUBLIC_API_URL` before auth and data flows can work outside local development.
-- Task 003 is not deployed.
-- Task 003 local verification is complete.
-- Task 005 is not deployed.
-- Task 005 local verification is complete: migrations, seed data, tests, build, and dashboard route checks pass.
-- Task 006 is not deployed.
-  - Task 006 local verification is complete for migration, code checks, dashboard startup, API health, and worker startup.
-  - Live WhatsApp QR scanning was not performed because no dedicated business test number was provided in this environment.
-- Task 006B is not deployed.
-  - Task 006B local verification is complete for migration, format, lint, typecheck, tests, and build.
-  - Live WhatsApp activation was not performed because no dedicated business test number was provided in this environment.
+- Railway config-as-code was evaluated but not committed because the generated TypeScript SDK import failed on Windows in this environment.
+- Task 003, Task 005, Task 006, and Task 006B application code is included in the deployed dashboard, API, and worker services.
+- Live WhatsApp QR scanning and activation were not performed because no dedicated business test number was provided in this environment.

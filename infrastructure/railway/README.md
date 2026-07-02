@@ -4,7 +4,7 @@
 | ------------ | ------------------------------------------------------------------- |
 | Purpose      | Document Railway service configuration for FieldOS backend hosting. |
 | Owner        | Founding Engineering                                                |
-| Status       | Proposed                                                            |
+| Status       | Active                                                              |
 | Last Updated | 2026-07-02                                                          |
 
 ## Table of Contents
@@ -19,8 +19,14 @@ FieldOS uses Railway for the first backend hosting target because the API, worke
 
 - `fieldos-api`: Fastify API using `infrastructure/railway/api.railway.json`.
 - `fieldos-worker`: long-running worker using `infrastructure/railway/worker.railway.json`.
-- `fieldos-postgres`: managed PostgreSQL.
-- `fieldos-redis`: managed Redis.
+- `Postgres`: managed PostgreSQL.
+- `Redis`: managed Redis.
+
+Public API URL:
+
+```text
+https://fieldos-api-production.up.railway.app
+```
 
 ## Required Variables
 
@@ -50,7 +56,7 @@ WHATSAPP_SESSION_POLL_INTERVAL_MS=10000
 Dashboard on Vercel:
 
 ```text
-NEXT_PUBLIC_API_URL=https://<fieldos-api>.up.railway.app
+NEXT_PUBLIC_API_URL=https://fieldos-api-production.up.railway.app
 ```
 
 ## Notes

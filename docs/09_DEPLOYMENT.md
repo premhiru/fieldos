@@ -4,7 +4,7 @@
 | ------------ | ------------------------------------------------------------------ |
 | Purpose      | Define the first production hosting approach for FieldOS services. |
 | Owner        | Founding Engineering                                               |
-| Status       | Proposed                                                           |
+| Status       | Active                                                             |
 | Last Updated | 2026-07-02                                                         |
 
 ## Table of Contents
@@ -12,6 +12,7 @@
 - [Overview](#overview)
 - [Hosting Targets](#hosting-targets)
 - [Railway Services](#railway-services)
+- [Current Deployment](#current-deployment)
 - [Environment Variables](#environment-variables)
 - [Deployment Flow](#deployment-flow)
 - [Operations Notes](#operations-notes)
@@ -21,7 +22,7 @@
 
 FieldOS uses Vercel for the Next.js dashboard and Railway for the backend runtime layer.
 
-The dashboard is already deployed to Vercel. The API, worker, PostgreSQL, and Redis should be deployed together in Railway so the worker can stay long-running and the backend services can share managed infrastructure.
+The dashboard is deployed to Vercel. The API, worker, PostgreSQL, and Redis are deployed together in Railway so the worker can stay long-running and the backend services can share managed infrastructure.
 
 ## Hosting Targets
 
@@ -35,17 +36,29 @@ The dashboard is already deployed to Vercel. The API, worker, PostgreSQL, and Re
 
 ## Railway Services
 
-Create one Railway project named `fieldos` with four services:
+Railway project `fieldos` contains four services:
 
 - `fieldos-api`
 - `fieldos-worker`
-- `fieldos-postgres`
-- `fieldos-redis`
+- `Postgres`
+- `Redis`
 
 The service config files live in `infrastructure/railway/`.
 
 Use `infrastructure/railway/api.railway.json` for the API service.
 Use `infrastructure/railway/worker.railway.json` for the worker service.
+
+## Current Deployment
+
+| Component  | Provider | Status   | URL/Service                                     |
+| ---------- | -------- | -------- | ----------------------------------------------- |
+| Dashboard  | Vercel   | Deployed | `https://fieldos-sand.vercel.app`               |
+| API        | Railway  | Deployed | `https://fieldos-api-production.up.railway.app` |
+| Worker     | Railway  | Deployed | `fieldos-worker`                                |
+| PostgreSQL | Railway  | Deployed | `Postgres`                                      |
+| Redis      | Railway  | Deployed | `Redis`                                         |
+
+The deployed API health endpoint is `https://fieldos-api-production.up.railway.app/health`.
 
 ## Environment Variables
 
@@ -75,17 +88,17 @@ WHATSAPP_SESSION_POLL_INTERVAL_MS=10000
 Vercel dashboard:
 
 ```text
-NEXT_PUBLIC_API_URL=https://<fieldos-api>.up.railway.app
+NEXT_PUBLIC_API_URL=https://fieldos-api-production.up.railway.app
 ```
 
 ## Deployment Flow
 
 1. Authenticate Railway locally with `railway login` or set `RAILWAY_TOKEN`.
-2. Create the Railway project and services.
+2. Create or link the Railway project and services.
 3. Attach PostgreSQL and Redis.
 4. Configure API and worker environment variables.
-5. Deploy `fieldos-api` from `main`.
-6. Deploy `fieldos-worker` from `main`.
+5. Deploy `fieldos-api`.
+6. Deploy `fieldos-worker`.
 7. Set `NEXT_PUBLIC_API_URL` in Vercel to the Railway API public URL.
 8. Redeploy the Vercel dashboard.
 9. Verify `GET /health` on the public API URL.
@@ -101,6 +114,5 @@ NEXT_PUBLIC_API_URL=https://<fieldos-api>.up.railway.app
 
 ## Open Items
 
-- Railway authentication is required before cloud resources can be created from this environment.
 - Baileys session files need a persistent Railway volume or object storage before live WhatsApp pairing.
-- Production secrets should be generated and stored only in provider-managed environment variables.
+- Railway config-as-code was not adopted because the generated TypeScript SDK import failed on Windows in this environment.
