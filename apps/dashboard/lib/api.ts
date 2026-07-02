@@ -139,12 +139,15 @@ export async function apiRequest<TResponse>(
   path: string,
   options: RequestInit = {}
 ): Promise<TResponse> {
+  const headers = new Headers(options.headers);
+
+  if (options.body && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
   const response = await fetch(`${apiBaseUrl}${path}`, {
     credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers
-    },
+    headers,
     ...options
   });
 

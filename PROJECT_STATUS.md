@@ -129,6 +129,9 @@ Explicit WhatsApp chat activation implemented and ready for live QR pairing vali
 - Production login cookie fix completed.
   - Cross-origin auth cookies now use `SameSite=None; Secure` in production.
   - API tests assert production cookie attributes.
+- WhatsApp pairing issue under investigation.
+  - Dashboard API requests now avoid sending `Content-Type: application/json` when there is no request body.
+  - Worker logs WhatsApp session start, QR generation, successful connection, and disconnect status codes.
 - Vercel `NEXT_PUBLIC_API_URL` is configured for production.
 - Dashboard redeployed to Vercel production with the Railway API URL.
 - Dashboard, API, worker, auth, projects, messaging, and Baileys WhatsApp connector application slices exist.

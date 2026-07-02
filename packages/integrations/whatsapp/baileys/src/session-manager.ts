@@ -94,6 +94,8 @@ export class BaileysWhatsAppSessionManager {
     organizationId: string;
     displayName: string;
   }): Promise<void> {
+    this.logger.info({ accountId: account.id }, "starting WhatsApp session");
+
     await this.prisma.whatsAppAccount.update({
       data: {
         status: "CONNECTING"
@@ -146,6 +148,7 @@ export class BaileysWhatsAppSessionManager {
     socket.ev.on("connection.update", async (update: BaileysEventMap["connection.update"]) => {
       try {
         if (update.qr) {
+          this.logger.info({ accountId: account.id }, "WhatsApp QR generated");
           await this.qrStore.set(account.id, update.qr);
           await this.prisma.whatsAppAccount.update({
             data: {
@@ -158,6 +161,7 @@ export class BaileysWhatsAppSessionManager {
         }
 
         if (update.connection === "open") {
+          this.logger.info({ accountId: account.id }, "WhatsApp session connected");
           await this.qrStore.remove(account.id);
           await this.prisma.whatsAppAccount.update({
             data: {
@@ -176,6 +180,10 @@ export class BaileysWhatsAppSessionManager {
           const statusCode = getDisconnectStatusCode(update.lastDisconnect?.error);
           const loggedOut = statusCode === DisconnectReason.loggedOut;
 
+          this.logger.warn(
+            { accountId: account.id, loggedOut, statusCode },
+            "WhatsApp session disconnected"
+          );
           await this.qrStore.remove(account.id);
           await this.prisma.whatsAppAccount.update({
             data: {
