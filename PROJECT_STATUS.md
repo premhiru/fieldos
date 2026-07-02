@@ -138,6 +138,7 @@ WhatsApp connector is live and being hardened with production pairing feedback.
   - Dashboard API requests now avoid sending `Content-Type: application/json` when there is no request body.
   - Worker logs WhatsApp session start, QR generation, successful connection, and disconnect status codes.
   - Baileys restart-required disconnects now restart the session instead of leaving the account in `ERROR`.
+  - Baileys recoverable transport disconnects such as `428 connectionClosed` now restart instead of leaving the account in `ERROR`.
 - WhatsApp chat discovery and message normalization hardening completed.
   - Worker requests full desktop-style WhatsApp history via Baileys.
   - Worker consumes `messaging-history.set` to discover chats beyond the small live-update subset.

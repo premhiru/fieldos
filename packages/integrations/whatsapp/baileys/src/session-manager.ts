@@ -239,12 +239,15 @@ export class BaileysWhatsAppSessionManager {
         if (update.connection === "close") {
           const statusCode = getDisconnectStatusCode(update.lastDisconnect?.error);
           const loggedOut = statusCode === DisconnectReason.loggedOut;
-          const restartRequired =
-            statusCode === DisconnectReason.restartRequired || statusCode === 515;
-          const nextStatus = loggedOut ? "DISCONNECTED" : restartRequired ? "CONNECTING" : "ERROR";
+          const recoverableDisconnect = isRecoverableDisconnect(statusCode);
+          const nextStatus = loggedOut
+            ? "DISCONNECTED"
+            : recoverableDisconnect
+              ? "CONNECTING"
+              : "ERROR";
 
           this.logger.warn(
-            { accountId: account.id, loggedOut, restartRequired, statusCode },
+            { accountId: account.id, loggedOut, recoverableDisconnect, statusCode },
             "WhatsApp session disconnected"
           );
           await this.qrStore.remove(account.id);
@@ -259,7 +262,7 @@ export class BaileysWhatsAppSessionManager {
           });
           this.sessions.delete(account.id);
 
-          if (restartRequired) {
+          if (recoverableDisconnect) {
             setTimeout(() => {
               if (this.sessions.has(account.id)) {
                 return;
@@ -640,6 +643,18 @@ function isDiscoverableChatJid(jid: string): boolean {
   }
 
   return Boolean(jid.trim());
+}
+
+function isRecoverableDisconnect(statusCode: number | undefined): boolean {
+  return (
+    statusCode === undefined ||
+    statusCode === DisconnectReason.restartRequired ||
+    statusCode === DisconnectReason.connectionClosed ||
+    statusCode === DisconnectReason.connectionLost ||
+    statusCode === DisconnectReason.timedOut ||
+    statusCode === DisconnectReason.unavailableService ||
+    statusCode === 515
+  );
 }
 
 function getChatMetadataTitle(chat: unknown): string | null {
