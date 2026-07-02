@@ -42,6 +42,9 @@ yarn-error.log*
 # Local connector/session storage
 .storage/
 
+# Vercel
+.vercel/
+
 # macOS
 .DS_Store
 .AppleDouble
@@ -57,3 +60,5 @@ Icon
 Thumbs.db
 *.swp
 *.swo
+
+.vercel

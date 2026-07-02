@@ -5,7 +5,7 @@
 | Purpose      | Track FieldOS milestone progress, task completion, technical debt, architecture decisions, and deployment readiness. |
 | Owner        | Founding Engineering                                                                                                 |
 | Status       | Active                                                                                                               |
-| Last Updated | 2026-07-01                                                                                                           |
+| Last Updated | 2026-07-02                                                                                                           |
 
 ## Table of Contents
 
@@ -114,7 +114,8 @@ Explicit WhatsApp chat activation implemented and ready for live QR pairing vali
 
 ## Deployment Status
 
-- Not deployed.
+- Dashboard deployed to Vercel production: `https://fieldos-sand.vercel.app`.
+- Latest Vercel deployment URL: `https://fieldos-ldzibt9p0-premhirus-projects.vercel.app`.
 - Dashboard, API, worker, auth, projects, messaging, and Baileys WhatsApp connector application slices exist.
 - Local code validation passed for format, lint, typecheck, tests, and build.
 - GitHub Release `v0.0.1-foundation` exists.
@@ -123,6 +124,8 @@ Explicit WhatsApp chat activation implemented and ready for live QR pairing vali
 - Dashboard is running locally at `http://localhost:3000`.
 - API is running locally at `http://localhost:3001`.
 - Worker Redis startup has been verified locally.
+- API, worker, PostgreSQL, and Redis are not deployed to production yet.
+- Deployed dashboard currently needs a hosted `NEXT_PUBLIC_API_URL` before auth and data flows can work outside local development.
 - Task 003 is not deployed.
 - Task 003 local verification is complete.
 - Task 005 is not deployed.
