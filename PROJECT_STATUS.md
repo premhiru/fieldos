@@ -84,6 +84,7 @@ WhatsApp connector is live and being hardened with production pairing feedback.
   - WhatsApp full-history sync is enabled for broader chat discovery after pairing.
   - History sync now records discovered chats from chat and message history payloads.
   - Common WhatsApp payloads such as stickers, locations, contacts, polls, events, reactions, and protocol sync messages are handled without showing an unsupported-message placeholder.
+  - Dashboard reconnect flow now keeps a dedicated WhatsApp pairing panel above the chat/group list so the QR code remains visible.
 
 ## In-Progress Tasks
 
@@ -143,6 +144,9 @@ WhatsApp connector is live and being hardened with production pairing feedback.
   - Worker requests full desktop-style WhatsApp history via Baileys.
   - Worker consumes `messaging-history.set` to discover chats beyond the small live-update subset.
   - Inbox messages no longer use the `Unsupported WhatsApp message type` placeholder for common WhatsApp event/media payloads.
+- WhatsApp reconnect UI hardening completed.
+  - Settings starts QR polling immediately after Connect/Reconnect is clicked.
+  - The QR pairing panel is shown above existing chats/groups while reconnecting.
 - Vercel `NEXT_PUBLIC_API_URL` is configured for production.
 - Dashboard redeployed to Vercel production with the Railway API URL.
 - Dashboard, API, worker, auth, projects, messaging, and Baileys WhatsApp connector application slices exist.

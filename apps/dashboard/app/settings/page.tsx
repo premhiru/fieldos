@@ -158,13 +158,16 @@ function WhatsAppAccountCard({
   projects: Project[];
 }) {
   const queryClient = useQueryClient();
+  const [isPairingRequested, setIsPairingRequested] = React.useState(false);
+  const isPairingStatus = account.status === "PENDING_QR" || account.status === "CONNECTING";
+  const shouldPollQr = isPairingRequested || isPairingStatus;
   const chatsQuery = useQuery({
     queryFn: () => api.listWhatsAppChats(account.id),
     queryKey: ["whatsapp-chats", account.id],
     retry: false
   });
   const qrQuery = useQuery({
-    enabled: account.status === "PENDING_QR" || account.status === "CONNECTING",
+    enabled: shouldPollQr,
     queryFn: () => api.getWhatsAppQr(account.id),
     queryKey: ["whatsapp-qr", account.id],
     refetchInterval: 2_000,
@@ -172,6 +175,9 @@ function WhatsAppAccountCard({
   });
   const connectMutation = useMutation({
     mutationFn: () => api.connectWhatsAppAccount(account.id),
+    onMutate: () => {
+      setIsPairingRequested(true);
+    },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["whatsapp-accounts", organizationId] });
       await queryClient.invalidateQueries({ queryKey: ["whatsapp-qr", account.id] });
@@ -180,9 +186,24 @@ function WhatsAppAccountCard({
   const disconnectMutation = useMutation({
     mutationFn: () => api.disconnectWhatsAppAccount(account.id),
     onSuccess: async () => {
+      setIsPairingRequested(false);
       await queryClient.invalidateQueries({ queryKey: ["whatsapp-accounts", organizationId] });
+      await queryClient.removeQueries({ queryKey: ["whatsapp-qr", account.id] });
     }
   });
+  const shouldShowPairing = isPairingRequested || isPairingStatus || connectMutation.isPending;
+
+  React.useEffect(() => {
+    if (account.status === "CONNECTED") {
+      setIsPairingRequested(false);
+    }
+  }, [account.status]);
+
+  React.useEffect(() => {
+    if (qrQuery.data?.status && qrQuery.data.status !== account.status) {
+      void queryClient.invalidateQueries({ queryKey: ["whatsapp-accounts", organizationId] });
+    }
+  }, [account.status, organizationId, qrQuery.data?.status, queryClient]);
 
   return (
     <Card>
@@ -225,13 +246,35 @@ function WhatsAppAccountCard({
           <StatusField label="Connector" value={account.connectorType} />
         </div>
 
-        {qrQuery.data?.qr ? (
-          <div className="mt-5 inline-flex rounded-md border border-slate-200 bg-white p-4">
-            <QRCodeSVG value={qrQuery.data.qr} size={220} />
+        {shouldShowPairing ? (
+          <div className="mt-5 rounded-md border border-slate-200 bg-slate-50 p-4">
+            <div className="flex flex-col gap-4 md:flex-row md:items-start">
+              <div className="flex min-h-[252px] w-full items-center justify-center rounded-md border border-slate-200 bg-white p-4 md:w-[252px] md:flex-none">
+                {qrQuery.data?.qr ? (
+                  <QRCodeSVG value={qrQuery.data.qr} size={220} />
+                ) : (
+                  <div className="text-center text-sm text-slate-600">
+                    <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-slate-900" />
+                    Waiting for QR code...
+                  </div>
+                )}
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-base font-semibold text-slate-950">Pair WhatsApp</h2>
+                <p className="text-sm text-slate-600">
+                  Keep this panel visible while reconnecting. Existing chats stay below after the
+                  pairing code appears.
+                </p>
+                <Badge variant="muted">{qrQuery.data?.status ?? account.status}</Badge>
+                {qrQuery.isError ? (
+                  <p className="text-sm text-red-600">{(qrQuery.error as Error).message}</p>
+                ) : null}
+              </div>
+            </div>
           </div>
         ) : null}
 
-        <div className="mt-6">
+        <div className={shouldShowPairing ? "mt-6 border-t border-slate-200 pt-6" : "mt-6"}>
           <h2 className="text-sm font-semibold text-slate-950">Chats and Groups</h2>
           {chatsQuery.isLoading ? (
             <p className="mt-3 text-sm text-slate-600">Loading chats...</p>
