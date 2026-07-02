@@ -17,7 +17,9 @@
     "db:seed": "pnpm --filter @fieldos/db db:seed",
     "dev": "turbo run dev --parallel",
     "api:dev": "pnpm --filter @fieldos/api dev",
+    "api:start:railway": "pnpm --filter @fieldos/api start:railway",
     "dashboard:dev": "pnpm --filter @fieldos/dashboard dev",
+    "deploy:migrate": "pnpm --filter @fieldos/db db:migrate",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "turbo run lint",
@@ -25,7 +27,8 @@
     "test": "turbo run test",
     "test:e2e": "playwright test",
     "typecheck": "turbo run typecheck",
-    "worker:dev": "pnpm --filter @fieldos/worker dev"
+    "worker:dev": "pnpm --filter @fieldos/worker dev",
+    "worker:start:railway": "pnpm --filter @fieldos/worker start:railway"
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.7",

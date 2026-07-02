@@ -13,6 +13,7 @@
 - [Architecture](#architecture)
 - [Development Setup](#development-setup)
 - [Commands](#commands)
+- [Deployment](#deployment)
 - [Repository Layout](#repository-layout)
 - [Development Philosophy](#development-philosophy)
 - [Tech Stack](#tech-stack)
@@ -105,6 +106,18 @@ Default local services:
 - API: `http://localhost:3001`
 - PostgreSQL: `localhost:5432`
 - Redis: `localhost:6379`
+
+## Deployment
+
+FieldOS uses Vercel for the dashboard and Railway for the first backend hosting target.
+
+- Dashboard: `https://fieldos-sand.vercel.app`
+- API: Railway service using `infrastructure/railway/api.railway.json`
+- Worker: Railway service using `infrastructure/railway/worker.railway.json`
+- PostgreSQL: Railway managed PostgreSQL
+- Redis: Railway managed Redis
+
+See [docs/09_DEPLOYMENT.md](./docs/09_DEPLOYMENT.md) for the full deployment plan, service variables, and verification steps.
 
 ## Commands
 

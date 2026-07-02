@@ -75,6 +75,10 @@ Explicit WhatsApp chat activation implemented and ready for live QR pairing vali
   - Dashboard settings now requires admins to select a project and activate each chat/group explicitly.
   - Inbox listing excludes WhatsApp conversations unless their mapping is `ACTIVE` and mapped to a project.
   - ADR 0005 documents the explicit activation requirement.
+- Deployment preparation: Railway backend hosting plan.
+  - Added Railway service configs for API and worker.
+  - Added deployment documentation for Vercel dashboard plus Railway API, worker, PostgreSQL, and Redis.
+  - Added Railway-specific API and worker start scripts.
 
 ## In-Progress Tasks
 
@@ -116,6 +120,9 @@ Explicit WhatsApp chat activation implemented and ready for live QR pairing vali
 
 - Dashboard deployed to Vercel production: `https://fieldos-sand.vercel.app`.
 - Latest Vercel deployment URL: `https://fieldos-ldzibt9p0-premhirus-projects.vercel.app`.
+- Backend hosting target selected: Railway for API, worker, PostgreSQL, and Redis.
+- Railway config files prepared under `infrastructure/railway/`.
+- Railway deployment is blocked on authentication: `railway login` or `RAILWAY_TOKEN` is required.
 - Dashboard, API, worker, auth, projects, messaging, and Baileys WhatsApp connector application slices exist.
 - Local code validation passed for format, lint, typecheck, tests, and build.
 - GitHub Release `v0.0.1-foundation` exists.
