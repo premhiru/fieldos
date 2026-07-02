@@ -111,12 +111,27 @@ export class BaileysWhatsAppSessionManager {
     const sessionPath = this.storage.getSessionPath(account.sessionKey);
     const { saveCreds, state } = await useMultiFileAuthState(sessionPath);
     const versionResult = await fetchLatestBaileysVersion();
+    const isPairingSession = !state.creds.registered;
+
+    this.logger.info(
+      {
+        accountId: account.id,
+        isPairingSession,
+        waVersion: versionResult.version.join(".")
+      },
+      "creating WhatsApp socket"
+    );
+
     const socket = makeWASocket({
       auth: state,
-      browser: Browsers.macOS("Desktop"),
+      browser: isPairingSession ? Browsers.ubuntu("Chrome") : Browsers.macOS("Desktop"),
+      connectTimeoutMs: 60_000,
+      defaultQueryTimeoutMs: 60_000,
+      keepAliveIntervalMs: 30_000,
       logger: baileysLogger,
+      markOnlineOnConnect: false,
       printQRInTerminal: false,
-      syncFullHistory: true,
+      syncFullHistory: !isPairingSession,
       version: versionResult.version
     });
 
