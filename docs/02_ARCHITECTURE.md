@@ -85,7 +85,18 @@ Channel adapters live outside `packages/messaging`. They translate provider even
 
 The Baileys WhatsApp connector is worker-owned. The dashboard creates and manages `WhatsAppAccount` records through the API, the worker starts sessions for accounts in active connection states, and QR payloads are shared through Redis.
 
-Inbound WhatsApp messages are normalized by the adapter and persisted into the generic messaging model. Chat-to-project mapping is stored separately in `WhatsAppChatMapping`, then reflected onto `Conversation.projectId` so the inbox and project views remain channel-agnostic.
+Inbound WhatsApp metadata is discovered by the adapter and stored in `WhatsAppChatMapping` without creating inbox conversations. Message content is normalized and persisted into the generic messaging model only after an organization admin activates the chat/group and maps it to a project.
+
+Chat-to-project mapping is stored separately in `WhatsAppChatMapping`, then reflected onto `Conversation.projectId` when a conversation exists so the inbox and project views remain channel-agnostic.
+
+The ingestion privacy gate is:
+
+1. WhatsApp account status is `CONNECTED`.
+2. Chat mapping exists.
+3. Chat mapping status is `ACTIVE`.
+4. Chat mapping has `projectId`.
+
+If any condition fails, the worker skips the message before reading or storing message body content.
 
 Session files and downloaded media are currently stored under `.storage`. This is acceptable for local development and must move to production object storage before deployment.
 

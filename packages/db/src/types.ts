@@ -5,5 +5,10 @@ export type {
   PrismaClient,
   Project,
   ProjectStatus,
-  User
+  User,
+  WhatsAppAccount,
+  WhatsAppAccountStatus,
+  WhatsAppChatMapping,
+  WhatsAppChatMappingStatus,
+  WhatsAppConnectorType
 } from "@prisma/client";

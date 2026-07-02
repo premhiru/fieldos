@@ -109,13 +109,24 @@ WhatsApp connector data is intentionally separate from the generic messaging mod
 - `jid`: WhatsApp chat JID.
 - `chatName`: Last known chat or group display name.
 - `isGroup`: Whether the JID is a group chat.
+- `status`: `DISCOVERED`, `ACTIVE`, `IGNORED`, or `ARCHIVED`.
+- `activatedAt`: Timestamp set when an admin activates the chat/group.
+- `activatedByUserId`: User who activated the chat/group.
 
 Key constraints:
 
 - `WhatsAppAccount.sessionKey` is unique.
 - `WhatsAppChatMapping` is unique by `whatsappAccountId` and `jid`.
-- A generic conversation can have only one WhatsApp chat mapping.
+- `WhatsAppChatMapping.conversationId` is nullable until activation and first ingested message.
+- A generic conversation can have only one WhatsApp chat mapping when present.
 - Chat mappings cascade with their account and conversation.
+
+Status meanings:
+
+- `DISCOVERED`: Metadata detected; no messages are ingested.
+- `ACTIVE`: New messages may be ingested if `projectId` is set.
+- `IGNORED`: Admin chose not to use this chat/group.
+- `ARCHIVED`: Previously used chat/group is no longer ingesting.
 
 ## Schema Ownership
 

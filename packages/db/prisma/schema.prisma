@@ -26,6 +26,7 @@ model User {
   passwordHash String
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
+  activatedWhatsAppChatMappings WhatsAppChatMapping[]
   memberships  Membership[]
 }
 
@@ -155,20 +156,26 @@ model WhatsAppChatMapping {
   id                String          @id @default(cuid())
   organizationId    String
   whatsappAccountId String
-  conversationId    String
+  conversationId    String?
   projectId         String?
   jid               String
   chatName          String?
   isGroup           Boolean         @default(false)
+  status            WhatsAppChatMappingStatus @default(DISCOVERED)
+  activatedAt       DateTime?
+  activatedByUserId String?
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
-  conversation      Conversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  activatedByUser   User?           @relation(fields: [activatedByUserId], references: [id], onDelete: SetNull)
+  conversation      Conversation?   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   project           Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
   whatsappAccount   WhatsAppAccount @relation(fields: [whatsappAccountId], references: [id], onDelete: Cascade)
 
+  @@index([activatedByUserId])
   @@index([organizationId])
   @@index([projectId])
+  @@index([status])
   @@unique([whatsappAccountId, jid])
   @@unique([conversationId])
 }
@@ -220,4 +227,11 @@ enum WhatsAppAccountStatus {
   CONNECTED
   DISCONNECTED
   ERROR
+}
+
+enum WhatsAppChatMappingStatus {
+  DISCOVERED
+  ACTIVE
+  IGNORED
+  ARCHIVED
 }

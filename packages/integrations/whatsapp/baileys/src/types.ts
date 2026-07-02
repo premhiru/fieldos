@@ -19,11 +19,14 @@ export interface WhatsAppChatMappingRecord {
   id: string;
   organizationId: string;
   whatsappAccountId: string;
-  conversationId: string;
+  conversationId: string | null;
   projectId: string | null;
   jid: string;
   chatName: string | null;
   isGroup: boolean;
+  status: "DISCOVERED" | "ACTIVE" | "IGNORED" | "ARCHIVED";
+  activatedAt: Date | null;
+  activatedByUserId: string | null;
   createdAt: Date;
   updatedAt: Date;
   project: {
@@ -35,7 +38,7 @@ export interface WhatsAppChatMappingRecord {
     id: string;
     title: string;
     projectId: string | null;
-  };
+  } | null;
 }
 
 export interface NormalizedWhatsAppMessage {

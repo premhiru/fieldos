@@ -84,6 +84,7 @@ export interface Message {
 export type WhatsAppConnectorType = "BAILEYS" | "META_CLOUD";
 export type WhatsAppAccountStatus =
   "PENDING_QR" | "CONNECTING" | "CONNECTED" | "DISCONNECTED" | "ERROR";
+export type WhatsAppChatMappingStatus = "DISCOVERED" | "ACTIVE" | "IGNORED" | "ARCHIVED";
 
 export interface WhatsAppAccount {
   id: string;
@@ -104,11 +105,14 @@ export interface WhatsAppChatMapping {
   id: string;
   organizationId: string;
   whatsappAccountId: string;
-  conversationId: string;
+  conversationId: string | null;
   projectId: string | null;
   jid: string;
   chatName: string | null;
   isGroup: boolean;
+  status: WhatsAppChatMappingStatus;
+  activatedAt: string | null;
+  activatedByUserId: string | null;
   createdAt: string;
   updatedAt: string;
   project: ProjectReference | null;
@@ -116,7 +120,7 @@ export interface WhatsAppChatMapping {
     id: string;
     title: string;
     projectId: string | null;
-  };
+  } | null;
 }
 
 class DashboardApiError extends Error {
@@ -232,5 +236,18 @@ export const api = {
     apiRequest<{ chat: WhatsAppChatMapping }>(`/whatsapp/chat-mappings/${mappingId}`, {
       body: JSON.stringify(body),
       method: "PATCH"
+    }),
+  activateWhatsAppChatMapping: (mappingId: string, body: { projectId: string }) =>
+    apiRequest<{ chat: WhatsAppChatMapping }>(`/whatsapp/chat-mappings/${mappingId}/activate`, {
+      body: JSON.stringify(body),
+      method: "POST"
+    }),
+  archiveWhatsAppChatMapping: (mappingId: string) =>
+    apiRequest<{ chat: WhatsAppChatMapping }>(`/whatsapp/chat-mappings/${mappingId}/archive`, {
+      method: "POST"
+    }),
+  ignoreWhatsAppChatMapping: (mappingId: string) =>
+    apiRequest<{ chat: WhatsAppChatMapping }>(`/whatsapp/chat-mappings/${mappingId}/ignore`, {
+      method: "POST"
     })
 };

@@ -188,13 +188,15 @@ Supported channel values are `WHATSAPP`, `EMAIL`, `SLACK`, `TEAMS`, and `SMS`.
 
 ## WhatsApp Connector
 
-The current WhatsApp connector uses the maintained Baileys package for WhatsApp Web pairing. Accounts are created and managed from dashboard settings. QR payloads are exchanged through Redis, session files and media are stored under `.storage`, and inbound messages are normalized into the generic messaging tables.
+The current WhatsApp connector uses the maintained Baileys package for WhatsApp Web pairing. Accounts are created and managed from dashboard settings. QR payloads are exchanged through Redis, session files and media are stored under `.storage`, and inbound messages are normalized into the generic messaging tables only after an admin activates the chat or group.
+
+FieldOS discovers WhatsApp chat and group metadata first. Discovered, ignored, and archived chats are not shown in the Inbox and do not store message bodies or attachments. Admins must map a chat/group to a project and activate it before new incoming messages are ingested.
 
 Use dedicated business numbers only. Do not connect personal WhatsApp accounts. FieldOS will add the official Meta WhatsApp Cloud API path for production enterprise deployments later.
 
 ## Current Roadmap
 
-1. Validate WhatsApp QR pairing with dedicated business test numbers.
+1. Validate WhatsApp QR pairing and explicit chat activation with dedicated business test numbers.
 2. Add invite and membership management.
 3. Add operational observability and deployment automation.
 4. Introduce AI, reports, tasks, and official Meta WhatsApp Cloud API support only after core workflow boundaries are stable.

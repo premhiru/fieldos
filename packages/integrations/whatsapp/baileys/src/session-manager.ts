@@ -12,6 +12,7 @@ import type { PrismaClient } from "@fieldos/db";
 import { createLogger } from "@fieldos/shared";
 import pino from "pino";
 
+import { decideWhatsAppIngestion } from "./ingestion-policy.js";
 import { normalizeWhatsAppMessage } from "./normalizer.js";
 import type { WhatsAppQrStore } from "./qr-store.js";
 import { BaileysFilesystemStorage } from "./storage.js";
@@ -118,6 +119,30 @@ export class BaileysWhatsAppSessionManager {
     });
 
     socket.ev.on("creds.update", saveCreds);
+    socket.ev.on("chats.upsert", async (chats: BaileysEventMap["chats.upsert"]) => {
+      for (const chat of chats) {
+        try {
+          await this.discoverChatMetadata(account, {
+            chatJid: typeof chat.id === "string" ? chat.id : null,
+            title: getChatMetadataTitle(chat)
+          });
+        } catch (error: unknown) {
+          this.logger.error({ accountId: account.id, error }, "WhatsApp chat discovery failed");
+        }
+      }
+    });
+    socket.ev.on("chats.update", async (chats: BaileysEventMap["chats.update"]) => {
+      for (const chat of chats) {
+        try {
+          await this.discoverChatMetadata(account, {
+            chatJid: typeof chat.id === "string" ? chat.id : null,
+            title: getChatMetadataTitle(chat)
+          });
+        } catch (error: unknown) {
+          this.logger.error({ accountId: account.id, error }, "WhatsApp chat update failed");
+        }
+      }
+    });
     socket.ev.on("connection.update", async (update: BaileysEventMap["connection.update"]) => {
       try {
         if (update.qr) {
@@ -191,20 +216,68 @@ export class BaileysWhatsAppSessionManager {
     socket: WASocket,
     rawMessage: WAMessage
   ): Promise<void> {
-    const normalized = normalizeWhatsAppMessage(rawMessage);
+    const chatJid = rawMessage.key.remoteJid;
 
-    if (!normalized) {
+    if (!chatJid) {
       return;
     }
 
-    const title = await this.getConversationTitle(socket, normalized);
+    const accountState = await this.prisma.whatsAppAccount.findUnique({
+      select: {
+        status: true
+      },
+      where: {
+        id: account.id
+      }
+    });
+
+    if (!accountState) {
+      return;
+    }
+
+    const isGroup = chatJid.endsWith("@g.us");
+    const pushName = typeof rawMessage.pushName === "string" ? rawMessage.pushName : null;
+    const title = await this.getChatTitle(socket, {
+      chatJid,
+      isGroup,
+      pushName
+    });
+    const mapping = await this.discoverChatMapping(account, {
+      chatJid,
+      isGroup,
+      title
+    });
+    const decision = decideWhatsAppIngestion({
+      account: accountState,
+      mapping
+    });
+
+    if (!decision.allowed) {
+      this.logger.info(
+        {
+          accountId: account.id,
+          chatJid,
+          reasonSkipped: decision.reasonSkipped,
+          timestamp: new Date().toISOString()
+        },
+        "WhatsApp message skipped before content ingestion"
+      );
+      return;
+    }
+
+    const normalized = normalizeWhatsAppMessage(rawMessage);
+
+    if (!normalized || !mapping.projectId) {
+      return;
+    }
+
     const existingMapping = await this.prisma.whatsAppChatMapping.findUnique({
       include: {
         conversation: true
       },
       where: {
         whatsappAccountId_jid: {
-          jid: normalized.chatJid,
+          jid: chatJid,
           whatsappAccountId: account.id
         }
       }
@@ -218,13 +291,13 @@ export class BaileysWhatsAppSessionManager {
           isGroup: normalized.isGroup,
           lastMessageAt: normalized.occurredAt,
           organizationId: account.organizationId,
-          projectId: existingMapping?.projectId ?? null,
+          projectId: mapping.projectId,
           title
         },
         update: {
           isGroup: normalized.isGroup,
           lastMessageAt: normalized.occurredAt,
-          projectId: existingMapping?.projectId ?? undefined,
+          projectId: mapping.projectId,
           title
         },
         where: {
@@ -236,15 +309,19 @@ export class BaileysWhatsAppSessionManager {
         }
       }));
 
-    if (!existingMapping) {
-      await this.prisma.whatsAppChatMapping.create({
+    if (!existingMapping?.conversationId) {
+      await this.prisma.whatsAppChatMapping.update({
         data: {
           chatName: title,
           conversationId: conversation.id,
           isGroup: normalized.isGroup,
-          jid: normalized.chatJid,
-          organizationId: account.organizationId,
-          whatsappAccountId: account.id
+          projectId: mapping.projectId
+        },
+        where: {
+          whatsappAccountId_jid: {
+            jid: normalized.chatJid,
+            whatsappAccountId: account.id
+          }
         }
       });
     }
@@ -379,26 +456,102 @@ export class BaileysWhatsAppSessionManager {
     });
   }
 
-  private async getConversationTitle(
+  private async discoverChatMapping(
+    account: {
+      id: string;
+      organizationId: string;
+    },
+    input: {
+      chatJid: string;
+      isGroup: boolean;
+      title: string;
+    }
+  ) {
+    return this.prisma.whatsAppChatMapping.upsert({
+      create: {
+        chatName: input.title,
+        isGroup: input.isGroup,
+        jid: input.chatJid,
+        organizationId: account.organizationId,
+        status: "DISCOVERED",
+        whatsappAccountId: account.id
+      },
+      update: {
+        chatName: input.title,
+        isGroup: input.isGroup
+      },
+      where: {
+        whatsappAccountId_jid: {
+          jid: input.chatJid,
+          whatsappAccountId: account.id
+        }
+      }
+    });
+  }
+
+  private async discoverChatMetadata(
+    account: {
+      id: string;
+      organizationId: string;
+    },
+    input: {
+      chatJid: string | null;
+      title: string | null;
+    }
+  ): Promise<void> {
+    if (!input.chatJid) {
+      return;
+    }
+
+    await this.discoverChatMapping(account, {
+      chatJid: input.chatJid,
+      isGroup: input.chatJid.endsWith("@g.us"),
+      title: input.title ?? normalizePhoneNumber(input.chatJid) ?? input.chatJid
+    });
+  }
+
+  private async getChatTitle(
     socket: WASocket,
-    message: NormalizedWhatsAppMessage
+    input: {
+      chatJid: string;
+      isGroup: boolean;
+      pushName: string | null;
+    }
   ): Promise<string> {
-    if (message.isGroup) {
+    if (input.isGroup) {
       try {
-        const metadata = await socket.groupMetadata(message.chatJid);
-        return metadata.subject || message.chatJid;
+        const metadata = await socket.groupMetadata(input.chatJid);
+        return metadata.subject || input.chatJid;
       } catch {
-        return message.chatJid;
+        return input.chatJid;
       }
     }
 
-    return message.pushName ?? normalizePhoneNumber(message.chatJid) ?? message.chatJid;
+    return input.pushName ?? normalizePhoneNumber(input.chatJid) ?? input.chatJid;
   }
 }
 
 function normalizePhoneNumber(jid: string): string | null {
   const value = jid.split("@")[0]?.split(":")[0];
   return value || null;
+}
+
+function getChatMetadataTitle(chat: unknown): string | null {
+  if (!chat || typeof chat !== "object") {
+    return null;
+  }
+
+  const record = chat as Record<string, unknown>;
+
+  for (const field of ["name", "subject", "pushName"] as const) {
+    const value = record[field];
+
+    if (typeof value === "string" && value.trim()) {
+      return value;
+    }
+  }
+
+  return null;
 }
 
 function getDisconnectStatusCode(error: unknown): number | undefined {

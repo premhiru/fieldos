@@ -1,4 +1,9 @@
-import type { MembershipRole, PrismaClient, ProjectStatus } from "@fieldos/db";
+import type {
+  MembershipRole,
+  PrismaClient,
+  ProjectStatus,
+  WhatsAppChatMappingStatus
+} from "@fieldos/db";
 import type {
   AttachmentRecord,
   ConversationRecord,
@@ -14,6 +19,7 @@ import { randomUUID } from "node:crypto";
 
 export type Role = MembershipRole;
 export type Status = ProjectStatus;
+export type ChatMappingStatus = WhatsAppChatMappingStatus;
 
 export interface SafeUser {
   id: string;
@@ -72,11 +78,14 @@ export interface WhatsAppChatMappingRecord {
   id: string;
   organizationId: string;
   whatsappAccountId: string;
-  conversationId: string;
+  conversationId: string | null;
   projectId: string | null;
   jid: string;
   chatName: string | null;
   isGroup: boolean;
+  status: ChatMappingStatus;
+  activatedAt: Date | null;
+  activatedByUserId: string | null;
   createdAt: Date;
   updatedAt: Date;
   project: {
@@ -88,7 +97,7 @@ export interface WhatsAppChatMappingRecord {
     id: string;
     title: string;
     projectId: string | null;
-  };
+  } | null;
 }
 
 export interface AppRepository extends MessagingRepository {
@@ -113,11 +122,19 @@ export interface AppRepository extends MessagingRepository {
     userId: string,
     organizationId: string
   ): Promise<OrganizationRecord | null>;
+  activateWhatsAppChatMapping(input: {
+    activatedByUserId: string;
+    mappingId: string;
+    projectId: string;
+  }): Promise<WhatsAppChatMappingRecord>;
+  archiveWhatsAppChatMapping(mappingId: string): Promise<WhatsAppChatMappingRecord>;
   createWhatsAppAccount(input: {
     displayName: string;
     organizationId: string;
   }): Promise<WhatsAppAccountRecord>;
   getWhatsAppAccount(accountId: string): Promise<WhatsAppAccountRecord | null>;
+  getWhatsAppChatMapping(mappingId: string): Promise<WhatsAppChatMappingRecord | null>;
+  ignoreWhatsAppChatMapping(mappingId: string): Promise<WhatsAppChatMappingRecord>;
   listWhatsAppAccounts(organizationId: string): Promise<WhatsAppAccountRecord[]>;
   listWhatsAppChatMappings(accountId: string): Promise<WhatsAppChatMappingRecord[]>;
   listOrganizations(userId: string): Promise<OrganizationRecord[]>;
@@ -308,6 +325,51 @@ export function createPrismaRepository(): AppRepository {
       });
     },
 
+    async activateWhatsAppChatMapping(input) {
+      const prisma = await getPrisma();
+
+      return prisma.$transaction(async (tx) => {
+        const mapping = await tx.whatsAppChatMapping.update({
+          data: {
+            activatedAt: new Date(),
+            activatedByUserId: input.activatedByUserId,
+            projectId: input.projectId,
+            status: "ACTIVE"
+          },
+          include: whatsappChatMappingInclude(),
+          where: {
+            id: input.mappingId
+          }
+        });
+
+        if (mapping.conversationId) {
+          await tx.conversation.update({
+            data: {
+              projectId: input.projectId
+            },
+            where: {
+              id: mapping.conversationId
+            }
+          });
+        }
+
+        return mapping;
+      });
+    },
+
+    async archiveWhatsAppChatMapping(mappingId) {
+      const prisma = await getPrisma();
+      return prisma.whatsAppChatMapping.update({
+        data: {
+          status: "ARCHIVED"
+        },
+        include: whatsappChatMappingInclude(),
+        where: {
+          id: mappingId
+        }
+      });
+    },
+
     async createWhatsAppAccount(input) {
       const prisma = await getPrisma();
       return prisma.whatsAppAccount.create({
@@ -326,6 +388,29 @@ export function createPrismaRepository(): AppRepository {
       return prisma.whatsAppAccount.findUnique({
         where: {
           id: accountId
+        }
+      });
+    },
+
+    async getWhatsAppChatMapping(mappingId) {
+      const prisma = await getPrisma();
+      return prisma.whatsAppChatMapping.findUnique({
+        include: whatsappChatMappingInclude(),
+        where: {
+          id: mappingId
+        }
+      });
+    },
+
+    async ignoreWhatsAppChatMapping(mappingId) {
+      const prisma = await getPrisma();
+      return prisma.whatsAppChatMapping.update({
+        data: {
+          status: "IGNORED"
+        },
+        include: whatsappChatMappingInclude(),
+        where: {
+          id: mappingId
         }
       });
     },
@@ -384,14 +469,16 @@ export function createPrismaRepository(): AppRepository {
           }
         });
 
-        await tx.conversation.update({
-          data: {
-            projectId: input.projectId
-          },
-          where: {
-            id: mapping.conversationId
-          }
-        });
+        if (mapping.conversationId) {
+          await tx.conversation.update({
+            data: {
+              projectId: input.projectId
+            },
+            where: {
+              id: mapping.conversationId
+            }
+          });
+        }
 
         return mapping;
       });
@@ -450,6 +537,27 @@ export function createPrismaRepository(): AppRepository {
           }
         ],
         where: {
+          AND: [
+            {
+              OR: [
+                {
+                  channel: {
+                    not: "WHATSAPP"
+                  }
+                },
+                {
+                  whatsAppMapping: {
+                    is: {
+                      projectId: {
+                        not: null
+                      },
+                      status: "ACTIVE"
+                    }
+                  }
+                }
+              ]
+            }
+          ],
           organizationId: input.organizationId,
           ...(search
             ? {

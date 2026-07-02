@@ -236,18 +236,32 @@ function WhatsAppAccountCard({
           {chatsQuery.isLoading ? (
             <p className="mt-3 text-sm text-slate-600">Loading chats...</p>
           ) : (chatsQuery.data?.chats ?? []).length === 0 ? (
-            <p className="mt-3 text-sm text-slate-600">No chats received yet.</p>
+            <p className="mt-3 text-sm text-slate-600">No chats discovered yet.</p>
           ) : (
-            <div className="mt-3 divide-y divide-slate-200">
-              {chatsQuery.data?.chats.map((chat) => (
-                <ChatMappingRow
-                  key={chat.id}
-                  accountId={account.id}
-                  canManage={canManage}
-                  chat={chat}
-                  projects={projects}
-                />
-              ))}
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full min-w-[860px] border-collapse text-left text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 text-xs font-semibold uppercase text-slate-500">
+                    <th className="py-3 pr-4">Chat/group name</th>
+                    <th className="py-3 pr-4">Type</th>
+                    <th className="py-3 pr-4">JID</th>
+                    <th className="py-3 pr-4">Status</th>
+                    <th className="py-3 pr-4">Mapped project</th>
+                    <th className="py-3 pr-4">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {chatsQuery.data?.chats.map((chat) => (
+                    <ChatMappingRow
+                      key={chat.id}
+                      accountId={account.id}
+                      canManage={canManage}
+                      chat={chat}
+                      projects={projects}
+                    />
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
@@ -268,36 +282,97 @@ function ChatMappingRow({
   projects: Project[];
 }) {
   const queryClient = useQueryClient();
-  const mutation = useMutation({
+  const [selectedProjectId, setSelectedProjectId] = React.useState(chat.projectId ?? "");
+  React.useEffect(() => {
+    setSelectedProjectId(chat.projectId ?? "");
+  }, [chat.projectId]);
+  const invalidateChats = async () => {
+    await queryClient.invalidateQueries({ queryKey: ["whatsapp-chats", accountId] });
+    await queryClient.invalidateQueries({ queryKey: ["conversations"] });
+  };
+  const updateProjectMutation = useMutation({
     mutationFn: (projectId: string | null) => api.updateWhatsAppChatMapping(chat.id, { projectId }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["whatsapp-chats", accountId] });
-      await queryClient.invalidateQueries({ queryKey: ["conversations"] });
-    }
+    onSuccess: invalidateChats
   });
+  const activateMutation = useMutation({
+    mutationFn: () => api.activateWhatsAppChatMapping(chat.id, { projectId: selectedProjectId }),
+    onSuccess: invalidateChats
+  });
+  const ignoreMutation = useMutation({
+    mutationFn: () => api.ignoreWhatsAppChatMapping(chat.id),
+    onSuccess: invalidateChats
+  });
+  const archiveMutation = useMutation({
+    mutationFn: () => api.archiveWhatsAppChatMapping(chat.id),
+    onSuccess: invalidateChats
+  });
+  const isMutating =
+    updateProjectMutation.isPending ||
+    activateMutation.isPending ||
+    ignoreMutation.isPending ||
+    archiveMutation.isPending;
 
   return (
-    <div className="grid gap-3 py-4 md:grid-cols-[1fr_220px] md:items-center">
-      <div>
-        <div className="font-medium text-slate-950">{chat.chatName ?? chat.conversation.title}</div>
-        <div className="mt-1 text-xs text-slate-500">
-          {chat.jid} - {chat.isGroup ? "Group" : "Direct"}
-        </div>
-      </div>
-      <select
-        className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm"
-        disabled={!canManage || mutation.isPending}
-        value={chat.projectId ?? ""}
-        onChange={(event) => mutation.mutate(event.target.value || null)}
-      >
-        <option value="">Unassigned</option>
-        {projects.map((project) => (
-          <option key={project.id} value={project.id}>
-            {project.name}
+    <tr>
+      <td className="py-4 pr-4 font-medium text-slate-950">
+        {chat.chatName ?? chat.conversation?.title ?? chat.jid}
+      </td>
+      <td className="py-4 pr-4 text-slate-600">{chat.isGroup ? "Group" : "Direct"}</td>
+      <td className="py-4 pr-4 font-mono text-xs text-slate-500">{chat.jid}</td>
+      <td className="py-4 pr-4">
+        <Badge variant="muted">{chat.status}</Badge>
+      </td>
+      <td className="py-4 pr-4">
+        <select
+          className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm"
+          disabled={!canManage || isMutating}
+          value={selectedProjectId}
+          onChange={(event) => {
+            const nextProjectId = event.target.value;
+            setSelectedProjectId(nextProjectId);
+            if (chat.status === "ACTIVE" && nextProjectId) {
+              updateProjectMutation.mutate(nextProjectId);
+            }
+          }}
+        >
+          <option disabled={chat.status === "ACTIVE"} value="">
+            Unassigned
           </option>
-        ))}
-      </select>
-    </div>
+          {projects.map((project) => (
+            <option key={project.id} value={project.id}>
+              {project.name}
+            </option>
+          ))}
+        </select>
+      </td>
+      <td className="py-4 pr-4">
+        <div className="flex flex-wrap gap-2">
+          <Button
+            disabled={!canManage || !selectedProjectId || isMutating || chat.status === "ACTIVE"}
+            type="button"
+            onClick={() => activateMutation.mutate()}
+          >
+            Activate
+          </Button>
+          <Button
+            disabled={!canManage || isMutating || chat.status === "IGNORED"}
+            type="button"
+            variant="secondary"
+            onClick={() => ignoreMutation.mutate()}
+          >
+            Ignore
+          </Button>
+          <Button
+            disabled={!canManage || isMutating || chat.status === "ARCHIVED"}
+            type="button"
+            variant="secondary"
+            onClick={() => archiveMutation.mutate()}
+          >
+            Archive
+          </Button>
+        </div>
+      </td>
+    </tr>
   );
 }
 

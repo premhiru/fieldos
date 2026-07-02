@@ -19,7 +19,7 @@
 
 ## Current Milestone
 
-Baileys WhatsApp connector implemented and ready for live QR pairing validation.
+Explicit WhatsApp chat activation implemented and ready for live QR pairing validation.
 
 ## Completed Tasks
 
@@ -68,6 +68,13 @@ Baileys WhatsApp connector implemented and ready for live QR pairing validation.
   - API endpoints added for WhatsApp account lifecycle, QR retrieval, chat listing, and project mapping.
   - Dashboard settings page now supports WhatsApp connection management, QR display, connection status, and chat-to-project assignment.
   - ADR 0004 documents the Baileys adapter decision.
+- Task 006B: Add Explicit WhatsApp Chat/Group Activation.
+  - WhatsApp chat mappings now support `DISCOVERED`, `ACTIVE`, `IGNORED`, and `ARCHIVED` states.
+  - Discovery stores metadata only and does not create inbox conversations or message records.
+  - Worker ingestion skips non-active or unmapped chats before message normalization, body storage, attachment storage, or future AI processing.
+  - Dashboard settings now requires admins to select a project and activate each chat/group explicitly.
+  - Inbox listing excludes WhatsApp conversations unless their mapping is `ACTIVE` and mapped to a project.
+  - ADR 0005 documents the explicit activation requirement.
 
 ## In-Progress Tasks
 
@@ -84,6 +91,7 @@ Baileys WhatsApp connector implemented and ready for live QR pairing validation.
 - Message sending is internal/development-only until channel adapters exist.
 - Baileys is a WhatsApp Web adapter and should be used only with dedicated business test numbers until official Meta Cloud API support is implemented.
 - WhatsApp media storage is local filesystem-backed under `.storage` and needs object storage before production deployment.
+- Live WhatsApp QR pairing and activation needs a dedicated test number before production confidence.
 
 ## Upcoming Milestones
 
@@ -91,7 +99,7 @@ Baileys WhatsApp connector implemented and ready for live QR pairing validation.
 - Create `develop` branch after remote setup.
 - Define product requirements and initial domain boundaries.
 - Add invite and membership management after the basic auth/org/project slice is verified.
-- Validate WhatsApp QR pairing and inbound message ingestion with a dedicated business test number.
+- Validate WhatsApp QR pairing, chat discovery, explicit activation, and inbound message ingestion with a dedicated business test number.
 - Add official Meta WhatsApp Cloud API support for enterprise production deployments.
 
 ## Architecture Decisions Made
@@ -102,6 +110,7 @@ Baileys WhatsApp connector implemented and ready for live QR pairing validation.
 - ADR 0002: Use JWT session tokens in HTTP-only cookies for MVP authentication.
 - ADR 0003: Build messaging as a channel-agnostic platform and plug channel adapters into it.
 - ADR 0004: Use Baileys as the first WhatsApp adapter while keeping WhatsApp logic outside the messaging core.
+- ADR 0005: Discover WhatsApp chats/groups but require explicit admin activation before ingestion.
 
 ## Deployment Status
 
@@ -121,3 +130,6 @@ Baileys WhatsApp connector implemented and ready for live QR pairing validation.
 - Task 006 is not deployed.
   - Task 006 local verification is complete for migration, code checks, dashboard startup, API health, and worker startup.
   - Live WhatsApp QR scanning was not performed because no dedicated business test number was provided in this environment.
+- Task 006B is not deployed.
+  - Task 006B local verification is complete for migration, format, lint, typecheck, tests, and build.
+  - Live WhatsApp activation was not performed because no dedicated business test number was provided in this environment.

@@ -34,6 +34,7 @@ import {
   type SafeUser
 } from "./repository.js";
 import {
+  activateWhatsAppChatMappingSchema,
   createOrganizationSchema,
   createProjectSchema,
   conversationParamsSchema,
@@ -391,19 +392,15 @@ export function buildServer(options: BuildServerOptions = {}) {
   server.patch("/whatsapp/chat-mappings/:id", { preHandler: requireAuth }, async (request) => {
     const params = whatsappChatMappingParamsSchema.parse(request.params);
     const body = updateWhatsAppChatMappingSchema.parse(request.body);
-    const mapping = await findWhatsAppChatMappingForUser(requireCurrentUser(request).id, params.id);
-    await requireWritableOrganizationRole(requireCurrentUser(request).id, mapping.organizationId);
+    const user = requireCurrentUser(request);
+    const mapping = await findWhatsAppChatMappingForUser(user.id, params.id);
+    await requireWritableOrganizationRole(user.id, mapping.organizationId);
 
-    if (body.projectId) {
-      const project = await repository.findProjectForUser(
-        requireCurrentUser(request).id,
-        body.projectId
-      );
-
-      if (!project || project.organizationId !== mapping.organizationId) {
-        throw notFound("Project not found.");
-      }
+    if (mapping.status === "ACTIVE" && body.projectId === null) {
+      throw conflict("Active WhatsApp chats require a project.");
     }
+
+    await validateMappingProject(user.id, mapping.organizationId, body.projectId);
 
     return {
       chat: await repository.updateWhatsAppChatMapping({
@@ -412,6 +409,57 @@ export function buildServer(options: BuildServerOptions = {}) {
       })
     };
   });
+
+  server.post(
+    "/whatsapp/chat-mappings/:id/activate",
+    { preHandler: requireAuth },
+    async (request) => {
+      const params = whatsappChatMappingParamsSchema.parse(request.params);
+      const body = activateWhatsAppChatMappingSchema.parse(request.body);
+      const user = requireCurrentUser(request);
+      const mapping = await findWhatsAppChatMappingForUser(user.id, params.id);
+      await requireWritableOrganizationRole(user.id, mapping.organizationId);
+      await validateMappingProject(user.id, mapping.organizationId, body.projectId);
+
+      return {
+        chat: await repository.activateWhatsAppChatMapping({
+          activatedByUserId: user.id,
+          mappingId: params.id,
+          projectId: body.projectId
+        })
+      };
+    }
+  );
+
+  server.post(
+    "/whatsapp/chat-mappings/:id/ignore",
+    { preHandler: requireAuth },
+    async (request) => {
+      const params = whatsappChatMappingParamsSchema.parse(request.params);
+      const user = requireCurrentUser(request);
+      const mapping = await findWhatsAppChatMappingForUser(user.id, params.id);
+      await requireWritableOrganizationRole(user.id, mapping.organizationId);
+
+      return {
+        chat: await repository.ignoreWhatsAppChatMapping(params.id)
+      };
+    }
+  );
+
+  server.post(
+    "/whatsapp/chat-mappings/:id/archive",
+    { preHandler: requireAuth },
+    async (request) => {
+      const params = whatsappChatMappingParamsSchema.parse(request.params);
+      const user = requireCurrentUser(request);
+      const mapping = await findWhatsAppChatMappingForUser(user.id, params.id);
+      await requireWritableOrganizationRole(user.id, mapping.organizationId);
+
+      return {
+        chat: await repository.archiveWhatsAppChatMapping(params.id)
+      };
+    }
+  );
 
   server.addHook("onClose", async () => {
     if (qrRedis) {
@@ -481,22 +529,30 @@ export function buildServer(options: BuildServerOptions = {}) {
   }
 
   async function findWhatsAppChatMappingForUser(userId: string, mappingId: string) {
-    const organizations = await repository.listOrganizations(userId);
+    const mapping = await repository.getWhatsAppChatMapping(mappingId);
 
-    for (const organization of organizations) {
-      const accounts = await repository.listWhatsAppAccounts(organization.id);
-
-      for (const account of accounts) {
-        const mappings = await repository.listWhatsAppChatMappings(account.id);
-        const mapping = mappings.find((candidate) => candidate.id === mappingId);
-
-        if (mapping) {
-          return mapping;
-        }
-      }
+    if (!mapping) {
+      throw notFound("WhatsApp chat mapping not found.");
     }
 
-    throw notFound("WhatsApp chat mapping not found.");
+    await requireOrganizationMembership(userId, mapping.organizationId);
+    return mapping;
+  }
+
+  async function validateMappingProject(
+    userId: string,
+    organizationId: string,
+    projectId: string | null
+  ) {
+    if (!projectId) {
+      return;
+    }
+
+    const project = await repository.findProjectForUser(userId, projectId);
+
+    if (!project || project.organizationId !== organizationId) {
+      throw notFound("Project not found.");
+    }
   }
 
   return server;

@@ -37,7 +37,7 @@ let buildServer: typeof import("./server.js").buildServer;
 
 beforeAll(async () => {
   buildServer = (await import("./server.js")).buildServer;
-});
+}, 30_000);
 
 describe("FieldOS API auth and tenancy", () => {
   let repository: InMemoryRepository;
@@ -373,6 +373,198 @@ describe("FieldOS API auth and tenancy", () => {
     );
   });
 
+  it("activates a discovered WhatsApp chat only when an admin maps a project", async () => {
+    const cookie = await signup(server);
+    const organization = await createOrganization(server, cookie);
+    const project = await repository.createProject({
+      code: "ACT-001",
+      name: "Activation project",
+      organizationId: organization.id,
+      status: "ACTIVE"
+    });
+    const account = await repository.createWhatsAppAccount({
+      displayName: "Dispatch line",
+      organizationId: organization.id
+    });
+    const mapping = repository.addWhatsAppChatMapping({
+      accountId: account.id,
+      jid: "15551234567@s.whatsapp.net",
+      organizationId: organization.id
+    });
+
+    expect(mapping.status).toBe("DISCOVERED");
+
+    const missingProjectResponse = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "POST",
+      payload: {},
+      url: `/whatsapp/chat-mappings/${mapping.id}/activate`
+    });
+
+    expect(missingProjectResponse.statusCode).toBe(400);
+
+    const response = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "POST",
+      payload: {
+        projectId: project.id
+      },
+      url: `/whatsapp/chat-mappings/${mapping.id}/activate`
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().chat.status).toBe("ACTIVE");
+    expect(response.json().chat.projectId).toBe(project.id);
+    expect(response.json().chat.activatedByUserId).toBe(repository.users[0]?.id);
+    expect(response.json().chat.activatedAt).toBeTruthy();
+  });
+
+  it("prevents MEMBER and VIEWER users from activating WhatsApp chats", async () => {
+    const ownerCookie = await signup(server, "owner@example.com");
+    const organization = await createOrganization(server, ownerCookie);
+    const project = await repository.createProject({
+      code: "ROLE-001",
+      name: "Role project",
+      organizationId: organization.id,
+      status: "ACTIVE"
+    });
+    const account = await repository.createWhatsAppAccount({
+      displayName: "Dispatch line",
+      organizationId: organization.id
+    });
+    const mapping = repository.addWhatsAppChatMapping({
+      accountId: account.id,
+      jid: "15551234567@s.whatsapp.net",
+      organizationId: organization.id
+    });
+    const memberCookie = await signup(server, "member@example.com");
+    const viewerCookie = await signup(server, "viewer@example.com");
+    const member = repository.users.find((user) => user.email === "member@example.com");
+    const viewer = repository.users.find((user) => user.email === "viewer@example.com");
+
+    if (!member || !viewer) {
+      throw new Error("test users were not created");
+    }
+
+    repository.addMembership(member.id, organization.id, "MEMBER");
+    repository.addMembership(viewer.id, organization.id, "VIEWER");
+
+    for (const cookie of [memberCookie, viewerCookie]) {
+      const response = await server.inject({
+        headers: {
+          cookie
+        },
+        method: "POST",
+        payload: {
+          projectId: project.id
+        },
+        url: `/whatsapp/chat-mappings/${mapping.id}/activate`
+      });
+
+      expect(response.statusCode).toBe(403);
+    }
+  });
+
+  it("sets WhatsApp chats to ignored and archived", async () => {
+    const cookie = await signup(server);
+    const organization = await createOrganization(server, cookie);
+    const account = await repository.createWhatsAppAccount({
+      displayName: "Dispatch line",
+      organizationId: organization.id
+    });
+    const mapping = repository.addWhatsAppChatMapping({
+      accountId: account.id,
+      jid: "15551234567@s.whatsapp.net",
+      organizationId: organization.id
+    });
+
+    const ignoreResponse = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "POST",
+      url: `/whatsapp/chat-mappings/${mapping.id}/ignore`
+    });
+
+    expect(ignoreResponse.statusCode).toBe(200);
+    expect(ignoreResponse.json().chat.status).toBe("IGNORED");
+
+    const archiveResponse = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "POST",
+      url: `/whatsapp/chat-mappings/${mapping.id}/archive`
+    });
+
+    expect(archiveResponse.statusCode).toBe(200);
+    expect(archiveResponse.json().chat.status).toBe("ARCHIVED");
+  });
+
+  it("only lists active mapped WhatsApp conversations in the inbox", async () => {
+    const cookie = await signup(server);
+    const organization = await createOrganization(server, cookie);
+    const project = await repository.createProject({
+      code: "INBOX-001",
+      name: "Inbox project",
+      organizationId: organization.id,
+      status: "ACTIVE"
+    });
+    const account = await repository.createWhatsAppAccount({
+      displayName: "Dispatch line",
+      organizationId: organization.id
+    });
+    const discoveredConversation = await repository.createConversation({
+      channel: "WHATSAPP",
+      externalId: "discovered@s.whatsapp.net",
+      isGroup: false,
+      lastMessageAt: null,
+      organizationId: organization.id,
+      projectId: null,
+      title: "Discovered chat"
+    });
+    repository.addWhatsAppChatMapping({
+      accountId: account.id,
+      conversationId: discoveredConversation.id,
+      jid: "discovered@s.whatsapp.net",
+      organizationId: organization.id,
+      status: "DISCOVERED"
+    });
+    const activeConversation = await repository.createConversation({
+      channel: "WHATSAPP",
+      externalId: "active@s.whatsapp.net",
+      isGroup: false,
+      lastMessageAt: null,
+      organizationId: organization.id,
+      projectId: project.id,
+      title: "Active chat"
+    });
+    repository.addWhatsAppChatMapping({
+      accountId: account.id,
+      conversationId: activeConversation.id,
+      jid: "active@s.whatsapp.net",
+      organizationId: organization.id,
+      projectId: project.id,
+      status: "ACTIVE"
+    });
+
+    const response = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "GET",
+      url: `/conversations?organizationId=${organization.id}`
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().conversations).toHaveLength(1);
+    expect(response.json().conversations[0].title).toBe("Active chat");
+  });
+
   it("prevents cross-organization WhatsApp account access", async () => {
     const ownerCookie = await signup(server, "owner@example.com");
     const organization = await createOrganization(server, ownerCookie);
@@ -542,34 +734,51 @@ class InMemoryRepository implements AppRepository {
 
   addWhatsAppChatMapping(input: {
     accountId: string;
-    conversationId: string;
+    conversationId?: string;
     jid: string;
     organizationId: string;
+    projectId?: string | null;
+    status?: WhatsAppChatMappingRecord["status"];
   }): WhatsAppChatMappingRecord {
     const now = new Date();
-    const conversation = this.conversations.find(
-      (candidate) => candidate.id === input.conversationId
-    );
+    const conversation = input.conversationId
+      ? this.conversations.find((candidate) => candidate.id === input.conversationId)
+      : null;
 
-    if (!conversation) {
+    if (input.conversationId && !conversation) {
       throw new Error("conversation missing in test repository");
     }
 
+    const projectId = input.projectId ?? conversation?.projectId ?? null;
+    const project = projectId
+      ? this.projects.find((candidate) => candidate.id === projectId)
+      : null;
     const mapping = {
-      chatName: conversation.title,
-      conversation: {
-        id: conversation.id,
-        projectId: conversation.projectId,
-        title: conversation.title
-      },
-      conversationId: input.conversationId,
+      activatedAt: input.status === "ACTIVE" ? now : null,
+      activatedByUserId: null,
+      chatName: conversation?.title ?? input.jid,
+      conversation: conversation
+        ? {
+            id: conversation.id,
+            projectId: conversation.projectId,
+            title: conversation.title
+          }
+        : null,
+      conversationId: input.conversationId ?? null,
       createdAt: now,
       id: nextId("whatsapp_chat"),
       isGroup: false,
       jid: input.jid,
       organizationId: input.organizationId,
-      project: null,
-      projectId: null,
+      project: project
+        ? {
+            code: project.code,
+            id: project.id,
+            name: project.name
+          }
+        : null,
+      projectId,
+      status: input.status ?? "DISCOVERED",
       updatedAt: now,
       whatsappAccountId: input.accountId
     };
@@ -749,8 +958,63 @@ class InMemoryRepository implements AppRepository {
       : [];
   }
 
+  async activateWhatsAppChatMapping(input: {
+    activatedByUserId: string;
+    mappingId: string;
+    projectId: string;
+  }): Promise<WhatsAppChatMappingRecord> {
+    const mapping = this.requireWhatsAppChatMapping(input.mappingId);
+    const project = this.projects.find((candidate) => candidate.id === input.projectId);
+
+    if (!project) {
+      throw new Error("project missing in test repository");
+    }
+
+    mapping.activatedAt = new Date();
+    mapping.activatedByUserId = input.activatedByUserId;
+    mapping.projectId = input.projectId;
+    mapping.project = {
+      code: project.code,
+      id: project.id,
+      name: project.name
+    };
+    mapping.status = "ACTIVE";
+    mapping.updatedAt = new Date();
+
+    if (mapping.conversationId) {
+      const conversation = this.conversations.find(
+        (candidate) => candidate.id === mapping.conversationId
+      );
+
+      if (conversation) {
+        conversation.projectId = input.projectId;
+        conversation.project = mapping.project;
+      }
+    }
+
+    return mapping;
+  }
+
+  async archiveWhatsAppChatMapping(mappingId: string): Promise<WhatsAppChatMappingRecord> {
+    const mapping = this.requireWhatsAppChatMapping(mappingId);
+    mapping.status = "ARCHIVED";
+    mapping.updatedAt = new Date();
+    return mapping;
+  }
+
   async getWhatsAppAccount(accountId: string): Promise<WhatsAppAccountRecord | null> {
     return this.whatsAppAccounts.find((account) => account.id === accountId) ?? null;
+  }
+
+  async getWhatsAppChatMapping(mappingId: string): Promise<WhatsAppChatMappingRecord | null> {
+    return this.whatsAppChatMappings.find((mapping) => mapping.id === mappingId) ?? null;
+  }
+
+  async ignoreWhatsAppChatMapping(mappingId: string): Promise<WhatsAppChatMappingRecord> {
+    const mapping = this.requireWhatsAppChatMapping(mappingId);
+    mapping.status = "IGNORED";
+    mapping.updatedAt = new Date();
+    return mapping;
   }
 
   async listWhatsAppAccounts(organizationId: string): Promise<WhatsAppAccountRecord[]> {
@@ -780,11 +1044,7 @@ class InMemoryRepository implements AppRepository {
     mappingId: string;
     projectId: string | null;
   }): Promise<WhatsAppChatMappingRecord> {
-    const mapping = this.whatsAppChatMappings.find((candidate) => candidate.id === input.mappingId);
-
-    if (!mapping) {
-      throw new Error("WhatsApp chat mapping missing in test repository");
-    }
+    const mapping = this.requireWhatsAppChatMapping(input.mappingId);
 
     const project = input.projectId
       ? this.projects.find((candidate) => candidate.id === input.projectId)
@@ -797,15 +1057,27 @@ class InMemoryRepository implements AppRepository {
           name: project.name
         }
       : null;
-    mapping.conversation.projectId = input.projectId;
+    if (mapping.conversation) {
+      mapping.conversation.projectId = input.projectId;
+    }
     mapping.updatedAt = new Date();
 
-    const conversation = this.conversations.find(
-      (candidate) => candidate.id === mapping.conversationId
-    );
+    const conversation = mapping.conversationId
+      ? this.conversations.find((candidate) => candidate.id === mapping.conversationId)
+      : null;
     if (conversation) {
       conversation.projectId = input.projectId;
       conversation.project = mapping.project;
+    }
+
+    return mapping;
+  }
+
+  private requireWhatsAppChatMapping(mappingId: string): WhatsAppChatMappingRecord {
+    const mapping = this.whatsAppChatMappings.find((candidate) => candidate.id === mappingId);
+
+    if (!mapping) {
+      throw new Error("WhatsApp chat mapping missing in test repository");
     }
 
     return mapping;
@@ -821,9 +1093,15 @@ class InMemoryRepository implements AppRepository {
       const messages = this.messages.filter(
         (message) => message.conversationId === conversation.id
       );
+      const whatsappMapping =
+        conversation.channel === "WHATSAPP"
+          ? this.whatsAppChatMappings.find((mapping) => mapping.conversationId === conversation.id)
+          : null;
 
       return (
         conversation.organizationId === input.organizationId &&
+        (conversation.channel !== "WHATSAPP" ||
+          (whatsappMapping?.status === "ACTIVE" && Boolean(whatsappMapping.projectId))) &&
         (!search ||
           conversation.title.toLowerCase().includes(search) ||
           messages.some((message) => message.body?.toLowerCase().includes(search)))

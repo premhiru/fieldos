@@ -37,6 +37,10 @@ export const updateWhatsAppChatMappingSchema = z.object({
   projectId: z.string().trim().min(1).nullable()
 });
 
+export const activateWhatsAppChatMappingSchema = z.object({
+  projectId: z.string().trim().min(1)
+});
+
 export const createOrganizationSchema = z.object({
   name: z.string().trim().min(1).max(120),
   slug: z
