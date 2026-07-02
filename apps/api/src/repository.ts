@@ -139,6 +139,7 @@ export interface AppRepository extends MessagingRepository {
   listWhatsAppChatMappings(accountId: string): Promise<WhatsAppChatMappingRecord[]>;
   listOrganizations(userId: string): Promise<OrganizationRecord[]>;
   listProjects(userId: string, organizationId: string): Promise<ProjectRecord[]>;
+  rotateWhatsAppAccountSession(accountId: string): Promise<WhatsAppAccountRecord>;
   updateWhatsAppAccountStatus(
     accountId: string,
     status: WhatsAppAccountRecord["status"]
@@ -435,6 +436,28 @@ export function createPrismaRepository(): AppRepository {
           ...(status === "CONNECTED" ? { lastConnectedAt: now } : {}),
           ...(status === "DISCONNECTED" ? { lastDisconnectedAt: now } : {}),
           status
+        },
+        where: {
+          id: accountId
+        }
+      });
+    },
+
+    async rotateWhatsAppAccountSession(accountId) {
+      const prisma = await getPrisma();
+      const account = await prisma.whatsAppAccount.findUniqueOrThrow({
+        select: {
+          organizationId: true
+        },
+        where: {
+          id: accountId
+        }
+      });
+
+      return prisma.whatsAppAccount.update({
+        data: {
+          sessionKey: `baileys/${account.organizationId}/${randomUUID()}`,
+          status: "PENDING_QR"
         },
         where: {
           id: accountId

@@ -355,7 +355,7 @@ export function buildServer(options: BuildServerOptions = {}) {
     await requireWritableOrganizationRole(requireCurrentUser(request).id, account.organizationId);
 
     return {
-      account: await repository.updateWhatsAppAccountStatus(account.id, "PENDING_QR")
+      account: await repository.rotateWhatsAppAccountSession(account.id)
     };
   });
 

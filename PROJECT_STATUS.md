@@ -148,6 +148,9 @@ WhatsApp connector is live and being hardened with production pairing feedback.
   - Settings starts QR polling immediately after Connect/Reconnect is clicked.
   - The QR pairing panel is shown above existing chats/groups while reconnecting.
   - Dashboard redeployed and aliased to `https://fieldos-sand.vercel.app`.
+- WhatsApp reconnect QR backend fix completed.
+  - Connect/Reconnect now rotates the WhatsApp account session key.
+  - The Baileys worker now uses the database `sessionKey` as the auth-state folder, forcing fresh QR generation after a user-initiated reconnect.
 - Vercel `NEXT_PUBLIC_API_URL` is configured for production.
 - Dashboard redeployed to Vercel production with the Railway API URL.
 - Dashboard, API, worker, auth, projects, messaging, and Baileys WhatsApp connector application slices exist.

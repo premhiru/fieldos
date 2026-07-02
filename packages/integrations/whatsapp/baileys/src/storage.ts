@@ -4,8 +4,8 @@ import path from "node:path";
 export class BaileysFilesystemStorage {
   constructor(private readonly rootPath = path.join(process.cwd(), ".storage")) {}
 
-  getSessionPath(organizationId: string, accountId: string): string {
-    return path.join(this.rootPath, "baileys", organizationId, accountId);
+  getSessionPath(sessionKey: string): string {
+    return path.join(this.rootPath, sessionKey);
   }
 
   async writeMedia(input: {

@@ -306,6 +306,7 @@ describe("FieldOS API auth and tenancy", () => {
     }
 
     repository.addMembership(member.id, organization.id, "MEMBER");
+    const previousSessionKey = account.sessionKey;
 
     const memberConnect = await server.inject({
       headers: {
@@ -326,6 +327,7 @@ describe("FieldOS API auth and tenancy", () => {
     });
 
     expect(ownerConnect.statusCode).toBe(200);
+    expect(ownerConnect.json().account.sessionKey).not.toBe(previousSessionKey);
   });
 
   it("maps a WhatsApp chat to a project", async () => {
@@ -1034,6 +1036,19 @@ class InMemoryRepository implements AppRepository {
     }
 
     account.status = status;
+    account.updatedAt = new Date();
+    return account;
+  }
+
+  async rotateWhatsAppAccountSession(accountId: string): Promise<WhatsAppAccountRecord> {
+    const account = this.whatsAppAccounts.find((candidate) => candidate.id === accountId);
+
+    if (!account) {
+      throw new Error("WhatsApp account missing in test repository");
+    }
+
+    account.sessionKey = `baileys/${account.organizationId}/${nextId("session")}`;
+    account.status = "PENDING_QR";
     account.updatedAt = new Date();
     return account;
   }

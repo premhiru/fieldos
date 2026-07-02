@@ -94,6 +94,7 @@ export class BaileysWhatsAppSessionManager {
     id: string;
     organizationId: string;
     displayName: string;
+    sessionKey: string;
   }): Promise<void> {
     this.logger.info({ accountId: account.id }, "starting WhatsApp session");
 
@@ -106,7 +107,7 @@ export class BaileysWhatsAppSessionManager {
       }
     });
 
-    const sessionPath = this.storage.getSessionPath(account.organizationId, account.id);
+    const sessionPath = this.storage.getSessionPath(account.sessionKey);
     const { saveCreds, state } = await useMultiFileAuthState(sessionPath);
     const versionResult = await fetchLatestBaileysVersion();
     const socket = makeWASocket({
