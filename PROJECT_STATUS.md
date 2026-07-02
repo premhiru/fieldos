@@ -152,6 +152,7 @@ WhatsApp connector is live and being hardened with production pairing feedback.
   - Connect/Reconnect now rotates the WhatsApp account session key.
   - The Baileys worker now uses the database `sessionKey` as the auth-state folder, forcing fresh QR generation after a user-initiated reconnect.
   - The Baileys worker now auto-rotates stale pre-pairing sessions that close before a QR is generated, preventing a reconnect loop from leaving the UI stuck on `Waiting for QR code`.
+  - Baileys upgraded to `7.0.0-rc13` to use the current WhatsApp Web protocol runtime after repeated pre-QR `428 connectionClosed` disconnects.
 - Vercel `NEXT_PUBLIC_API_URL` is configured for production.
 - Dashboard redeployed to Vercel production with the Railway API URL.
 - Dashboard, API, worker, auth, projects, messaging, and Baileys WhatsApp connector application slices exist.

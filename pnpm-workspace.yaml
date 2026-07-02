@@ -10,12 +10,14 @@ blockExoticSubdeps: false
 
 onlyBuiltDependencies:
   - "@prisma/engines"
+  - "@whiskeysockets/baileys"
   - "esbuild"
   - "prisma"
   - "protobufjs"
   - "sharp"
 allowBuilds:
   "@prisma/engines": true
+  "@whiskeysockets/baileys": true
   esbuild: true
   prisma: true
   protobufjs: true

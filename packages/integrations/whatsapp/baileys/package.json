@@ -22,7 +22,7 @@
     "@fieldos/db": "workspace:*",
     "@fieldos/messaging": "workspace:*",
     "@fieldos/shared": "workspace:*",
-    "@whiskeysockets/baileys": "^6.7.20",
+    "@whiskeysockets/baileys": "7.0.0-rc13",
     "ioredis": "^5.8.2",
     "pino": "^10.1.0"
   },
