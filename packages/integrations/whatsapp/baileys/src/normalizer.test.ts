@@ -58,4 +58,69 @@ describe("normalizeWhatsAppMessage", () => {
       type: "IMAGE"
     });
   });
+
+  it("normalizes stickers as image attachments", () => {
+    const normalized = normalizeWhatsAppMessage({
+      key: {
+        fromMe: false,
+        id: "message_3",
+        remoteJid: "15551234567@s.whatsapp.net"
+      },
+      message: {
+        stickerMessage: {
+          fileLength: 1024,
+          mimetype: "image/webp"
+        }
+      },
+      messageTimestamp: 1782864000
+    } as WAMessage);
+
+    expect(normalized).toMatchObject({
+      body: "Sticker",
+      media: {
+        filename: "message_3.webp",
+        mimeType: "image/webp",
+        size: 1024
+      },
+      type: "IMAGE"
+    });
+  });
+
+  it("normalizes common WhatsApp events without unsupported placeholders", () => {
+    const normalized = normalizeWhatsAppMessage({
+      key: {
+        fromMe: false,
+        id: "message_4",
+        remoteJid: "15551234567@s.whatsapp.net"
+      },
+      message: {
+        locationMessage: {
+          degreesLatitude: 1.3521,
+          degreesLongitude: 103.8198
+        }
+      },
+      messageTimestamp: 1782864000
+    } as WAMessage);
+
+    expect(normalized).toMatchObject({
+      body: "Location shared",
+      type: "SYSTEM"
+    });
+  });
+
+  it("skips WhatsApp protocol sync messages", () => {
+    const normalized = normalizeWhatsAppMessage({
+      key: {
+        fromMe: false,
+        id: "message_5",
+        remoteJid: "15551234567@s.whatsapp.net"
+      },
+      message: {
+        protocolMessage: {}
+      },
+      messageTimestamp: 1782864000
+    } as WAMessage);
+
+    expect(normalized).toBeNull();
+  });
 });

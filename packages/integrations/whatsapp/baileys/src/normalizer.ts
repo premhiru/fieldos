@@ -2,6 +2,11 @@ import type { WAMessage } from "@whiskeysockets/baileys";
 
 import type { NormalizedWhatsAppMessage } from "./types.js";
 
+type NormalizedMessageBase = Pick<
+  NormalizedWhatsAppMessage,
+  "chatJid" | "direction" | "isGroup" | "messageId" | "occurredAt" | "pushName" | "senderJid"
+>;
+
 export function normalizeWhatsAppMessage(message: WAMessage): NormalizedWhatsAppMessage | null {
   const chatJid = message.key.remoteJid;
   const messageId = message.key.id;
@@ -14,20 +19,25 @@ export function normalizeWhatsAppMessage(message: WAMessage): NormalizedWhatsApp
   const isGroup = chatJid.endsWith("@g.us");
   const senderJid = typeof message.key.participant === "string" ? message.key.participant : chatJid;
   const occurredAt = parseMessageTimestamp(message.messageTimestamp);
-  const direction = message.key.fromMe ? "OUTBOUND" : "INBOUND";
+  const direction: NormalizedWhatsAppMessage["direction"] = message.key.fromMe
+    ? "OUTBOUND"
+    : "INBOUND";
   const pushName = typeof message.pushName === "string" ? message.pushName : null;
+  const baseMessage: NormalizedMessageBase = {
+    chatJid,
+    direction,
+    isGroup,
+    messageId,
+    occurredAt,
+    pushName,
+    senderJid
+  };
 
   if (typeof content.conversation === "string") {
     return {
       body: content.conversation,
-      chatJid,
-      direction,
-      isGroup,
+      ...baseMessage,
       media: null,
-      messageId,
-      occurredAt,
-      pushName,
-      senderJid,
       type: "TEXT"
     };
   }
@@ -36,14 +46,8 @@ export function normalizeWhatsAppMessage(message: WAMessage): NormalizedWhatsApp
   if (extendedTextMessage && typeof extendedTextMessage.text === "string") {
     return {
       body: extendedTextMessage.text,
-      chatJid,
-      direction,
-      isGroup,
+      ...baseMessage,
       media: null,
-      messageId,
-      occurredAt,
-      pushName,
-      senderJid,
       type: "TEXT"
     };
   }
@@ -52,16 +56,10 @@ export function normalizeWhatsAppMessage(message: WAMessage): NormalizedWhatsApp
   if (imageMessage) {
     return createMediaMessage({
       body: getString(imageMessage.caption),
-      chatJid,
-      direction,
+      ...baseMessage,
       filename: `${messageId}.jpg`,
-      isGroup,
       kind: "IMAGE",
       media: imageMessage,
-      messageId,
-      occurredAt,
-      pushName,
-      senderJid,
       type: "IMAGE"
     });
   }
@@ -70,16 +68,10 @@ export function normalizeWhatsAppMessage(message: WAMessage): NormalizedWhatsApp
   if (documentMessage) {
     return createMediaMessage({
       body: getString(documentMessage.caption),
-      chatJid,
-      direction,
+      ...baseMessage,
       filename: getString(documentMessage.fileName) ?? `${messageId}.document`,
-      isGroup,
       kind: "DOCUMENT",
       media: documentMessage,
-      messageId,
-      occurredAt,
-      pushName,
-      senderJid,
       type: "DOCUMENT"
     });
   }
@@ -88,49 +80,145 @@ export function normalizeWhatsAppMessage(message: WAMessage): NormalizedWhatsApp
   if (audioMessage) {
     return createMediaMessage({
       body: null,
-      chatJid,
-      direction,
+      ...baseMessage,
       filename: `${messageId}.ogg`,
-      isGroup,
       kind: "VOICE",
       media: audioMessage,
-      messageId,
-      occurredAt,
-      pushName,
-      senderJid,
       type: "VOICE"
     });
   }
 
-  const videoMessage = asRecord(content.videoMessage);
+  const videoMessage = asRecord(content.videoMessage) ?? asRecord(content.ptvMessage);
   if (videoMessage) {
     return createMediaMessage({
       body: getString(videoMessage.caption),
-      chatJid,
-      direction,
+      ...baseMessage,
       filename: `${messageId}.mp4`,
-      isGroup,
       kind: "VIDEO",
       media: videoMessage,
-      messageId,
-      occurredAt,
-      pushName,
-      senderJid,
       type: "VIDEO"
     });
   }
 
+  const stickerMessage = asRecord(content.stickerMessage);
+  if (stickerMessage) {
+    return createMediaMessage({
+      body: "Sticker",
+      ...baseMessage,
+      filename: `${messageId}.webp`,
+      kind: "IMAGE",
+      media: stickerMessage,
+      type: "IMAGE"
+    });
+  }
+
+  const buttonsResponseMessage = asRecord(content.buttonsResponseMessage);
+  const listResponseMessage = asRecord(content.listResponseMessage);
+  const singleSelectReply = asRecord(listResponseMessage?.singleSelectReply);
+  const templateButtonReplyMessage = asRecord(content.templateButtonReplyMessage);
+  const selectedResponse =
+    getString(buttonsResponseMessage?.selectedDisplayText) ??
+    getString(buttonsResponseMessage?.selectedButtonId) ??
+    getString(listResponseMessage?.title) ??
+    getString(singleSelectReply?.selectedRowId) ??
+    getString(templateButtonReplyMessage?.selectedDisplayText) ??
+    getString(templateButtonReplyMessage?.selectedId);
+
+  if (selectedResponse) {
+    return createSystemMessage({
+      body: selectedResponse,
+      ...baseMessage,
+      type: "TEXT"
+    });
+  }
+
+  const reactionMessage = asRecord(content.reactionMessage);
+  if (reactionMessage) {
+    const reactionText = getString(reactionMessage.text);
+
+    return createSystemMessage({
+      body: reactionText ? `Reaction: ${reactionText}` : "Reaction removed",
+      ...baseMessage
+    });
+  }
+
+  if (content.contactMessage || content.contactsArrayMessage) {
+    return createSystemMessage({
+      body: content.contactsArrayMessage ? "Contacts shared" : "Contact shared",
+      ...baseMessage
+    });
+  }
+
+  if (content.locationMessage || content.liveLocationMessage) {
+    return createSystemMessage({
+      body: "Location shared",
+      ...baseMessage
+    });
+  }
+
+  if (
+    content.pollCreationMessage ||
+    content.pollCreationMessageV2 ||
+    content.pollCreationMessageV3
+  ) {
+    return createSystemMessage({
+      body: "Poll shared",
+      ...baseMessage
+    });
+  }
+
+  if (content.pollUpdateMessage) {
+    return createSystemMessage({
+      body: "Poll response",
+      ...baseMessage
+    });
+  }
+
+  if (content.eventMessage) {
+    return createSystemMessage({
+      body: "Event shared",
+      ...baseMessage
+    });
+  }
+
+  if (
+    content.protocolMessage ||
+    content.senderKeyDistributionMessage ||
+    content.messageHistoryBundle
+  ) {
+    return null;
+  }
+
   return {
-    body: "[Unsupported WhatsApp message type]",
-    chatJid,
-    direction,
-    isGroup,
+    body: "WhatsApp message",
+    ...baseMessage,
     media: null,
-    messageId,
-    occurredAt,
-    pushName,
-    senderJid,
     type: "SYSTEM"
+  };
+}
+
+function createSystemMessage(input: {
+  body: string;
+  chatJid: string;
+  direction: "INBOUND" | "OUTBOUND";
+  isGroup: boolean;
+  messageId: string;
+  occurredAt: Date;
+  pushName: string | null;
+  senderJid: string;
+  type?: "SYSTEM" | "TEXT";
+}): NormalizedWhatsAppMessage {
+  return {
+    body: input.body,
+    chatJid: input.chatJid,
+    direction: input.direction,
+    isGroup: input.isGroup,
+    media: null,
+    messageId: input.messageId,
+    occurredAt: input.occurredAt,
+    pushName: input.pushName,
+    senderJid: input.senderJid,
+    type: input.type ?? "SYSTEM"
   };
 }
 
@@ -190,6 +278,25 @@ function unwrapMessageContent(content: Record<string, unknown> | null): Record<s
     const viewOnceV2 = asRecord(current.viewOnceMessageV2);
     if (viewOnceV2) {
       current = asRecord(viewOnceV2.message);
+      continue;
+    }
+
+    const viewOnceV2Extension = asRecord(current.viewOnceMessageV2Extension);
+    if (viewOnceV2Extension) {
+      current = asRecord(viewOnceV2Extension.message);
+      continue;
+    }
+
+    const documentWithCaption = asRecord(current.documentWithCaptionMessage);
+    if (documentWithCaption) {
+      current = asRecord(documentWithCaption.message);
+      continue;
+    }
+
+    const protocol = asRecord(current.protocolMessage);
+    const edited = asRecord(protocol?.editedMessage);
+    if (edited) {
+      current = edited;
       continue;
     }
 

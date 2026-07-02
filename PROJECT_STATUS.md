@@ -19,7 +19,7 @@
 
 ## Current Milestone
 
-Explicit WhatsApp chat activation implemented and ready for live QR pairing validation.
+WhatsApp connector is live and being hardened with production pairing feedback.
 
 ## Completed Tasks
 
@@ -79,6 +79,11 @@ Explicit WhatsApp chat activation implemented and ready for live QR pairing vali
   - Added Railway service configs for API and worker.
   - Added deployment documentation for Vercel dashboard plus Railway API, worker, PostgreSQL, and Redis.
   - Added Railway-specific API and worker start scripts.
+- Production WhatsApp connector hardening.
+  - Baileys pairing restart disconnects now restart cleanly after QR scan.
+  - WhatsApp full-history sync is enabled for broader chat discovery after pairing.
+  - History sync now records discovered chats from chat and message history payloads.
+  - Common WhatsApp payloads such as stickers, locations, contacts, polls, events, reactions, and protocol sync messages are handled without showing an unsupported-message placeholder.
 
 ## In-Progress Tasks
 
@@ -95,7 +100,7 @@ Explicit WhatsApp chat activation implemented and ready for live QR pairing vali
 - Message sending is internal/development-only until channel adapters exist.
 - Baileys is a WhatsApp Web adapter and should be used only with dedicated business test numbers until official Meta Cloud API support is implemented.
 - WhatsApp media storage is local filesystem-backed under `.storage` and needs object storage before production deployment.
-- Live WhatsApp QR pairing and activation needs a dedicated test number before production confidence.
+- Existing WhatsApp message rows created before this fix may need data cleanup if unsupported placeholders were already stored.
 
 ## Upcoming Milestones
 
@@ -133,6 +138,10 @@ Explicit WhatsApp chat activation implemented and ready for live QR pairing vali
   - Dashboard API requests now avoid sending `Content-Type: application/json` when there is no request body.
   - Worker logs WhatsApp session start, QR generation, successful connection, and disconnect status codes.
   - Baileys restart-required disconnects now restart the session instead of leaving the account in `ERROR`.
+- WhatsApp chat discovery and message normalization hardening completed.
+  - Worker requests full desktop-style WhatsApp history via Baileys.
+  - Worker consumes `messaging-history.set` to discover chats beyond the small live-update subset.
+  - Inbox messages no longer use the `Unsupported WhatsApp message type` placeholder for common WhatsApp event/media payloads.
 - Vercel `NEXT_PUBLIC_API_URL` is configured for production.
 - Dashboard redeployed to Vercel production with the Railway API URL.
 - Dashboard, API, worker, auth, projects, messaging, and Baileys WhatsApp connector application slices exist.

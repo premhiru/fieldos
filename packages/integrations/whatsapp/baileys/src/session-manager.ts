@@ -1,4 +1,5 @@
 import {
+  Browsers,
   makeWASocket,
   DisconnectReason,
   downloadMediaMessage,
@@ -110,8 +111,10 @@ export class BaileysWhatsAppSessionManager {
     const versionResult = await fetchLatestBaileysVersion();
     const socket = makeWASocket({
       auth: state,
+      browser: Browsers.macOS("Desktop"),
       logger: baileysLogger,
       printQRInTerminal: false,
+      syncFullHistory: true,
       version: versionResult.version
     });
 
@@ -145,6 +148,63 @@ export class BaileysWhatsAppSessionManager {
         }
       }
     });
+    socket.ev.on(
+      "messaging-history.set",
+      async (history: BaileysEventMap["messaging-history.set"]) => {
+        const contactTitles = new Map(
+          history.contacts.map((contact) => [
+            contact.id,
+            getFirstString(contact.name, contact.notify, contact.verifiedName)
+          ])
+        );
+
+        this.logger.info(
+          {
+            accountId: account.id,
+            chatCount: history.chats.length,
+            isLatest: history.isLatest,
+            messageCount: history.messages.length,
+            progress: history.progress,
+            syncType: history.syncType
+          },
+          "WhatsApp history sync received"
+        );
+
+        for (const chat of history.chats) {
+          try {
+            const chatJid = typeof chat.id === "string" ? chat.id : null;
+            await this.discoverChatMetadata(account, {
+              chatJid,
+              title:
+                getChatMetadataTitle(chat) ?? (chatJid ? contactTitles.get(chatJid) : null) ?? null
+            });
+          } catch (error: unknown) {
+            this.logger.error(
+              { accountId: account.id, error },
+              "WhatsApp history chat discovery failed"
+            );
+          }
+        }
+
+        for (const message of history.messages) {
+          try {
+            const chatJid = message.key.remoteJid;
+            await this.discoverChatMetadata(account, {
+              chatJid: typeof chatJid === "string" ? chatJid : null,
+              title:
+                typeof chatJid === "string"
+                  ? (contactTitles.get(chatJid) ?? getString(message.pushName) ?? null)
+                  : null
+            });
+          } catch (error: unknown) {
+            this.logger.error(
+              { accountId: account.id, error },
+              "WhatsApp history message discovery failed"
+            );
+          }
+        }
+      }
+    );
     socket.ev.on("connection.update", async (update: BaileysEventMap["connection.update"]) => {
       try {
         if (update.qr) {
@@ -245,6 +305,10 @@ export class BaileysWhatsAppSessionManager {
     const chatJid = rawMessage.key.remoteJid;
 
     if (!chatJid) {
+      return;
+    }
+
+    if (!isDiscoverableChatJid(chatJid)) {
       return;
     }
 
@@ -529,6 +593,10 @@ export class BaileysWhatsAppSessionManager {
       return;
     }
 
+    if (!isDiscoverableChatJid(input.chatJid)) {
+      return;
+    }
+
     await this.discoverChatMapping(account, {
       chatJid: input.chatJid,
       isGroup: input.chatJid.endsWith("@g.us"),
@@ -562,6 +630,18 @@ function normalizePhoneNumber(jid: string): string | null {
   return value || null;
 }
 
+function isDiscoverableChatJid(jid: string): boolean {
+  if (jid === "status@broadcast") {
+    return false;
+  }
+
+  if (jid.endsWith("@broadcast") || jid.includes("@newsletter")) {
+    return false;
+  }
+
+  return Boolean(jid.trim());
+}
+
 function getChatMetadataTitle(chat: unknown): string | null {
   if (!chat || typeof chat !== "object") {
     return null;
@@ -574,6 +654,22 @@ function getChatMetadataTitle(chat: unknown): string | null {
 
     if (typeof value === "string" && value.trim()) {
       return value;
+    }
+  }
+
+  return null;
+}
+
+function getString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+function getFirstString(...values: unknown[]): string | null {
+  for (const value of values) {
+    const text = getString(value);
+
+    if (text) {
+      return text;
     }
   }
 
