@@ -559,11 +559,13 @@ export function buildServer(options: BuildServerOptions = {}) {
 }
 
 function getCookieBaseOptions() {
+  const isProduction = apiEnv.NODE_ENV === "production";
+
   return {
     httpOnly: true,
     path: "/",
-    sameSite: "lax" as const,
-    secure: apiEnv.NODE_ENV === "production"
+    sameSite: isProduction ? ("none" as const) : ("lax" as const),
+    secure: isProduction
   };
 }
 

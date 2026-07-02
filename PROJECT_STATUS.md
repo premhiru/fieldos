@@ -126,6 +126,9 @@ Explicit WhatsApp chat activation implemented and ready for live QR pairing vali
   - Worker deployed and verified running with startup log: `worker started and waiting for jobs`.
   - Railway PostgreSQL service `Postgres` is deployed and migrations are applied.
   - Railway Redis service `Redis` is deployed.
+- Production login cookie fix completed.
+  - Cross-origin auth cookies now use `SameSite=None; Secure` in production.
+  - API tests assert production cookie attributes.
 - Vercel `NEXT_PUBLIC_API_URL` is configured for production.
 - Dashboard redeployed to Vercel production with the Railway API URL.
 - Dashboard, API, worker, auth, projects, messaging, and Baileys WhatsApp connector application slices exist.

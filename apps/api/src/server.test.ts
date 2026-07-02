@@ -30,7 +30,7 @@ import type {
 vi.stubEnv("CORS_ORIGIN", "http://localhost:3000");
 vi.stubEnv("DATABASE_URL", "postgresql://fieldos:fieldos@localhost:5432/fieldos?schema=public");
 vi.stubEnv("JWT_SECRET", "test-secret-that-is-long-enough");
-vi.stubEnv("NODE_ENV", "test");
+vi.stubEnv("NODE_ENV", "production");
 vi.stubEnv("PORT", "3001");
 
 let buildServer: typeof import("./server.js").buildServer;
@@ -62,6 +62,8 @@ describe("FieldOS API auth and tenancy", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json().user.email).toBe("founder@example.com");
     expect(response.headers["set-cookie"]).toContain("fieldos_session=");
+    expect(response.headers["set-cookie"]).toContain("SameSite=None");
+    expect(response.headers["set-cookie"]).toContain("Secure");
   });
 
   it("logs in a user", async () => {
