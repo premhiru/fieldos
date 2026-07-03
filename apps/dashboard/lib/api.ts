@@ -18,9 +18,9 @@ export type AIMessageCategory =
   | "MANPOWER_ISSUE"
   | "GENERAL_NOTE"
   | "UNKNOWN";
-export type AIPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 export type AIClassificationStatus = "PENDING" | "COMPLETED" | "FAILED" | "NEEDS_REVIEW";
-export type SuggestedTaskStatus = "PENDING" | "ACCEPTED" | "REJECTED" | "CONVERTED";
+export type ActionItemStatus = "PENDING" | "ACCEPTED" | "IGNORED" | "CONVERTED";
+export type ActionItemType = "FOLLOW_UP" | "PROJECT_SUGGESTION";
 
 export interface User {
   id: string;
@@ -106,10 +106,7 @@ export interface AIMessageClassification {
   category: AIMessageCategory | null;
   summary: string | null;
   location: string | null;
-  priority: AIPriority;
-  suggestedTaskTitle: string | null;
-  suggestedTaskDescription: string | null;
-  shouldCreateTask: boolean;
+  actionRequired: boolean;
   confidence: number | null;
   reasoningSummary: string | null;
   status: AIClassificationStatus;
@@ -127,22 +124,24 @@ export interface AIMessageClassification {
   };
 }
 
-export interface SuggestedTask {
+export interface ActionItem {
   id: string;
   organizationId: string;
-  projectId: string;
+  projectId: string | null;
   messageId: string;
-  classificationId: string;
+  classificationId: string | null;
+  suggestedProjectId: string | null;
+  type: ActionItemType;
   title: string;
   description: string | null;
-  priority: AIPriority;
-  status: SuggestedTaskStatus;
+  confidence: number | null;
+  status: ActionItemStatus;
   createdAt: string;
   updatedAt: string;
   acceptedAt: string | null;
   acceptedByUserId: string | null;
-  rejectedAt: string | null;
-  rejectedByUserId: string | null;
+  ignoredAt: string | null;
+  ignoredByUserId: string | null;
   message?: {
     id: string;
     body: string | null;
@@ -152,6 +151,7 @@ export interface SuggestedTask {
       title: string;
     };
   };
+  suggestedProject?: ProjectReference | null;
 }
 
 export type WhatsAppConnectorType = "BAILEYS" | "META_CLOUD";
@@ -228,10 +228,22 @@ export async function apiRequest<TResponse>(
   const data = text ? (JSON.parse(text) as unknown) : null;
 
   if (!response.ok) {
-    const message =
-      typeof data === "object" && data !== null && "error" in data
-        ? String(data.error)
-        : `Request failed with status ${response.status}`;
+    let message = `Request failed with status ${response.status}`;
+
+    if (typeof data === "object" && data !== null && "error" in data) {
+      const error = data.error;
+
+      if (typeof error === "string") {
+        message = error;
+      } else if (
+        typeof error === "object" &&
+        error !== null &&
+        "message" in error &&
+        typeof error.message === "string"
+      ) {
+        message = error.message;
+      }
+    }
 
     throw new DashboardApiError(message, response.status);
   }
@@ -283,8 +295,8 @@ export const api = {
     apiRequest<{ classifications: AIMessageClassification[] }>(
       `/projects/${projectId}/ai-classifications`
     ),
-  listProjectSuggestedTasks: (projectId: string) =>
-    apiRequest<{ suggestedTasks: SuggestedTask[] }>(`/projects/${projectId}/suggested-tasks`),
+  listProjectActionItems: (projectId: string) =>
+    apiRequest<{ actionItems: ActionItem[] }>(`/projects/${projectId}/action-items`),
   listWhatsAppAccounts: (organizationId: string) => {
     const params = new URLSearchParams({ organizationId });
     return apiRequest<{ accounts: WhatsAppAccount[] }>(`/whatsapp/accounts?${params.toString()}`);
@@ -325,8 +337,8 @@ export const api = {
         method: "POST"
       }
     ),
-  acceptSuggestedTask: (suggestedTaskId: string) =>
-    apiRequest<{ suggestedTask: SuggestedTask }>(`/suggested-tasks/${suggestedTaskId}/accept`, {
+  acceptActionItem: (actionItemId: string) =>
+    apiRequest<{ actionItem: ActionItem }>(`/action-items/${actionItemId}/accept`, {
       method: "POST"
     }),
   updateWhatsAppChatMapping: (mappingId: string, body: { projectId: string | null }) =>
@@ -347,8 +359,8 @@ export const api = {
     apiRequest<{ chat: WhatsAppChatMapping }>(`/whatsapp/chat-mappings/${mappingId}/ignore`, {
       method: "POST"
     }),
-  rejectSuggestedTask: (suggestedTaskId: string) =>
-    apiRequest<{ suggestedTask: SuggestedTask }>(`/suggested-tasks/${suggestedTaskId}/reject`, {
+  ignoreActionItem: (actionItemId: string) =>
+    apiRequest<{ actionItem: ActionItem }>(`/action-items/${actionItemId}/ignore`, {
       method: "POST"
     })
 };

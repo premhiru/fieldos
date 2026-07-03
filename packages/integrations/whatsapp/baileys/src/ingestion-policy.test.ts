@@ -17,15 +17,15 @@ describe("decideWhatsAppIngestion", () => {
     }
   });
 
-  it("skips active chats without a project", () => {
+  it("allows active chats without a project so AI can suggest assignment", () => {
     expect(
       decideWhatsAppIngestion({
         account: { status: "CONNECTED" },
         mapping: { projectId: null, status: "ACTIVE" }
       })
     ).toEqual({
-      allowed: false,
-      reasonSkipped: "PROJECT_MISSING"
+      allowed: true,
+      reasonSkipped: null
     });
   });
 

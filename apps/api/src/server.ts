@@ -42,7 +42,7 @@ import {
   messageParamsSchema,
   organizationParamsSchema,
   projectParamsSchema,
-  suggestedTaskParamsSchema,
+  actionItemParamsSchema,
   updateWhatsAppChatMappingSchema,
   whatsappAccountParamsSchema,
   whatsappAccountsQuerySchema,
@@ -81,29 +81,45 @@ export function buildServer(options: BuildServerOptions = {}) {
     origin: apiEnv.CORS_ORIGIN
   });
 
-  server.setErrorHandler((error, _request, reply) => {
+  server.setErrorHandler((error, request, reply) => {
     if (error instanceof ZodError) {
       return reply.status(400).send({
-        error: "Validation failed.",
+        error: {
+          code: "VALIDATION_FAILED",
+          message: "Validation failed."
+        },
+        requestId: request.id,
         issues: error.issues
       });
     }
 
     if (error instanceof MessagingServiceError) {
       return reply.status(error.code === "NOT_FOUND" ? 404 : 403).send({
-        error: error.message
+        error: {
+          code: error.code,
+          message: error.message
+        },
+        requestId: request.id
       });
     }
 
     if (error instanceof HttpError) {
       return reply.status(error.statusCode).send({
-        error: error.message
+        error: {
+          code: statusCodeToErrorCode(error.statusCode),
+          message: error.message
+        },
+        requestId: request.id
       });
     }
 
-    server.log.error({ error }, "unhandled api error");
+    server.log.error({ error, requestId: request.id }, "unhandled api error");
     return reply.status(500).send({
-      error: "Internal server error."
+      error: {
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Internal server error."
+      },
+      requestId: request.id
     });
   });
 
@@ -280,25 +296,21 @@ export function buildServer(options: BuildServerOptions = {}) {
     }
   );
 
-  server.get(
-    "/projects/:projectId/suggested-tasks",
-    { preHandler: requireAuth },
-    async (request) => {
-      const params = projectParamsSchema.parse(request.params);
-      const project = await repository.findProjectForUser(
-        requireCurrentUser(request).id,
-        params.projectId
-      );
+  server.get("/projects/:projectId/action-items", { preHandler: requireAuth }, async (request) => {
+    const params = projectParamsSchema.parse(request.params);
+    const project = await repository.findProjectForUser(
+      requireCurrentUser(request).id,
+      params.projectId
+    );
 
-      if (!project) {
-        throw notFound("Project not found.");
-      }
-
-      return {
-        suggestedTasks: await repository.listProjectSuggestedTasks(params.projectId)
-      };
+    if (!project) {
+      throw notFound("Project not found.");
     }
-  );
+
+    return {
+      actionItems: await repository.listProjectActionItems(params.projectId)
+    };
+  });
 
   server.get("/conversations", { preHandler: requireAuth }, async (request) => {
     const query = listConversationsSchema.parse(request.query);
@@ -391,27 +403,27 @@ export function buildServer(options: BuildServerOptions = {}) {
     };
   });
 
-  server.post("/suggested-tasks/:id/accept", { preHandler: requireAuth }, async (request) => {
-    const params = suggestedTaskParamsSchema.parse(request.params);
+  server.post("/action-items/:id/accept", { preHandler: requireAuth }, async (request) => {
+    const params = actionItemParamsSchema.parse(request.params);
     const user = requireCurrentUser(request);
-    const suggestedTask = await requireSuggestedTaskAccess(user.id, params.id);
+    const actionItem = await requireActionItemAccess(user.id, params.id);
 
     return {
-      suggestedTask: await repository.acceptSuggestedTask({
-        suggestedTaskId: suggestedTask.id,
+      actionItem: await repository.acceptActionItem({
+        actionItemId: actionItem.id,
         userId: user.id
       })
     };
   });
 
-  server.post("/suggested-tasks/:id/reject", { preHandler: requireAuth }, async (request) => {
-    const params = suggestedTaskParamsSchema.parse(request.params);
+  server.post("/action-items/:id/ignore", { preHandler: requireAuth }, async (request) => {
+    const params = actionItemParamsSchema.parse(request.params);
     const user = requireCurrentUser(request);
-    const suggestedTask = await requireSuggestedTaskAccess(user.id, params.id);
+    const actionItem = await requireActionItemAccess(user.id, params.id);
 
     return {
-      suggestedTask: await repository.rejectSuggestedTask({
-        suggestedTaskId: suggestedTask.id,
+      actionItem: await repository.ignoreActionItem({
+        actionItemId: actionItem.id,
         userId: user.id
       })
     };
@@ -492,10 +504,6 @@ export function buildServer(options: BuildServerOptions = {}) {
     const user = requireCurrentUser(request);
     const mapping = await findWhatsAppChatMappingForUser(user.id, params.id);
     await requireWritableOrganizationRole(user.id, mapping.organizationId);
-
-    if (mapping.status === "ACTIVE" && body.projectId === null) {
-      throw conflict("Active WhatsApp chats require a project.");
-    }
 
     await validateMappingProject(user.id, mapping.organizationId, body.projectId);
 
@@ -636,15 +644,15 @@ export function buildServer(options: BuildServerOptions = {}) {
     return mapping;
   }
 
-  async function requireSuggestedTaskAccess(userId: string, suggestedTaskId: string) {
-    const suggestedTask = await repository.getSuggestedTask(suggestedTaskId);
+  async function requireActionItemAccess(userId: string, actionItemId: string) {
+    const actionItem = await repository.getActionItem(actionItemId);
 
-    if (!suggestedTask) {
-      throw notFound("Suggested task not found.");
+    if (!actionItem) {
+      throw notFound("Action item not found.");
     }
 
-    await requireOrganizationMembership(userId, suggestedTask.organizationId);
-    return suggestedTask;
+    await requireOrganizationMembership(userId, actionItem.organizationId);
+    return actionItem;
   }
 
   async function validateMappingProject(
@@ -697,4 +705,21 @@ function toSafeUser(user: SafeUser): SafeUser {
     name: user.name,
     updatedAt: user.updatedAt
   };
+}
+
+function statusCodeToErrorCode(statusCode: number): string {
+  switch (statusCode) {
+    case 400:
+      return "BAD_REQUEST";
+    case 401:
+      return "UNAUTHORIZED";
+    case 403:
+      return "FORBIDDEN";
+    case 404:
+      return "NOT_FOUND";
+    case 409:
+      return "CONFLICT";
+    default:
+      return "ERROR";
+  }
 }

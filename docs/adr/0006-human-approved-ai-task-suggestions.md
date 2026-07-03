@@ -1,11 +1,11 @@
-# ADR 0006: Human-Approved AI Task Suggestions
+# ADR 0006: Human-Approved AI Action Items
 
-| Field        | Value                                                                            |
-| ------------ | -------------------------------------------------------------------------------- |
-| Purpose      | Record the decision to keep AI-generated task suggestions behind human approval. |
-| Owner        | Engineering                                                                      |
-| Status       | Accepted                                                                         |
-| Last Updated | 2026-07-03                                                                       |
+| Field        | Value                                                                        |
+| ------------ | ---------------------------------------------------------------------------- |
+| Purpose      | Record the decision to keep AI-generated Action Items behind human approval. |
+| Owner        | Engineering                                                                  |
+| Status       | Accepted                                                                     |
+| Last Updated | 2026-07-03                                                                   |
 
 ## Table of Contents
 
@@ -21,7 +21,7 @@ FieldOS now classifies active project messages and can identify follow-up work f
 
 ## Decision
 
-AI may create `SuggestedTask` records from message classifications, but those records remain review artifacts until a user explicitly accepts or rejects them.
+AI may create `ActionItem` records from message classifications, but those records remain review artifacts until a user explicitly accepts or ignores them.
 
 Accepted suggestions do not yet become first-class operational tasks. They only record human approval until the task domain is implemented.
 
@@ -31,7 +31,7 @@ Field operations work can affect safety, cost, schedule, and customer commitment
 
 ## Consequences
 
-The worker may classify messages and create pending suggested tasks asynchronously. The dashboard may show these suggestions on message and project surfaces. Users must make the final decision before the suggestion can influence operational task workflows.
+The worker may classify messages and create pending Action Items asynchronously. The dashboard may show these suggestions on message and project surfaces. Users must make the final decision before the suggestion can influence operational task workflows.
 
 This keeps AI support useful while preserving accountability and leaving a clean path to future task conversion.
 

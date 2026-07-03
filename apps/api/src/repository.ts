@@ -1,11 +1,11 @@
 import type {
   AIClassificationStatus,
   AIMessageCategory,
-  AIPriority,
+  ActionItemStatus,
+  ActionItemType,
   MembershipRole,
   PrismaClient,
   ProjectStatus,
-  SuggestedTaskStatus,
   WhatsAppChatMappingStatus
 } from "@fieldos/db";
 import type {
@@ -26,8 +26,8 @@ export type Status = ProjectStatus;
 export type ChatMappingStatus = WhatsAppChatMappingStatus;
 export type AIStatus = AIClassificationStatus;
 export type AICategory = AIMessageCategory;
-export type Priority = AIPriority;
-export type TaskSuggestionStatus = SuggestedTaskStatus;
+export type ActionStatus = ActionItemStatus;
+export type ActionType = ActionItemType;
 
 export interface SafeUser {
   id: string;
@@ -108,7 +108,7 @@ export interface WhatsAppChatMappingRecord {
   } | null;
 }
 
-export interface aIMessageClassificationRecord {
+export interface AIMessageClassificationRecord {
   id: string;
   organizationId: string;
   projectId: string | null;
@@ -116,10 +116,7 @@ export interface aIMessageClassificationRecord {
   category: AICategory | null;
   summary: string | null;
   location: string | null;
-  priority: Priority;
-  suggestedTaskTitle: string | null;
-  suggestedTaskDescription: string | null;
-  shouldCreateTask: boolean;
+  actionRequired: boolean;
   confidence: number | null;
   reasoningSummary: string | null;
   status: AIStatus;
@@ -137,22 +134,24 @@ export interface aIMessageClassificationRecord {
   };
 }
 
-export interface SuggestedTaskRecord {
+export interface ActionItemRecord {
   id: string;
   organizationId: string;
-  projectId: string;
+  projectId: string | null;
   messageId: string;
-  classificationId: string;
+  classificationId: string | null;
+  suggestedProjectId: string | null;
+  type: ActionType;
   title: string;
   description: string | null;
-  priority: Priority;
-  status: TaskSuggestionStatus;
+  confidence: number | null;
+  status: ActionStatus;
   createdAt: Date;
   updatedAt: Date;
   acceptedAt: Date | null;
   acceptedByUserId: string | null;
-  rejectedAt: Date | null;
-  rejectedByUserId: string | null;
+  ignoredAt: Date | null;
+  ignoredByUserId: string | null;
   message?: {
     id: string;
     body: string | null;
@@ -162,6 +161,11 @@ export interface SuggestedTaskRecord {
       title: string;
     };
   };
+  suggestedProject?: {
+    code: string;
+    id: string;
+    name: string;
+  } | null;
 }
 
 export interface AppRepository extends MessagingRepository {
@@ -189,7 +193,7 @@ export interface AppRepository extends MessagingRepository {
   activateWhatsAppChatMapping(input: {
     activatedByUserId: string;
     mappingId: string;
-    projectId: string;
+    projectId: string | null;
   }): Promise<WhatsAppChatMappingRecord>;
   archiveWhatsAppChatMapping(mappingId: string): Promise<WhatsAppChatMappingRecord>;
   createWhatsAppAccount(input: {
@@ -203,19 +207,13 @@ export interface AppRepository extends MessagingRepository {
   listWhatsAppChatMappings(accountId: string): Promise<WhatsAppChatMappingRecord[]>;
   listOrganizations(userId: string): Promise<OrganizationRecord[]>;
   listProjects(userId: string, organizationId: string): Promise<ProjectRecord[]>;
-  acceptSuggestedTask(input: {
-    suggestedTaskId: string;
-    userId: string;
-  }): Promise<SuggestedTaskRecord>;
-  enqueueMessageClassification(messageId: string): Promise<aIMessageClassificationRecord | null>;
-  getMessageClassification(messageId: string): Promise<aIMessageClassificationRecord | null>;
-  getSuggestedTask(suggestedTaskId: string): Promise<SuggestedTaskRecord | null>;
-  listProjectAIClassifications(projectId: string): Promise<aIMessageClassificationRecord[]>;
-  listProjectSuggestedTasks(projectId: string): Promise<SuggestedTaskRecord[]>;
-  rejectSuggestedTask(input: {
-    suggestedTaskId: string;
-    userId: string;
-  }): Promise<SuggestedTaskRecord>;
+  acceptActionItem(input: { actionItemId: string; userId: string }): Promise<ActionItemRecord>;
+  enqueueMessageClassification(messageId: string): Promise<AIMessageClassificationRecord | null>;
+  getMessageClassification(messageId: string): Promise<AIMessageClassificationRecord | null>;
+  getActionItem(actionItemId: string): Promise<ActionItemRecord | null>;
+  listProjectAIClassifications(projectId: string): Promise<AIMessageClassificationRecord[]>;
+  listProjectActionItems(projectId: string): Promise<ActionItemRecord[]>;
+  ignoreActionItem(input: { actionItemId: string; userId: string }): Promise<ActionItemRecord>;
   rotateWhatsAppAccountSession(accountId: string): Promise<WhatsAppAccountRecord>;
   updateWhatsAppAccountStatus(
     accountId: string,
@@ -403,20 +401,60 @@ export function createPrismaRepository(): AppRepository {
       });
     },
 
-    async acceptSuggestedTask(input) {
+    async acceptActionItem(input) {
       const prisma = await getPrisma();
-      return prisma.suggestedTask.update({
-        data: {
-          acceptedAt: new Date(),
-          acceptedByUserId: input.userId,
-          rejectedAt: null,
-          rejectedByUserId: null,
-          status: "ACCEPTED"
-        },
-        include: suggestedTaskInclude(),
-        where: {
-          id: input.suggestedTaskId
+      return prisma.$transaction(async (tx) => {
+        const existing = await tx.actionItem.findUnique({
+          include: {
+            message: {
+              select: {
+                conversationId: true
+              }
+            }
+          },
+          where: {
+            id: input.actionItemId
+          }
+        });
+
+        if (!existing) {
+          throw new Error("Action item not found.");
         }
+
+        if (existing.type === "PROJECT_SUGGESTION" && existing.suggestedProjectId) {
+          await tx.conversation.update({
+            data: {
+              projectId: existing.suggestedProjectId
+            },
+            where: {
+              id: existing.message.conversationId
+            }
+          });
+
+          await tx.whatsAppChatMapping.updateMany({
+            data: {
+              projectId: existing.suggestedProjectId
+            },
+            where: {
+              conversationId: existing.message.conversationId
+            }
+          });
+        }
+
+        return tx.actionItem.update({
+          data: {
+            acceptedAt: new Date(),
+            acceptedByUserId: input.userId,
+            ignoredAt: null,
+            ignoredByUserId: null,
+            projectId: existing.suggestedProjectId ?? existing.projectId,
+            status: "ACCEPTED"
+          },
+          include: actionItemInclude(),
+          where: {
+            id: input.actionItemId
+          }
+        });
       });
     },
 
@@ -437,7 +475,7 @@ export function createPrismaRepository(): AppRepository {
         }
       });
 
-      if (!message || !message.conversation.projectId) {
+      if (!message) {
         return null;
       }
 
@@ -468,12 +506,12 @@ export function createPrismaRepository(): AppRepository {
       });
     },
 
-    async getSuggestedTask(suggestedTaskId) {
+    async getActionItem(actionItemId) {
       const prisma = await getPrisma();
-      return prisma.suggestedTask.findUnique({
-        include: suggestedTaskInclude(),
+      return prisma.actionItem.findUnique({
+        include: actionItemInclude(),
         where: {
-          id: suggestedTaskId
+          id: actionItemId
         }
       });
     },
@@ -492,33 +530,40 @@ export function createPrismaRepository(): AppRepository {
       });
     },
 
-    async listProjectSuggestedTasks(projectId) {
+    async listProjectActionItems(projectId) {
       const prisma = await getPrisma();
-      return prisma.suggestedTask.findMany({
-        include: suggestedTaskInclude(),
+      return prisma.actionItem.findMany({
+        include: actionItemInclude(),
         orderBy: {
           createdAt: "desc"
         },
         take: 25,
         where: {
-          projectId
+          OR: [
+            {
+              projectId
+            },
+            {
+              suggestedProjectId: projectId
+            }
+          ]
         }
       });
     },
 
-    async rejectSuggestedTask(input) {
+    async ignoreActionItem(input) {
       const prisma = await getPrisma();
-      return prisma.suggestedTask.update({
+      return prisma.actionItem.update({
         data: {
           acceptedAt: null,
           acceptedByUserId: null,
-          rejectedAt: new Date(),
-          rejectedByUserId: input.userId,
-          status: "REJECTED"
+          ignoredAt: new Date(),
+          ignoredByUserId: input.userId,
+          status: "IGNORED"
         },
-        include: suggestedTaskInclude(),
+        include: actionItemInclude(),
         where: {
-          id: input.suggestedTaskId
+          id: input.actionItemId
         }
       });
     },
@@ -1049,7 +1094,7 @@ function aiClassificationInclude() {
   };
 }
 
-function suggestedTaskInclude() {
+function actionItemInclude() {
   return {
     message: {
       select: {
@@ -1062,6 +1107,13 @@ function suggestedTaskInclude() {
         },
         id: true,
         occurredAt: true
+      }
+    },
+    suggestedProject: {
+      select: {
+        code: true,
+        id: true,
+        name: true
       }
     }
   };

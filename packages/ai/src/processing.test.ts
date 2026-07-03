@@ -23,7 +23,7 @@ describe("AIClassificationProcessor", () => {
     expect(prisma.classifications[0]?.status).toBe("PENDING");
   });
 
-  it("does not classify messages without a project", async () => {
+  it("classifies messages without a project so project suggestions can be created", async () => {
     prisma.messages[0]!.conversation.projectId = null;
     const processor = new AIClassificationProcessor(prisma.client, {
       classifier: new FakeClassifier(validResult())
@@ -31,12 +31,12 @@ describe("AIClassificationProcessor", () => {
 
     await processor.enqueueMessage("message_1");
 
-    expect(prisma.classifications).toHaveLength(0);
+    expect(prisma.classifications).toHaveLength(1);
   });
 
-  it("saves a valid AI result and creates a suggested task", async () => {
+  it("saves a valid AI result and creates an action item", async () => {
     const processor = new AIClassificationProcessor(prisma.client, {
-      classifier: new FakeClassifier(validResult({ shouldCreateTask: true }))
+      classifier: new FakeClassifier(validResult({ actionRequired: true }))
     });
     await processor.enqueueMessage("message_1");
 
@@ -44,22 +44,22 @@ describe("AIClassificationProcessor", () => {
 
     expect(prisma.classifications[0]?.status).toBe("COMPLETED");
     expect(prisma.classifications[0]?.category).toBe("DEFECT");
-    expect(prisma.suggestedTasks).toHaveLength(1);
+    expect(prisma.actionItems).toHaveLength(1);
   });
 
-  it("does not create a suggested task when the model says no follow-up is required", async () => {
+  it("does not create an action item when the model says no follow-up is required", async () => {
     const processor = new AIClassificationProcessor(prisma.client, {
-      classifier: new FakeClassifier(validResult({ shouldCreateTask: false }))
+      classifier: new FakeClassifier(validResult({ actionRequired: false }))
     });
     await processor.enqueueMessage("message_1");
 
     await processor.processPending();
 
     expect(prisma.classifications[0]?.status).toBe("COMPLETED");
-    expect(prisma.suggestedTasks).toHaveLength(0);
+    expect(prisma.actionItems).toHaveLength(0);
   });
 
-  it("marks invalid AI output as failed and does not create a suggested task", async () => {
+  it("marks invalid AI output as failed and does not create an action item", async () => {
     const processor = new AIClassificationProcessor(prisma.client, {
       classifier: new FailingClassifier()
     });
@@ -68,20 +68,17 @@ describe("AIClassificationProcessor", () => {
     await processor.processPending();
 
     expect(prisma.classifications[0]?.status).toBe("FAILED");
-    expect(prisma.suggestedTasks).toHaveLength(0);
+    expect(prisma.actionItems).toHaveLength(0);
   });
 });
 
 function validResult(overrides: Partial<ClassifyMessageResult> = {}): ClassifyMessageResult {
   return {
+    actionRequired: true,
     category: "DEFECT",
     confidence: 0.92,
     location: "Lobby",
-    priority: "HIGH",
     reasoningSummary: "The message reports a failed light and asks for rectification.",
-    shouldCreateTask: true,
-    suggestedTaskDescription: "Rectify the failed lobby light.",
-    suggestedTaskTitle: "Fix lobby light",
     summary: "A lobby light has failed and needs follow-up.",
     ...overrides
   };
@@ -145,18 +142,32 @@ class FakePrisma {
     message: FakeMessage;
     messageId: string;
     organizationId: string;
-    priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+    actionRequired: boolean;
     projectId: string | null;
     status: "PENDING" | "COMPLETED" | "FAILED" | "NEEDS_REVIEW";
   }> = [];
-  suggestedTasks: Array<{
+  actionItems: Array<{
     classificationId: string;
     id: string;
     messageId: string;
     organizationId: string;
-    projectId: string;
+    projectId: string | null;
+    suggestedProjectId?: string | null;
+    title: string;
+    type?: "FOLLOW_UP" | "PROJECT_SUGGESTION";
+  }> = [];
+  events: Array<{
+    id: string;
+    sourceId: string;
     title: string;
   }> = [];
+  projects = [
+    {
+      code: "T2",
+      id: "project_2",
+      name: "Terminal 2"
+    }
+  ];
 
   client = {
     $transaction: async <T>(callback: (tx: FakePrisma["client"]) => Promise<T>) =>
@@ -183,7 +194,7 @@ class FakePrisma {
         create: {
           messageId: string;
           organizationId: string;
-          projectId: string;
+          projectId: string | null;
           status: "PENDING";
         };
         update: Record<string, unknown>;
@@ -210,7 +221,7 @@ class FakePrisma {
           message,
           messageId: create.messageId,
           organizationId: create.organizationId,
-          priority: "MEDIUM" as const,
+          actionRequired: false,
           projectId: create.projectId,
           status: create.status
         };
@@ -222,26 +233,44 @@ class FakePrisma {
       findUnique: async ({ where }: { where: { id: string } }) =>
         this.messages.find((item) => item.id === where.id) ?? null
     },
-    suggestedTask: {
+    actionItem: {
       create: async ({
         data
       }: {
         data: {
           classificationId: string;
+          confidence: number;
+          description: string | null;
           messageId: string;
           organizationId: string;
-          projectId: string;
+          projectId: string | null;
+          status: "PENDING";
+          suggestedProjectId?: string | null;
           title: string;
+          type: "FOLLOW_UP" | "PROJECT_SUGGESTION";
         };
       }) => {
         const task = {
           ...data,
-          id: `suggested_task_${this.suggestedTasks.length + 1}`
+          id: `action_item_${this.actionItems.length + 1}`
         };
-        this.suggestedTasks.push(task);
+        this.actionItems.push(task);
         return task;
       },
       deleteMany: async () => ({ count: 0 })
+    },
+    event: {
+      create: async ({ data }: { data: { sourceId: string; title: string } }) => {
+        const event = {
+          ...data,
+          id: `event_${this.events.length + 1}`
+        };
+        this.events.push(event);
+        return event;
+      }
+    },
+    project: {
+      findMany: async () => this.projects
     }
   } as unknown as PrismaClient;
 }

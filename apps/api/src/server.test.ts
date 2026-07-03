@@ -24,7 +24,7 @@ import type {
   SafeUser,
   Status,
   StoredUser,
-  SuggestedTaskRecord,
+  ActionItemRecord,
   WhatsAppAccountRecord,
   WhatsAppChatMappingRecord
 } from "./repository.js";
@@ -102,7 +102,7 @@ describe("FieldOS API auth and tenancy", () => {
     expect(response.json().organization.role).toBe("OWNER");
   });
 
-  it("rejects unauthenticated organization access", async () => {
+  it("blocks unauthenticated organization access", async () => {
     const response = await server.inject({
       method: "GET",
       url: "/organizations"
@@ -131,7 +131,7 @@ describe("FieldOS API auth and tenancy", () => {
     expect(response.json().project.code).toBe("ACME-001");
   });
 
-  it("rejects project creation as VIEWER", async () => {
+  it("blocks project creation as VIEWER", async () => {
     const ownerCookie = await signup(server, "owner@example.com");
     const organization = await createOrganization(server, ownerCookie);
     const viewerCookie = await signup(server, "viewer@example.com");
@@ -257,7 +257,7 @@ describe("FieldOS API auth and tenancy", () => {
     expect(deleteResponse.json()).toEqual({ ok: true });
   });
 
-  it("rejects conversation access for non-members", async () => {
+  it("blocks conversation access for non-members", async () => {
     const ownerCookie = await signup(server, "owner@example.com");
     const organization = await createOrganization(server, ownerCookie);
     const outsiderCookie = await signup(server, "outsider@example.com");
@@ -625,7 +625,7 @@ describe("FieldOS API auth and tenancy", () => {
     expect(getResponse.json().classification.messageId).toBe(message.id);
   });
 
-  it("lists project AI classifications and suggested tasks", async () => {
+  it("lists project AI classifications and Action Items", async () => {
     const cookie = await signup(server);
     const organization = await createOrganization(server, cookie);
     const project = await repository.createProject({
@@ -640,7 +640,7 @@ describe("FieldOS API auth and tenancy", () => {
       organizationId: organization.id,
       projectId: project.id
     });
-    repository.addSuggestedTask({
+    repository.addActionItem({
       classificationId: classification.id,
       messageId: message.id,
       organizationId: organization.id,
@@ -654,21 +654,21 @@ describe("FieldOS API auth and tenancy", () => {
       method: "GET",
       url: `/projects/${project.id}/ai-classifications`
     });
-    const suggestedTasksResponse = await server.inject({
+    const actionItemsResponse = await server.inject({
       headers: {
         cookie
       },
       method: "GET",
-      url: `/projects/${project.id}/suggested-tasks`
+      url: `/projects/${project.id}/action-items`
     });
 
     expect(classificationsResponse.statusCode).toBe(200);
     expect(classificationsResponse.json().classifications).toHaveLength(1);
-    expect(suggestedTasksResponse.statusCode).toBe(200);
-    expect(suggestedTasksResponse.json().suggestedTasks).toHaveLength(1);
+    expect(actionItemsResponse.statusCode).toBe(200);
+    expect(actionItemsResponse.json().actionItems).toHaveLength(1);
   });
 
-  it("accepts and rejects suggested tasks", async () => {
+  it("accepts and ignores Action Items", async () => {
     const cookie = await signup(server);
     const organization = await createOrganization(server, cookie);
     const project = await repository.createProject({
@@ -683,7 +683,7 @@ describe("FieldOS API auth and tenancy", () => {
       organizationId: organization.id,
       projectId: project.id
     });
-    const task = repository.addSuggestedTask({
+    const task = repository.addActionItem({
       classificationId: classification.id,
       messageId: message.id,
       organizationId: organization.id,
@@ -695,23 +695,74 @@ describe("FieldOS API auth and tenancy", () => {
         cookie
       },
       method: "POST",
-      url: `/suggested-tasks/${task.id}/accept`
+      url: `/action-items/${task.id}/accept`
     });
-    const rejectResponse = await server.inject({
+    const ignoreResponse = await server.inject({
       headers: {
         cookie
       },
       method: "POST",
-      url: `/suggested-tasks/${task.id}/reject`
+      url: `/action-items/${task.id}/ignore`
     });
 
     expect(acceptResponse.statusCode).toBe(200);
-    expect(acceptResponse.json().suggestedTask.status).toBe("ACCEPTED");
-    expect(rejectResponse.statusCode).toBe(200);
-    expect(rejectResponse.json().suggestedTask.status).toBe("REJECTED");
+    expect(acceptResponse.json().actionItem.status).toBe("ACCEPTED");
+    expect(ignoreResponse.statusCode).toBe(200);
+    expect(ignoreResponse.json().actionItem.status).toBe("IGNORED");
   });
 
-  it("blocks cross-organization access to suggested tasks", async () => {
+  it("reassigns project suggestion Action Items only after acceptance", async () => {
+    const cookie = await signup(server);
+    const organization = await createOrganization(server, cookie);
+    const currentProject = await repository.createProject({
+      code: "AI-005",
+      name: "Current project",
+      organizationId: organization.id,
+      status: "ACTIVE"
+    });
+    const suggestedProject = await repository.createProject({
+      code: "T2",
+      name: "Terminal 2",
+      organizationId: organization.id,
+      status: "ACTIVE"
+    });
+    const message = await createProjectMessage(repository, organization.id, currentProject.id);
+    const classification = repository.addCompletedClassification({
+      messageId: message.id,
+      organizationId: organization.id,
+      projectId: currentProject.id
+    });
+    const actionItem = repository.addActionItem({
+      classificationId: classification.id,
+      messageId: message.id,
+      organizationId: organization.id,
+      projectId: currentProject.id,
+      suggestedProjectId: suggestedProject.id,
+      type: "PROJECT_SUGGESTION"
+    });
+
+    expect(
+      repository.conversations.find((conversation) => conversation.id === message.conversationId)
+        ?.projectId
+    ).toBe(currentProject.id);
+
+    const response = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "POST",
+      url: `/action-items/${actionItem.id}/accept`
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().actionItem.status).toBe("ACCEPTED");
+    expect(
+      repository.conversations.find((conversation) => conversation.id === message.conversationId)
+        ?.projectId
+    ).toBe(suggestedProject.id);
+  });
+
+  it("blocks cross-organization access to Action Items", async () => {
     const ownerCookie = await signup(server, "owner@example.com");
     const organization = await createOrganization(server, ownerCookie);
     const project = await repository.createProject({
@@ -726,7 +777,7 @@ describe("FieldOS API auth and tenancy", () => {
       organizationId: organization.id,
       projectId: project.id
     });
-    const task = repository.addSuggestedTask({
+    const task = repository.addActionItem({
       classificationId: classification.id,
       messageId: message.id,
       organizationId: organization.id,
@@ -739,7 +790,7 @@ describe("FieldOS API auth and tenancy", () => {
         cookie: outsiderCookie
       },
       method: "POST",
-      url: `/suggested-tasks/${task.id}/accept`
+      url: `/action-items/${task.id}/accept`
     });
 
     expect(response.statusCode).toBe(404);
@@ -828,7 +879,7 @@ class InMemoryRepository implements AppRepository {
   participants: ParticipantRecord[] = [];
   projects: ProjectRecord[] = [];
   classifications: AIMessageClassificationRecord[] = [];
-  suggestedTasks: SuggestedTaskRecord[] = [];
+  actionItems: ActionItemRecord[] = [];
   users: StoredUser[] = [];
   whatsAppAccounts: WhatsAppAccountRecord[] = [];
   whatsAppChatMappings: WhatsAppChatMappingRecord[] = [];
@@ -1279,15 +1330,28 @@ class InMemoryRepository implements AppRepository {
     return mapping;
   }
 
-  async acceptSuggestedTask(input: {
-    suggestedTaskId: string;
+  async acceptActionItem(input: {
+    actionItemId: string;
     userId: string;
-  }): Promise<SuggestedTaskRecord> {
-    const task = this.requireSuggestedTask(input.suggestedTaskId);
+  }): Promise<ActionItemRecord> {
+    const task = this.requireActionItem(input.actionItemId);
+    if (task.type === "PROJECT_SUGGESTION" && task.suggestedProjectId) {
+      const message = this.messages.find((candidate) => candidate.id === task.messageId);
+      const conversation = message
+        ? this.conversations.find((candidate) => candidate.id === message.conversationId)
+        : null;
+
+      if (conversation) {
+        conversation.projectId = task.suggestedProjectId;
+      }
+
+      task.projectId = task.suggestedProjectId;
+    }
+
     task.acceptedAt = new Date();
     task.acceptedByUserId = input.userId;
-    task.rejectedAt = null;
-    task.rejectedByUserId = null;
+    task.ignoredAt = null;
+    task.ignoredByUserId = null;
     task.status = "ACCEPTED";
     task.updatedAt = new Date();
     return task;
@@ -1301,7 +1365,7 @@ class InMemoryRepository implements AppRepository {
       ? this.conversations.find((candidate) => candidate.id === message.conversationId)
       : null;
 
-    if (!message || !conversation?.projectId) {
+    if (!message || !conversation) {
       return null;
     }
 
@@ -1326,13 +1390,10 @@ class InMemoryRepository implements AppRepository {
       location: null,
       messageId,
       organizationId: conversation.organizationId,
-      priority: "MEDIUM",
       projectId: conversation.projectId,
       reasoningSummary: null,
-      shouldCreateTask: false,
+      actionRequired: false,
       status: "PENDING",
-      suggestedTaskDescription: null,
-      suggestedTaskTitle: null,
       summary: null,
       updatedAt: new Date()
     };
@@ -1346,28 +1407,30 @@ class InMemoryRepository implements AppRepository {
     );
   }
 
-  async getSuggestedTask(suggestedTaskId: string): Promise<SuggestedTaskRecord | null> {
-    return this.suggestedTasks.find((task) => task.id === suggestedTaskId) ?? null;
+  async getActionItem(actionItemId: string): Promise<ActionItemRecord | null> {
+    return this.actionItems.find((task) => task.id === actionItemId) ?? null;
   }
 
   async listProjectAIClassifications(projectId: string): Promise<AIMessageClassificationRecord[]> {
     return this.classifications.filter((classification) => classification.projectId === projectId);
   }
 
-  async listProjectSuggestedTasks(projectId: string): Promise<SuggestedTaskRecord[]> {
-    return this.suggestedTasks.filter((task) => task.projectId === projectId);
+  async listProjectActionItems(projectId: string): Promise<ActionItemRecord[]> {
+    return this.actionItems.filter(
+      (task) => task.projectId === projectId || task.suggestedProjectId === projectId
+    );
   }
 
-  async rejectSuggestedTask(input: {
-    suggestedTaskId: string;
+  async ignoreActionItem(input: {
+    actionItemId: string;
     userId: string;
-  }): Promise<SuggestedTaskRecord> {
-    const task = this.requireSuggestedTask(input.suggestedTaskId);
+  }): Promise<ActionItemRecord> {
+    const task = this.requireActionItem(input.actionItemId);
     task.acceptedAt = null;
     task.acceptedByUserId = null;
-    task.rejectedAt = new Date();
-    task.rejectedByUserId = input.userId;
-    task.status = "REJECTED";
+    task.ignoredAt = new Date();
+    task.ignoredByUserId = input.userId;
+    task.status = "IGNORED";
     task.updatedAt = new Date();
     return task;
   }
@@ -1376,7 +1439,7 @@ class InMemoryRepository implements AppRepository {
     messageId: string;
     organizationId: string;
     projectId: string;
-    shouldCreateTask?: boolean;
+    actionRequired?: boolean;
   }): AIMessageClassificationRecord {
     const classification: AIMessageClassificationRecord = {
       category: "DEFECT",
@@ -1387,13 +1450,10 @@ class InMemoryRepository implements AppRepository {
       location: "Lobby",
       messageId: input.messageId,
       organizationId: input.organizationId,
-      priority: "HIGH",
       projectId: input.projectId,
       reasoningSummary: "The message requests rectification for a defect.",
-      shouldCreateTask: input.shouldCreateTask ?? true,
+      actionRequired: input.actionRequired ?? true,
       status: "COMPLETED",
-      suggestedTaskDescription: "Rectify the reported issue.",
-      suggestedTaskTitle: "Fix reported defect",
       summary: "A defect was reported and needs follow-up.",
       updatedAt: new Date()
     };
@@ -1401,38 +1461,43 @@ class InMemoryRepository implements AppRepository {
     return classification;
   }
 
-  addSuggestedTask(input: {
+  addActionItem(input: {
     classificationId: string;
     messageId: string;
     organizationId: string;
-    projectId: string;
-  }): SuggestedTaskRecord {
-    const task: SuggestedTaskRecord = {
+    projectId: string | null;
+    suggestedProjectId?: string | null;
+    type?: "FOLLOW_UP" | "PROJECT_SUGGESTION";
+  }): ActionItemRecord {
+    const task: ActionItemRecord = {
       acceptedAt: null,
       acceptedByUserId: null,
       classificationId: input.classificationId,
+      confidence: 0.91,
       createdAt: new Date(),
       description: "Rectify the reported issue.",
-      id: nextId("suggested_task"),
+      id: nextId("action_item"),
       messageId: input.messageId,
       organizationId: input.organizationId,
-      priority: "HIGH",
       projectId: input.projectId,
-      rejectedAt: null,
-      rejectedByUserId: null,
+      ignoredAt: null,
+      ignoredByUserId: null,
+      suggestedProject: null,
+      suggestedProjectId: input.suggestedProjectId ?? null,
       status: "PENDING",
       title: "Fix reported defect",
+      type: input.type ?? "FOLLOW_UP",
       updatedAt: new Date()
     };
-    this.suggestedTasks.push(task);
+    this.actionItems.push(task);
     return task;
   }
 
-  private requireSuggestedTask(suggestedTaskId: string): SuggestedTaskRecord {
-    const task = this.suggestedTasks.find((candidate) => candidate.id === suggestedTaskId);
+  private requireActionItem(actionItemId: string): ActionItemRecord {
+    const task = this.actionItems.find((candidate) => candidate.id === actionItemId);
 
     if (!task) {
-      throw new Error("suggested task missing in test repository");
+      throw new Error("action item missing in test repository");
     }
 
     return task;

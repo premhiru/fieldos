@@ -17,6 +17,7 @@
 - [Integration Strategy](#integration-strategy)
 - [WhatsApp Connector](#whatsapp-connector)
 - [AI Classification](#ai-classification)
+- [Event Model](#event-model)
 - [Evolution Path](#evolution-path)
 
 ## Architecture Overview
@@ -51,7 +52,7 @@ Current application boundaries:
 - `apps/api`: Fastify API that owns authentication, tenant authorization, organization membership checks, and project endpoints.
 - `apps/worker`: Redis-connected worker that reconciles background sessions, including Baileys WhatsApp sessions.
 - `packages/auth`: Password hashing, JWT signing/verification, auth schemas, and session constants.
-- `packages/ai`: AI message classification, extraction, prompt versioning, and suggested task processing.
+- `packages/ai`: AI message classification, extraction, prompt versioning, and action item processing.
 - `packages/db`: Prisma schema, migrations, Prisma client, and database types.
 - `packages/integrations/whatsapp/baileys`: WhatsApp Web adapter, QR store, session storage, message normalization, and ingestion.
 - `packages/ui`: Reusable shadcn-style UI primitives.
@@ -61,7 +62,7 @@ Current application boundaries:
 
 - `packages/messaging` owns channel-agnostic conversation and message business rules.
 - `packages/integrations/whatsapp/baileys` owns WhatsApp-specific session state, QR pairing, history discovery, and provider payload normalization.
-- `packages/ai` owns AI prompt construction, provider calls, output validation, classification persistence, and suggested task creation.
+- `packages/ai` owns AI prompt construction, provider calls, output validation, classification persistence, and action item creation.
 - `apps/api` owns authentication, tenant authorization, and external HTTP contracts.
 - `apps/worker` owns asynchronous processing loops and must keep provider failures out of request and ingestion paths.
 
@@ -93,7 +94,7 @@ Channel adapters live outside `packages/messaging`. They translate provider even
 
 The Baileys WhatsApp connector is worker-owned. The dashboard creates and manages `WhatsAppAccount` records through the API, the worker starts sessions for accounts in active connection states, and QR payloads are shared through Redis.
 
-Inbound WhatsApp metadata is discovered by the adapter and stored in `WhatsAppChatMapping` without creating inbox conversations. Message content is normalized and persisted into the generic messaging model only after an organization admin activates the chat/group and maps it to a project.
+Inbound WhatsApp metadata is discovered by the adapter and stored in `WhatsAppChatMapping` without creating inbox conversations. Message content is normalized and persisted into the generic messaging model only after an organization admin activates the chat/group. Project mapping is optional at ingestion time so AI can recommend a project when the active chat is unmapped or appears to reference a different project.
 
 Chat-to-project mapping is stored separately in `WhatsAppChatMapping`, then reflected onto `Conversation.projectId` when a conversation exists so the inbox and project views remain channel-agnostic.
 
@@ -102,7 +103,6 @@ The ingestion privacy gate is:
 1. WhatsApp account status is `CONNECTED`.
 2. Chat mapping exists.
 3. Chat mapping status is `ACTIVE`.
-4. Chat mapping has `projectId`.
 
 If any condition fails, the worker skips the message before reading or storing message body content.
 
@@ -110,11 +110,19 @@ Session files and downloaded media are currently stored under `.storage`. This i
 
 ## AI Classification
 
-AI classification runs after message persistence, never before it. WhatsApp ingestion creates or updates a pending classification row only for messages that belong to active, project-mapped conversations.
+AI classification runs after message persistence, never before it. WhatsApp ingestion creates or updates a pending classification row only for messages that belong to active conversations.
 
-The worker polls pending `AIMessageClassification` rows, sends normalized message context to the OpenAI-compatible provider, validates strict JSON output, stores a user-facing summary of the result, and optionally creates a `SuggestedTask`.
+The worker polls pending `AIMessageClassification` rows, sends normalized message context to the OpenAI-compatible provider, validates strict JSON output, stores a concise user-facing summary and reasoning statement, and optionally creates an `ActionItem`.
 
-Suggested tasks are not operational tasks. They are human-review records that can be accepted or rejected through the API and dashboard. Future task-domain work can convert accepted suggestions into first-class task records.
+Action Items are not operational tasks. They are human-review records that can be accepted or ignored through the API and dashboard. Future task-domain work can convert accepted follow-up Action Items into first-class task records.
+
+Project suggestions are represented as `ActionItem` records with type `PROJECT_SUGGESTION`. Accepting one updates the conversation and WhatsApp chat mapping to the suggested project. Ignoring one records the human decision without changing project assignment.
+
+## Event Model
+
+`Event` is a generic timeline preparation model. It records organization-scoped activity from messages, Action Items, reports, and system events without building a timeline UI yet.
+
+The model is intentionally small: source type, source id, event type, title, optional description, occurrence time, and creation time. Task 008 can consume these records without coupling timeline logic to messaging, AI, or connector internals.
 
 ## Evolution Path
 

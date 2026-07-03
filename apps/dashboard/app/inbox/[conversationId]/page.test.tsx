@@ -61,10 +61,9 @@ vi.mock("@tanstack/react-query", () => ({
               category: "DEFECT",
               confidence: 0.9,
               location: "Lobby",
-              priority: "HIGH",
               reasoningSummary: "The message requests rectification.",
               status: "COMPLETED",
-              suggestedTaskTitle: "Fix lobby light",
+              actionRequired: true,
               summary: "A lobby light failed."
             }
           },
@@ -103,6 +102,7 @@ describe("ConversationDetailPage AI panel", () => {
 
     expect(screen.getAllByText("AI classification pending")).toHaveLength(1);
     expect(screen.getByText("Category: DEFECT")).toBeTruthy();
+    expect(screen.getByText("Confidence: High Confidence")).toBeTruthy();
     expect(screen.getByText("AI classification failed: AI not configured.")).toBeTruthy();
   });
 });

@@ -9,21 +9,17 @@ Use only the provided message context.
 Do not invent missing details.
 Leave unknown optional fields as null.
 Use only the allowed category enum.
-Use only the allowed priority enum.
 Provide confidence as a number from 0 to 1.
 Keep summary short.
 Keep reasoningSummary short and user-facing.
 Do not include private chain-of-thought.
-Set shouldCreateTask true only when the message clearly requires follow-up.
+Set actionRequired true only when the message clearly requires human follow-up.
 
 Allowed categories:
 PROGRESS_UPDATE, DEFECT, DELAY, SAFETY_ISSUE, DELIVERY, INSPECTION_REQUEST, CLIENT_APPROVAL, VARIATION_ORDER, RFI, MATERIAL_ISSUE, MANPOWER_ISSUE, GENERAL_NOTE, UNKNOWN
 
-Allowed priorities:
-LOW, MEDIUM, HIGH, URGENT
-
 Required JSON keys:
-category, summary, location, priority, suggestedTaskTitle, suggestedTaskDescription, shouldCreateTask, confidence, reasoningSummary
+category, summary, location, actionRequired, confidence, reasoningSummary
 `.trim();
 
 export function buildMessageClassificationUserPrompt(input: ClassifyMessageInput): string {

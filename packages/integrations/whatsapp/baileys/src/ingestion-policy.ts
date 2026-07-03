@@ -1,7 +1,7 @@
 import type { WhatsAppAccountRecord, WhatsAppChatMappingRecord } from "./types.js";
 
 export type WhatsAppIngestionSkipReason =
-  "ACCOUNT_NOT_CONNECTED" | "MAPPING_MISSING" | "MAPPING_NOT_ACTIVE" | "PROJECT_MISSING";
+  "ACCOUNT_NOT_CONNECTED" | "MAPPING_MISSING" | "MAPPING_NOT_ACTIVE";
 
 export interface WhatsAppIngestionDecision {
   allowed: boolean;
@@ -30,13 +30,6 @@ export function decideWhatsAppIngestion(input: {
     return {
       allowed: false,
       reasonSkipped: "MAPPING_NOT_ACTIVE"
-    };
-  }
-
-  if (!input.mapping.projectId) {
-    return {
-      allowed: false,
-      reasonSkipped: "PROJECT_MISSING"
     };
   }
 

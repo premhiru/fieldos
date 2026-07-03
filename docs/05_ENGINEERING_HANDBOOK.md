@@ -5,7 +5,7 @@
 | Purpose      | Establish engineering practices, quality gates, repository operations, and delivery expectations. |
 | Owner        | Engineering                                                                                       |
 | Status       | Draft                                                                                             |
-| Last Updated | 2026-06-30                                                                                        |
+| Last Updated | 2026-07-03                                                                                        |
 
 ## Table of Contents
 
@@ -20,7 +20,11 @@
 
 ## Engineering Principles
 
-Placeholder.
+- Keep business logic in the API, worker, or packages; dashboard code should stay presentation-oriented.
+- Keep messaging channel-agnostic. Connector-specific state belongs under `packages/integrations`.
+- Keep AI classification inside `packages/ai`. Store concise summaries and user-facing reasoning only.
+- Prefer explicit, typed service boundaries over broad shared utility abstractions.
+- Use `ActionItem` for AI recommendations. Do not reintroduce `SuggestedTask` terminology.
 
 ## Local Development
 
@@ -44,16 +48,27 @@ See [Branch Strategy](./08_BRANCH_STRATEGY.md).
 
 ## Pull Requests
 
-Placeholder.
+- Use Conventional Commits.
+- Keep pull requests scoped to one behavior or stabilization objective.
+- Include schema migrations and documentation updates when data contracts change.
+- Include tests for authorization, worker idempotency, and user-visible workflows.
 
 ## Release Process
 
-Placeholder.
+- Merge through pull requests after lint, typecheck, tests, and build pass.
+- Tag releases only after migrations and deployment checks are verified.
+- Update `PROJECT_STATUS.md` after each completed task or sprint.
 
 ## Security
 
-Placeholder.
+- Never log secrets, QR payloads, JWTs, cookies, provider responses, or raw AI model output.
+- Every organization-owned route must authenticate the user and authorize organization membership.
+- WhatsApp sessions and local media under `.storage` are development storage only and must move to managed secret/object storage before production scale.
+- Project reassignment recommendations must require explicit human approval.
 
 ## Operational Readiness
 
-Placeholder.
+- Workers must support graceful shutdown and bounded retry/backoff.
+- Ingestion must be idempotent by external message id.
+- Structured logs should include organization id, project id, request id, job id, and message id where relevant.
+- High-volume list routes should use pagination before large imports.

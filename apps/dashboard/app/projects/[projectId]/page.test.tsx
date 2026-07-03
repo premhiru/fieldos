@@ -43,10 +43,10 @@ vi.mock("@tanstack/react-query", () => ({
           classifications: [
             {
               category: "DEFECT",
+              actionRequired: true,
               confidence: 0.9,
               id: "classification_1",
               location: "Lobby",
-              priority: "HIGH",
               summary: "A lobby light failed."
             }
           ]
@@ -57,10 +57,11 @@ vi.mock("@tanstack/react-query", () => ({
 
     return {
       data: {
-        suggestedTasks: [
+        actionItems: [
           {
             description: "Rectify the failed lobby light.",
-            id: "suggested_task_1",
+            id: "action_item_1",
+            confidence: 0.9,
             message: {
               body: "Lobby light failed.",
               conversation: {
@@ -68,9 +69,10 @@ vi.mock("@tanstack/react-query", () => ({
                 title: "Site team"
               }
             },
-            priority: "HIGH",
             status: "PENDING",
-            title: "Fix lobby light"
+            suggestedProject: null,
+            title: "Fix lobby light",
+            type: "FOLLOW_UP"
           }
         ]
       },
@@ -83,14 +85,15 @@ vi.mock("@tanstack/react-query", () => ({
 }));
 
 describe("ProjectDetailPage AI sections", () => {
-  it("renders AI insights and pending suggested tasks", () => {
+  it("renders AI insights and pending Action Items", () => {
     render(React.createElement(ProjectDetailPage));
 
     expect(screen.getByRole("heading", { name: "AI Insights" })).toBeTruthy();
     expect(screen.getByText("A lobby light failed.")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Suggested Tasks" })).toBeTruthy();
+    expect(screen.getAllByText("High Confidence").length).toBeGreaterThan(0);
+    expect(screen.getByRole("heading", { name: "Action Items" })).toBeTruthy();
     expect(screen.getByText("Fix lobby light")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Accept" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Reject" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Ignore" })).toBeTruthy();
   });
 });

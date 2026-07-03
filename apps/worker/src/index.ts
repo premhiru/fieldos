@@ -28,6 +28,8 @@ redis.on("error", (error: Error) => {
 
 let heartbeat: NodeJS.Timeout | undefined;
 let aiClassificationTimer: NodeJS.Timeout | undefined;
+let aiClassificationFailureCount = 0;
+let shuttingDown = false;
 
 async function start() {
   await redis.connect();
@@ -41,11 +43,7 @@ async function start() {
     logger.debug("worker heartbeat");
   }, 30_000);
 
-  aiClassificationTimer = setInterval(() => {
-    processAIClassifications().catch((error: unknown) => {
-      logger.error({ error }, "AI classification processing failed");
-    });
-  }, workerEnv.AI_CLASSIFICATION_POLL_INTERVAL_MS);
+  scheduleAIClassificationProcessing();
 }
 
 async function processAIClassifications(): Promise<void> {
@@ -56,7 +54,35 @@ async function processAIClassifications(): Promise<void> {
   }
 }
 
+function scheduleAIClassificationProcessing(
+  delayMs = workerEnv.AI_CLASSIFICATION_POLL_INTERVAL_MS
+) {
+  if (shuttingDown) {
+    return;
+  }
+
+  aiClassificationTimer = setTimeout(async () => {
+    try {
+      await processAIClassifications();
+      aiClassificationFailureCount = 0;
+      scheduleAIClassificationProcessing();
+    } catch (error: unknown) {
+      aiClassificationFailureCount += 1;
+      const retryDelayMs = Math.min(
+        workerEnv.AI_CLASSIFICATION_POLL_INTERVAL_MS * 2 ** aiClassificationFailureCount,
+        60_000
+      );
+      logger.error(
+        { error, job: "ai-classification", retryDelayMs },
+        "AI classification processing failed"
+      );
+      scheduleAIClassificationProcessing(retryDelayMs);
+    }
+  }, delayMs);
+}
+
 async function shutdown(signal: NodeJS.Signals) {
+  shuttingDown = true;
   logger.info({ signal }, "shutting down worker");
 
   if (heartbeat) {
@@ -64,7 +90,7 @@ async function shutdown(signal: NodeJS.Signals) {
   }
 
   if (aiClassificationTimer) {
-    clearInterval(aiClassificationTimer);
+    clearTimeout(aiClassificationTimer);
   }
 
   await whatsappSessionManager.stop();

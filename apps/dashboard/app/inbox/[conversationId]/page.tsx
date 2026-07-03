@@ -126,7 +126,7 @@ function MessageBubble({ message }: { message: Message }) {
         }
       >
         <div className={outbound ? "text-xs text-slate-300" : "text-xs text-slate-500"}>
-          {message.senderParticipant.displayName} · {formatDate(message.occurredAt)}
+          {message.senderParticipant.displayName} - {formatDate(message.occurredAt)}
         </div>
         <div className="mt-2 text-sm">
           {message.type === "TEXT" || message.type === "SYSTEM" ? (
@@ -205,17 +205,9 @@ function AIMessagePanel({ messageId, outbound }: { messageId: string; outbound: 
           <div>Category: {classification.category ?? "UNKNOWN"}</div>
           <div>Summary: {classification.summary ?? "No summary"}</div>
           <div>Location: {classification.location ?? "Unknown"}</div>
-          <div>Priority: {classification.priority}</div>
-          <div>
-            Confidence:{" "}
-            {classification.confidence === null
-              ? "Unknown"
-              : `${Math.round(classification.confidence * 100)}%`}
-          </div>
+          <div>Action required: {classification.actionRequired ? "Yes" : "No"}</div>
+          <div>Confidence: {getConfidenceLabel(classification.confidence)}</div>
           <div>Status: {classification.status}</div>
-          {classification.suggestedTaskTitle ? (
-            <div>Suggested task: {classification.suggestedTaskTitle}</div>
-          ) : null}
           {classification.reasoningSummary ? (
             <div>Reason: {classification.reasoningSummary}</div>
           ) : null}
@@ -247,7 +239,7 @@ function AttachmentRow({ attachment }: { attachment: Attachment }) {
     <div className="rounded-md border border-slate-200 p-3">
       <div className="font-medium text-slate-950">{attachment.filename}</div>
       <div className="mt-1 text-xs text-slate-500">
-        {attachment.mimeType} · {formatBytes(attachment.size)}
+        {attachment.mimeType} - {formatBytes(attachment.size)}
       </div>
     </div>
   );
@@ -258,6 +250,22 @@ function formatDate(value: string) {
     dateStyle: "medium",
     timeStyle: "short"
   }).format(new Date(value));
+}
+
+function getConfidenceLabel(confidence: number | null): string {
+  if (confidence === null) {
+    return "Needs Review";
+  }
+
+  if (confidence >= 0.8) {
+    return "High Confidence";
+  }
+
+  if (confidence >= 0.55) {
+    return "Needs Review";
+  }
+
+  return "Low Confidence";
 }
 
 function formatBytes(size: number) {

@@ -41,7 +41,7 @@ flowchart TD
   Shared["packages/shared\nEnv, Logger, Utilities"]
   Auth["packages/auth\nJWT, Passwords, Auth Schemas"]
   Messaging["packages/messaging\nConversations, Messages, Attachments"]
-  AI["packages/ai\nMessage Classification, Suggestions"]
+  AI["packages/ai\nMessage Classification, Action Items"]
   WhatsApp["packages/integrations/whatsapp/baileys\nBaileys Adapter"]
   Postgres["PostgreSQL"]
   Redis["Redis"]
@@ -153,7 +153,7 @@ apps/
 packages/
   ui/              Shared UI components.
   db/              Prisma schema, migration, client, and database utilities.
-  ai/              Message classification, extraction, and suggested task generation.
+  ai/              Message classification, extraction, and action item generation.
   auth/            JWT cookie auth, password hashing, and auth schemas.
   integrations/
     whatsapp/
@@ -214,22 +214,22 @@ Supported channel values are `WHATSAPP`, `EMAIL`, `SLACK`, `TEAMS`, and `SMS`.
 
 The current WhatsApp connector uses the maintained Baileys package for WhatsApp Web pairing. Accounts are created and managed from dashboard settings. QR payloads are exchanged through Redis, session files and media are stored under `.storage`, and inbound messages are normalized into the generic messaging tables only after an admin activates the chat or group.
 
-FieldOS discovers WhatsApp chat and group metadata first. Discovered, ignored, and archived chats are not shown in the Inbox and do not store message bodies or attachments. Admins must map a chat/group to a project and activate it before new incoming messages are ingested.
+FieldOS discovers WhatsApp chat and group metadata first. Discovered, ignored, and archived chats are not shown in the Inbox and do not store message bodies or attachments. Admins must explicitly activate a chat/group before new incoming messages are ingested. A project mapping is recommended, but active unmapped chats may ingest messages so FieldOS can create human-reviewed project suggestion Action Items.
 
 Use dedicated business numbers only. Do not connect personal WhatsApp accounts. FieldOS will add the official Meta WhatsApp Cloud API path for production enterprise deployments later.
 
 ## AI Classification
 
-FieldOS classifies only messages that already passed the WhatsApp activation gate and belong to a project. Classification runs asynchronously in the worker so message ingestion is never blocked by the AI provider.
+FieldOS classifies only messages that already passed the WhatsApp activation gate. Classification runs asynchronously in the worker so message ingestion is never blocked by the AI provider.
 
-The AI layer can classify a message, summarize it, extract a location and priority, and create a suggested task. Suggested tasks remain `PENDING` until a user accepts or rejects them; FieldOS does not automatically create operational work from AI output.
+The AI layer classifies a message, writes a concise summary, extracts a location when present, decides whether human action is required, and creates Action Items when review is useful. Action Items remain `PENDING` until a user accepts or ignores them; FieldOS does not automatically create operational work or reassign projects from AI output.
 
 ## Current Roadmap
 
 1. Validate WhatsApp QR pairing and explicit chat activation with dedicated business test numbers.
 2. Add invite and membership management.
 3. Add operational observability and deployment automation.
-4. Expand AI-assisted triage into human-approved operational tasks, reports, and official Meta WhatsApp Cloud API support after core workflow boundaries are stable.
+4. Expand AI-assisted triage into human-approved operational tasks, reports, event timeline views, and official Meta WhatsApp Cloud API support after core workflow boundaries are stable.
 
 ## Contributing Guidelines
 

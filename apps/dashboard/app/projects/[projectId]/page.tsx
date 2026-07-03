@@ -7,7 +7,7 @@ import { useParams } from "next/navigation";
 
 import { AppShell } from "../../../components/app-shell";
 import { AuthGuard } from "../../../components/auth-guard";
-import { api, type AIMessageClassification, type SuggestedTask } from "../../../lib/api";
+import { api, type AIMessageClassification, type ActionItem } from "../../../lib/api";
 
 export default function ProjectDetailPage() {
   return (
@@ -33,31 +33,31 @@ function ProjectDetailContent() {
     queryKey: ["project-ai-classifications", params.projectId],
     retry: false
   });
-  const suggestedTasksQuery = useQuery({
+  const actionItemsQuery = useQuery({
     enabled: Boolean(projectQuery.data?.project),
-    queryFn: () => api.listProjectSuggestedTasks(params.projectId),
-    queryKey: ["project-suggested-tasks", params.projectId],
+    queryFn: () => api.listProjectActionItems(params.projectId),
+    queryKey: ["project-action-items", params.projectId],
     retry: false
   });
   const acceptMutation = useMutation({
-    mutationFn: (suggestedTaskId: string) => api.acceptSuggestedTask(suggestedTaskId),
+    mutationFn: (actionItemId: string) => api.acceptActionItem(actionItemId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({
-        queryKey: ["project-suggested-tasks", params.projectId]
+        queryKey: ["project-action-items", params.projectId]
       });
     }
   });
-  const rejectMutation = useMutation({
-    mutationFn: (suggestedTaskId: string) => api.rejectSuggestedTask(suggestedTaskId),
+  const ignoreMutation = useMutation({
+    mutationFn: (actionItemId: string) => api.ignoreActionItem(actionItemId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({
-        queryKey: ["project-suggested-tasks", params.projectId]
+        queryKey: ["project-action-items", params.projectId]
       });
     }
   });
   const project = projectQuery.data?.project;
   const classifications = classificationsQuery.data?.classifications ?? [];
-  const suggestedTasks = suggestedTasksQuery.data?.suggestedTasks ?? [];
+  const actionItems = actionItemsQuery.data?.actionItems ?? [];
 
   if (projectQuery.isLoading) {
     return <p className="text-sm text-slate-600">Loading project...</p>;
@@ -104,22 +104,22 @@ function ProjectDetailContent() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Suggested Tasks</CardTitle>
+          <CardTitle>Action Items</CardTitle>
         </CardHeader>
         <CardContent>
-          {suggestedTasksQuery.isLoading ? (
-            <p className="text-sm text-slate-600">Loading suggested tasks...</p>
-          ) : suggestedTasks.length === 0 ? (
-            <p className="text-sm text-slate-600">No suggested tasks yet.</p>
+          {actionItemsQuery.isLoading ? (
+            <p className="text-sm text-slate-600">Loading Action Items...</p>
+          ) : actionItems.length === 0 ? (
+            <p className="text-sm text-slate-600">No Action Items yet.</p>
           ) : (
             <div className="space-y-3">
-              {suggestedTasks.map((suggestedTask) => (
-                <SuggestedTaskRow
-                  key={suggestedTask.id}
-                  onAccept={() => acceptMutation.mutate(suggestedTask.id)}
-                  onReject={() => rejectMutation.mutate(suggestedTask.id)}
-                  pending={acceptMutation.isPending || rejectMutation.isPending}
-                  suggestedTask={suggestedTask}
+              {actionItems.map((actionItem) => (
+                <ActionItemRow
+                  key={actionItem.id}
+                  actionItem={actionItem}
+                  onAccept={() => acceptMutation.mutate(actionItem.id)}
+                  onIgnore={() => ignoreMutation.mutate(actionItem.id)}
+                  pending={acceptMutation.isPending || ignoreMutation.isPending}
                 />
               ))}
             </div>
@@ -135,12 +135,8 @@ function AIInsightRow({ classification }: { classification: AIMessageClassificat
     <div className="rounded-md border border-slate-200 p-3">
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant="muted">{classification.category ?? "UNKNOWN"}</Badge>
-        <Badge variant="muted">{classification.priority}</Badge>
-        <span className="text-xs text-slate-500">
-          {classification.confidence === null
-            ? "Unknown confidence"
-            : `${Math.round(classification.confidence * 100)}% confidence`}
-        </span>
+        <Badge variant="muted">{getConfidenceLabel(classification.confidence)}</Badge>
+        {classification.actionRequired ? <Badge variant="muted">Action Required</Badge> : null}
       </div>
       <p className="mt-2 text-sm text-slate-950">{classification.summary ?? "No summary"}</p>
       <p className="mt-1 text-xs text-slate-500">
@@ -150,48 +146,55 @@ function AIInsightRow({ classification }: { classification: AIMessageClassificat
   );
 }
 
-function SuggestedTaskRow({
+function ActionItemRow({
+  actionItem,
   onAccept,
-  onReject,
-  pending,
-  suggestedTask
+  onIgnore,
+  pending
 }: {
+  actionItem: ActionItem;
   onAccept: () => void;
-  onReject: () => void;
+  onIgnore: () => void;
   pending: boolean;
-  suggestedTask: SuggestedTask;
 }) {
+  const acceptLabel =
+    actionItem.type === "PROJECT_SUGGESTION" ? "Accept suggested project" : "Accept";
+
   return (
     <div className="rounded-md border border-slate-200 p-3">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-medium text-slate-950">{suggestedTask.title}</h3>
-            <Badge variant="muted">{suggestedTask.priority}</Badge>
-            <Badge variant="muted">{suggestedTask.status}</Badge>
+            <h3 className="font-medium text-slate-950">{actionItem.title}</h3>
+            <Badge variant="muted">{actionItem.status}</Badge>
+            <Badge variant="muted">{getConfidenceLabel(actionItem.confidence)}</Badge>
           </div>
-          {suggestedTask.description ? (
-            <p className="mt-1 text-sm text-slate-600">{suggestedTask.description}</p>
+          {actionItem.description ? (
+            <p className="mt-1 text-sm text-slate-600">{actionItem.description}</p>
           ) : null}
-          {suggestedTask.message ? (
+          {actionItem.suggestedProject ? (
+            <p className="mt-1 text-xs text-slate-500">
+              Suggested project: {actionItem.suggestedProject.name}
+            </p>
+          ) : null}
+          {actionItem.message ? (
             <Link
               className="mt-2 inline-flex text-xs font-medium text-slate-600 hover:text-slate-950"
-              href={`/inbox/${suggestedTask.message.conversation.id}`}
+              href={`/inbox/${actionItem.message.conversation.id}`}
             >
-              Source message:{" "}
-              {suggestedTask.message.body ?? suggestedTask.message.conversation.title}
+              Source message: {actionItem.message.body ?? actionItem.message.conversation.title}
             </Link>
           ) : null}
         </div>
-        {suggestedTask.status === "PENDING" ? (
+        {actionItem.status === "PENDING" ? (
           <div className="flex gap-2">
             <button
               className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 disabled:opacity-50"
               disabled={pending}
-              onClick={onReject}
+              onClick={onIgnore}
               type="button"
             >
-              Reject
+              Ignore
             </button>
             <button
               className="rounded-md bg-slate-950 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
@@ -199,13 +202,29 @@ function SuggestedTaskRow({
               onClick={onAccept}
               type="button"
             >
-              Accept
+              {acceptLabel}
             </button>
           </div>
         ) : null}
       </div>
     </div>
   );
+}
+
+function getConfidenceLabel(confidence: number | null): string {
+  if (confidence === null) {
+    return "Needs Review";
+  }
+
+  if (confidence >= 0.8) {
+    return "High Confidence";
+  }
+
+  if (confidence >= 0.55) {
+    return "Needs Review";
+  }
+
+  return "Low Confidence";
 }
 
 function PlaceholderCard({ title }: { title: string }) {

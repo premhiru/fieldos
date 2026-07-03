@@ -1,9 +1,14 @@
-import type { Prisma, PrismaClient } from "@fieldos/db";
+import type { PrismaClient } from "@fieldos/db";
 import { createLogger } from "@fieldos/shared";
 
 import { AIConfigurationError, MessageClassifier } from "./message-classifier.js";
-import { messageClassificationPromptVersion } from "./prompts/message-classification.v1.js";
 import type { ClassifyMessageInput, ClassifyMessageResult } from "./types.js";
+
+interface ProjectCandidate {
+  code: string;
+  id: string;
+  name: string;
+}
 
 export interface AIClassificationProcessorOptions {
   batchSize?: number;
@@ -26,7 +31,7 @@ export class AIClassificationProcessor {
   async enqueueMessage(messageId: string): Promise<void> {
     const context = await this.getMessageContext(messageId);
 
-    if (!context || !context.conversation.projectId) {
+    if (!context) {
       return;
     }
 
@@ -88,13 +93,6 @@ export class AIClassificationProcessor {
     }
 
     const message = classification.message;
-    const projectId = message.conversation.projectId;
-
-    if (!projectId) {
-      await this.markFailed(classification.id, "Message is not assigned to a project.");
-      return;
-    }
-
     const input: ClassifyMessageInput = {
       conversationTitle: message.conversation.title,
       messageBody: message.body,
@@ -102,15 +100,30 @@ export class AIClassificationProcessor {
       messageType: message.type,
       occurredAt: message.occurredAt,
       organizationId: message.conversation.organizationId,
-      projectId,
+      projectId: message.conversation.projectId,
       senderName: message.senderParticipant.displayName
     };
 
     try {
       const result = await this.classifier.classifyMessage(input);
+      const projects = await this.prisma.project.findMany({
+        select: {
+          code: true,
+          id: true,
+          name: true
+        },
+        where: {
+          organizationId: message.conversation.organizationId,
+          status: {
+            not: "ARCHIVED"
+          }
+        }
+      });
       await this.saveResult(classification.id, {
+        currentProjectId: message.conversation.projectId,
+        messageBody: message.body,
         organizationId: message.conversation.organizationId,
-        projectId,
+        projects,
         result
       });
     } catch (error: unknown) {
@@ -130,28 +143,29 @@ export class AIClassificationProcessor {
     classificationId: string,
     input: {
       organizationId: string;
-      projectId: string;
+      currentProjectId: string | null;
+      messageBody: string | null;
+      projects: ProjectCandidate[];
       result: ClassifyMessageResult;
     }
   ): Promise<void> {
+    const projectSuggestion = findProjectSuggestion({
+      currentProjectId: input.currentProjectId,
+      messageBody: input.messageBody,
+      projects: input.projects
+    });
+
     await this.prisma.$transaction(async (tx) => {
       const classification = await tx.aIMessageClassification.update({
         data: {
+          actionRequired: input.result.actionRequired,
           category: input.result.category,
           confidence: input.result.confidence,
           errorMessage: null,
           location: input.result.location,
-          priority: input.result.priority,
-          projectId: input.projectId,
-          rawModelOutput: {
-            ...input.result,
-            promptVersion: messageClassificationPromptVersion
-          } satisfies Prisma.InputJsonObject,
+          projectId: input.currentProjectId,
           reasoningSummary: input.result.reasoningSummary,
-          shouldCreateTask: input.result.shouldCreateTask,
           status: "COMPLETED",
-          suggestedTaskDescription: input.result.suggestedTaskDescription,
-          suggestedTaskTitle: input.result.suggestedTaskTitle,
           summary: input.result.summary
         },
         where: {
@@ -159,28 +173,68 @@ export class AIClassificationProcessor {
         }
       });
 
-      await tx.suggestedTask.deleteMany({
+      await tx.actionItem.deleteMany({
         where: {
           classificationId,
           status: "PENDING"
         }
       });
 
-      if (
-        input.result.shouldCreateTask &&
-        input.result.suggestedTaskTitle &&
-        classification.projectId
-      ) {
-        await tx.suggestedTask.create({
+      if (input.result.actionRequired) {
+        const actionItem = await tx.actionItem.create({
           data: {
             classificationId,
-            description: input.result.suggestedTaskDescription,
+            confidence: input.result.confidence,
+            description: input.result.reasoningSummary,
             messageId: classification.messageId,
             organizationId: input.organizationId,
-            priority: input.result.priority,
-            projectId: classification.projectId,
+            projectId: input.currentProjectId,
             status: "PENDING",
-            title: input.result.suggestedTaskTitle
+            title: buildFollowUpTitle(input.result),
+            type: "FOLLOW_UP"
+          }
+        });
+
+        await tx.event.create({
+          data: {
+            description: actionItem.description,
+            eventType: "ACTION_ITEM_CREATED",
+            occurredAt: actionItem.createdAt,
+            organizationId: actionItem.organizationId,
+            projectId: actionItem.projectId,
+            sourceId: actionItem.id,
+            sourceType: "ACTION_ITEM",
+            title: actionItem.title
+          }
+        });
+      }
+
+      if (projectSuggestion) {
+        const actionItem = await tx.actionItem.create({
+          data: {
+            classificationId,
+            confidence: projectSuggestion.confidence,
+            description: projectSuggestion.description,
+            messageId: classification.messageId,
+            organizationId: input.organizationId,
+            projectId: input.currentProjectId,
+            status: "PENDING",
+            suggestedProjectId: projectSuggestion.project.id,
+            title: `This message may belong to Project ${projectSuggestion.project.name}.`,
+            type: "PROJECT_SUGGESTION"
+          }
+        });
+
+        await tx.event.create({
+          data: {
+            description: actionItem.description,
+            eventType: "ACTION_ITEM_CREATED",
+            occurredAt: actionItem.createdAt,
+            organizationId: actionItem.organizationId,
+            projectId: actionItem.projectId ?? actionItem.suggestedProjectId,
+            sourceId: actionItem.id,
+            sourceType: "ACTION_ITEM",
+            title: actionItem.title
           }
         });
       }
@@ -209,4 +263,45 @@ export class AIClassificationProcessor {
       }
     });
   }
+}
+
+function buildFollowUpTitle(result: ClassifyMessageResult): string {
+  const summary = result.summary.trim();
+
+  if (summary.length <= 120) {
+    return summary;
+  }
+
+  return `${summary.slice(0, 117).trimEnd()}...`;
+}
+
+function findProjectSuggestion(input: {
+  currentProjectId: string | null;
+  messageBody: string | null;
+  projects: ProjectCandidate[];
+}): { confidence: number; description: string; project: ProjectCandidate } | null {
+  const body = input.messageBody?.toLowerCase() ?? "";
+
+  if (!body) {
+    return null;
+  }
+
+  for (const project of input.projects) {
+    if (project.id === input.currentProjectId) {
+      continue;
+    }
+
+    const codeMatch = project.code && body.includes(project.code.toLowerCase());
+    const nameMatch = project.name && body.includes(project.name.toLowerCase());
+
+    if (codeMatch || nameMatch) {
+      return {
+        confidence: codeMatch && nameMatch ? 0.95 : 0.85,
+        description: `The message references ${project.code} / ${project.name}. Review before changing project assignment.`,
+        project
+      };
+    }
+  }
+
+  return null;
 }

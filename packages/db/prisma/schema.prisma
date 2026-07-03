@@ -7,31 +7,32 @@ datasource db {
 }
 
 model Organization {
-  id                  String                @id @default(cuid())
-  name                String
-  slug                String                @unique
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
+  id                       String                    @id @default(cuid())
+  name                     String
+  slug                     String                    @unique
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
   aiMessageClassifications AIMessageClassification[]
-  conversations       Conversation[]
-  memberships         Membership[]
-  projects            Project[]
-  suggestedTasks      SuggestedTask[]
-  whatsAppAccounts    WhatsAppAccount[]
-  whatsAppChatMapping WhatsAppChatMapping[]
+  actionItems              ActionItem[]
+  conversations            Conversation[]
+  events                   Event[]
+  memberships              Membership[]
+  projects                 Project[]
+  whatsAppAccounts         WhatsAppAccount[]
+  whatsAppChatMapping      WhatsAppChatMapping[]
 }
 
 model User {
-  id           String       @id @default(cuid())
-  email        String       @unique
-  name         String
-  passwordHash String
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  id                            String                   @id @default(cuid())
+  email                         String                   @unique
+  name                          String
+  passwordHash                  String
+  createdAt                     DateTime                 @default(now())
+  updatedAt                     DateTime                 @updatedAt
   activatedWhatsAppChatMappings WhatsAppChatMapping[]
-  acceptedSuggestedTasks SuggestedTask[] @relation("SuggestedTaskAcceptedBy")
-  memberships  Membership[]
-  rejectedSuggestedTasks SuggestedTask[] @relation("SuggestedTaskRejectedBy")
+  acceptedActionItems           ActionItem[]             @relation("ActionItemAcceptedBy")
+  ignoredActionItems            ActionItem[]             @relation("ActionItemIgnoredBy")
+  memberships                   Membership[]
 }
 
 model Membership {
@@ -49,18 +50,20 @@ model Membership {
 }
 
 model Project {
-  id                  String                @id @default(cuid())
-  organizationId      String
-  name                String
-  code                String
-  status              ProjectStatus         @default(ACTIVE)
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
+  id                       String                    @id @default(cuid())
+  organizationId           String
+  name                     String
+  code                     String
+  status                   ProjectStatus             @default(ACTIVE)
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
   aiMessageClassifications AIMessageClassification[]
-  conversations       Conversation[]
-  organization        Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  suggestedTasks      SuggestedTask[]
-  whatsAppChatMapping WhatsAppChatMapping[]
+  actionItems              ActionItem[]
+  conversations            Conversation[]
+  events                   Event[]
+  organization             Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  suggestedActionItems     ActionItem[]              @relation("ActionItemSuggestedProject")
+  whatsAppChatMapping      WhatsAppChatMapping[]
 
   @@index([organizationId])
   @@unique([organizationId, code])
@@ -114,10 +117,10 @@ model Message {
   occurredAt          DateTime
   createdAt           DateTime         @default(now())
   aiClassification     AIMessageClassification?
+  actionItems          ActionItem[]
   attachments         Attachment[]
   conversation        Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   senderParticipant   Participant      @relation(fields: [senderParticipantId], references: [id], onDelete: Restrict)
-  suggestedTasks       SuggestedTask[]
 
   @@index([conversationId, occurredAt])
   @@index([senderParticipantId])
@@ -141,63 +144,83 @@ model Attachment {
 }
 
 model AIMessageClassification {
-  id                       String                 @id @default(cuid())
-  organizationId           String
-  projectId                String?
-  messageId                String                 @unique
-  category                 AIMessageCategory?
-  summary                  String?
-  location                 String?
-  priority                 AIPriority             @default(MEDIUM)
-  suggestedTaskTitle       String?
-  suggestedTaskDescription String?
-  shouldCreateTask         Boolean                @default(false)
-  confidence               Float?
-  reasoningSummary         String?
-  rawModelOutput           Json?
-  status                   AIClassificationStatus @default(PENDING)
-  errorMessage             String?
-  createdAt                DateTime               @default(now())
-  updatedAt                DateTime               @updatedAt
-  message                  Message                @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  organization             Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  project                  Project?               @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  suggestedTasks           SuggestedTask[]
+  id               String                 @id @default(cuid())
+  organizationId   String
+  projectId        String?
+  messageId        String                 @unique
+  category         AIMessageCategory?
+  summary          String?
+  location         String?
+  actionRequired   Boolean                @default(false)
+  confidence       Float?
+  reasoningSummary String?
+  status           AIClassificationStatus @default(PENDING)
+  errorMessage     String?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  actionItems      ActionItem[]
+  message          Message                @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  organization     Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project          Project?               @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([organizationId, createdAt])
   @@index([projectId, createdAt])
   @@index([status, createdAt])
 }
 
-model SuggestedTask {
-  id               String              @id @default(cuid())
-  organizationId   String
-  projectId        String
-  messageId        String
-  classificationId String
-  title            String
-  description      String?
-  priority         AIPriority
-  status           SuggestedTaskStatus @default(PENDING)
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
-  acceptedAt       DateTime?
-  acceptedByUserId String?
-  rejectedAt       DateTime?
-  rejectedByUserId String?
-  acceptedByUser   User?               @relation("SuggestedTaskAcceptedBy", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
-  classification   AIMessageClassification @relation(fields: [classificationId], references: [id], onDelete: Cascade)
-  message          Message             @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  organization     Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  project          Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  rejectedByUser   User?               @relation("SuggestedTaskRejectedBy", fields: [rejectedByUserId], references: [id], onDelete: SetNull)
+model ActionItem {
+  id                 String          @id @default(cuid())
+  organizationId     String
+  projectId          String?
+  messageId          String
+  classificationId   String?
+  suggestedProjectId String?
+  type               ActionItemType  @default(FOLLOW_UP)
+  title              String
+  description        String?
+  confidence         Float?
+  status             ActionItemStatus @default(PENDING)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  acceptedAt         DateTime?
+  acceptedByUserId   String?
+  ignoredAt          DateTime?
+  ignoredByUserId    String?
+  acceptedByUser     User?           @relation("ActionItemAcceptedBy", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
+  classification     AIMessageClassification? @relation(fields: [classificationId], references: [id], onDelete: Cascade)
+  ignoredByUser      User?           @relation("ActionItemIgnoredBy", fields: [ignoredByUserId], references: [id], onDelete: SetNull)
+  message            Message         @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  organization       Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project            Project?        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  suggestedProject   Project?        @relation("ActionItemSuggestedProject", fields: [suggestedProjectId], references: [id], onDelete: SetNull)
 
   @@index([organizationId, status, createdAt])
+  @@index([organizationId, type, status])
   @@index([projectId, status, createdAt])
+  @@index([suggestedProjectId, status, createdAt])
   @@index([messageId])
   @@index([classificationId])
   @@index([acceptedByUserId])
-  @@index([rejectedByUserId])
+  @@index([ignoredByUserId])
+}
+
+model Event {
+  id             String          @id @default(cuid())
+  organizationId String
+  projectId      String?
+  sourceType     EventSourceType
+  sourceId       String
+  eventType      String
+  title          String
+  description    String?
+  occurredAt     DateTime
+  createdAt      DateTime        @default(now())
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project        Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, occurredAt])
+  @@index([projectId, occurredAt])
+  @@index([sourceType, sourceId])
 }
 
 model WhatsAppAccount {
@@ -320,13 +343,6 @@ enum AIMessageCategory {
   UNKNOWN
 }
 
-enum AIPriority {
-  LOW
-  MEDIUM
-  HIGH
-  URGENT
-}
-
 enum AIClassificationStatus {
   PENDING
   COMPLETED
@@ -334,9 +350,21 @@ enum AIClassificationStatus {
   NEEDS_REVIEW
 }
 
-enum SuggestedTaskStatus {
+enum ActionItemStatus {
   PENDING
   ACCEPTED
-  REJECTED
+  IGNORED
   CONVERTED
+}
+
+enum ActionItemType {
+  FOLLOW_UP
+  PROJECT_SUGGESTION
+}
+
+enum EventSourceType {
+  MESSAGE
+  ACTION_ITEM
+  REPORT
+  SYSTEM
 }

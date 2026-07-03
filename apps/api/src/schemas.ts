@@ -16,7 +16,7 @@ export const messageParamsSchema = z.object({
   id: z.string().min(1)
 });
 
-export const suggestedTaskParamsSchema = z.object({
+export const actionItemParamsSchema = z.object({
   id: z.string().min(1)
 });
 
@@ -42,7 +42,7 @@ export const updateWhatsAppChatMappingSchema = z.object({
 });
 
 export const activateWhatsAppChatMappingSchema = z.object({
-  projectId: z.string().trim().min(1)
+  projectId: z.string().trim().min(1).nullable()
 });
 
 export const createOrganizationSchema = z.object({

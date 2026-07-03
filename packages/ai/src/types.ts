@@ -16,8 +16,6 @@ export const aiMessageCategorySchema = z.enum([
   "UNKNOWN"
 ]);
 
-export const aiPrioritySchema = z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]);
-
 export const classificationStatusSchema = z.enum([
   "PENDING",
   "COMPLETED",
@@ -47,18 +45,14 @@ export const classifyMessageInputSchema = z.object({
 
 export const classifyMessageResultSchema = z.object({
   category: aiMessageCategorySchema,
+  actionRequired: z.boolean(),
   confidence: z.number().min(0).max(1),
   location: z.string().trim().min(1).max(160).nullable(),
-  priority: aiPrioritySchema,
   reasoningSummary: z.string().trim().min(1).max(500).nullable(),
-  shouldCreateTask: z.boolean(),
-  suggestedTaskDescription: z.string().trim().min(1).max(1000).nullable(),
-  suggestedTaskTitle: z.string().trim().min(1).max(160).nullable(),
   summary: z.string().trim().min(1).max(500)
 });
 
 export type AIMessageCategory = z.infer<typeof aiMessageCategorySchema>;
-export type AIPriority = z.infer<typeof aiPrioritySchema>;
 export type ClassificationStatus = z.infer<typeof classificationStatusSchema>;
 export type ClassifyMessageInput = z.infer<typeof classifyMessageInputSchema>;
 export type ClassifyMessageResult = z.infer<typeof classifyMessageResultSchema>;

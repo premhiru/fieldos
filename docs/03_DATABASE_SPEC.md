@@ -14,6 +14,7 @@
 - [Messaging Model](#messaging-model)
 - [WhatsApp Connector Model](#whatsapp-connector-model)
 - [AI Classification Model](#ai-classification-model)
+- [Event Model](#event-model)
 - [Schema Ownership](#schema-ownership)
 - [Migration Policy](#migration-policy)
 - [Retention and Compliance](#retention-and-compliance)
@@ -36,7 +37,8 @@ Current MVP models:
 - `Message`: Inbound, outbound, or system event inside a conversation.
 - `Attachment`: File metadata attached to a message.
 - `AIMessageClassification`: AI-derived classification, summary, extracted fields, and processing status for one message.
-- `SuggestedTask`: Human-reviewable task suggestion derived from an AI classification.
+- `ActionItem`: Human-reviewable recommendation derived from an AI classification or deterministic project suggestion.
+- `Event`: Generic organization-scoped activity record prepared for timeline features.
 - `WhatsAppAccount`: A WhatsApp connector account owned by an organization.
 - `WhatsAppChatMapping`: Connector-specific mapping between a WhatsApp chat JID, a generic conversation, and an optional project.
 
@@ -108,7 +110,7 @@ WhatsApp connector data is intentionally separate from the generic messaging mod
 - `organizationId`: Owning organization.
 - `whatsappAccountId`: Source WhatsApp account.
 - `conversationId`: Generic conversation created from the WhatsApp chat.
-- `projectId`: Optional project assignment.
+- `projectId`: Optional project assignment. Active unmapped chats can ingest messages so FieldOS can suggest a project assignment without automatically changing state.
 - `jid`: WhatsApp chat JID.
 - `chatName`: Last known chat or group display name.
 - `isGroup`: Whether the JID is a group chat.
@@ -127,7 +129,7 @@ Key constraints:
 Status meanings:
 
 - `DISCOVERED`: Metadata detected; no messages are ingested.
-- `ACTIVE`: New messages may be ingested if `projectId` is set.
+- `ACTIVE`: New messages may be ingested. Project mapping can be accepted later through a project suggestion ActionItem.
 - `IGNORED`: Admin chose not to use this chat/group.
 - `ARCHIVED`: Previously used chat/group is no longer ingesting.
 
@@ -156,28 +158,62 @@ Classification categories:
 - `MATERIAL`
 - `UNKNOWN`
 
-Priority values:
+Stored extraction fields are deliberately small:
 
-- `LOW`
-- `MEDIUM`
-- `HIGH`
-- `URGENT`
+- `category`: A constrained classification category.
+- `summary`: Concise user-facing summary.
+- `location`: Short location text when present.
+- `actionRequired`: Whether human follow-up is required.
+- `confidence`: Numeric confidence for internal and details views.
+- `reasoningSummary`: Short user-facing reason. Chain-of-thought and raw model output are not stored.
 
-`SuggestedTask` stores a task-like recommendation from a completed classification. It is not a project task. It remains a review artifact until a user accepts or rejects it.
+`ActionItem` stores a reviewable recommendation from a completed classification or project suggestion. It is not a project task. It remains a review artifact until a user accepts or ignores it.
 
-Suggested task statuses:
+ActionItem types:
+
+- `FOLLOW_UP`: A human should review or act on the message.
+- `PROJECT_SUGGESTION`: The message may belong to a suggested project.
+
+ActionItem statuses:
 
 - `PENDING`: Awaiting human decision.
 - `ACCEPTED`: Approved by a user.
-- `REJECTED`: Rejected by a user.
+- `IGNORED`: Dismissed by a user.
 - `CONVERTED`: Reserved for future conversion into a first-class task.
 
 Key constraints:
 
 - `AIMessageClassification.messageId` is unique.
 - Classification rows cascade with messages, projects, and organizations.
-- Suggested tasks cascade with their source classification and message.
-- `acceptedByUserId` and `rejectedByUserId` are nullable audit references.
+- Action Items cascade with their source message and optional classification.
+- `acceptedByUserId` and `ignoredByUserId` are nullable audit references.
+- Organization, project, status, message, classification, and suggested-project query paths are indexed.
+
+## Event Model
+
+`Event` prepares the database for a generic Activity Timeline without adding the full feature yet.
+
+Supported source types:
+
+- `MESSAGE`
+- `ACTION_ITEM`
+- `REPORT`
+- `SYSTEM`
+
+Key fields:
+
+- `organizationId`: Required tenant scope.
+- `projectId`: Optional project scope.
+- `sourceType` and `sourceId`: Reference the source domain without a hard foreign key.
+- `eventType`: Compact event name such as `action_item.created`.
+- `title` and `description`: User-facing timeline text.
+- `occurredAt` and `createdAt`: Timeline ordering and persistence timestamps.
+
+Key indexes:
+
+- `organizationId, occurredAt`
+- `projectId, occurredAt`
+- `sourceType, sourceId`
 
 ## Schema Ownership
 

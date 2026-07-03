@@ -405,7 +405,7 @@ export class BaileysWhatsAppSessionManager {
 
     const normalized = normalizeWhatsAppMessage(rawMessage);
 
-    if (!normalized || !mapping.projectId) {
+    if (!normalized) {
       return;
     }
 
@@ -495,17 +495,35 @@ export class BaileysWhatsAppSessionManager {
       return;
     }
 
-    const message = await this.prisma.message.create({
-      data: {
-        body: normalized.body,
-        conversationId: conversation.id,
-        direction: normalized.direction,
-        externalMessageId: normalized.messageId,
-        occurredAt: normalized.occurredAt,
-        senderParticipantId: participant.id,
-        type: normalized.type
+    let message: { id: string };
+
+    try {
+      message = await this.prisma.message.create({
+        data: {
+          body: normalized.body,
+          conversationId: conversation.id,
+          direction: normalized.direction,
+          externalMessageId: normalized.messageId,
+          occurredAt: normalized.occurredAt,
+          senderParticipantId: participant.id,
+          type: normalized.type
+        }
+      });
+    } catch (error: unknown) {
+      if (isUniqueConstraintViolation(error)) {
+        this.logger.info(
+          {
+            accountId: account.id,
+            messageId: normalized.messageId,
+            organizationId: account.organizationId
+          },
+          "duplicate WhatsApp message ignored"
+        );
+        return;
       }
-    });
+
+      throw error;
+    }
 
     if (normalized.media) {
       await this.createAttachment(
@@ -636,7 +654,7 @@ export class BaileysWhatsAppSessionManager {
   private async enqueueClassification(input: {
     messageId: string;
     organizationId: string;
-    projectId: string;
+    projectId: string | null;
   }): Promise<void> {
     try {
       await this.prisma.aIMessageClassification.upsert({
@@ -656,7 +674,15 @@ export class BaileysWhatsAppSessionManager {
         }
       });
     } catch (error: unknown) {
-      this.logger.error({ error, messageId: input.messageId }, "AI classification enqueue failed");
+      this.logger.error(
+        {
+          error,
+          messageId: input.messageId,
+          organizationId: input.organizationId,
+          projectId: input.projectId
+        },
+        "AI classification enqueue failed"
+      );
     }
   }
 
@@ -782,4 +808,12 @@ function getDisconnectStatusCode(error: unknown): number | undefined {
 
   const statusCode = "statusCode" in output ? output.statusCode : undefined;
   return typeof statusCode === "number" ? statusCode : undefined;
+}
+
+function isUniqueConstraintViolation(error: unknown): boolean {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  return "code" in error && error.code === "P2002";
 }
