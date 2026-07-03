@@ -49,6 +49,9 @@ Worker:
 NODE_ENV=production
 DATABASE_URL=${{Postgres.DATABASE_URL}}
 REDIS_URL=${{Redis.REDIS_URL}}
+OPENROUTER_API_KEY=<OpenRouter API key>
+AI_BASE_URL=https://openrouter.ai/api/v1
+AI_MODEL=openrouter/free
 WHATSAPP_STORAGE_PATH=/data/whatsapp
 WHATSAPP_SESSION_POLL_INTERVAL_MS=10000
 ```
