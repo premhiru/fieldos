@@ -5,7 +5,7 @@
 | Purpose      | Track FieldOS milestone progress, task completion, technical debt, architecture decisions, and deployment readiness. |
 | Owner        | Founding Engineering                                                                                                 |
 | Status       | Active                                                                                                               |
-| Last Updated | 2026-07-02                                                                                                           |
+| Last Updated | 2026-07-03                                                                                                           |
 
 ## Table of Contents
 
@@ -19,7 +19,7 @@
 
 ## Current Milestone
 
-WhatsApp connector is live and being hardened with production pairing feedback.
+AI-assisted inbox triage is implemented locally and ready for provider-backed validation.
 
 ## Completed Tasks
 
@@ -85,6 +85,14 @@ WhatsApp connector is live and being hardened with production pairing feedback.
   - History sync now records discovered chats from chat and message history payloads.
   - Common WhatsApp payloads such as stickers, locations, contacts, polls, events, reactions, and protocol sync messages are handled without showing an unsupported-message placeholder.
   - Dashboard reconnect flow now keeps a dedicated WhatsApp pairing panel above the chat/group list so the QR code remains visible.
+- Task 007: AI Message Classification and Task Suggestions.
+  - `packages/ai` added with an OpenAI-compatible message classifier, strict JSON validation, prompt versioning, and worker processor.
+  - Prisma models added for `AIMessageClassification` and `SuggestedTask`.
+  - Active project messages are queued asynchronously for classification without blocking WhatsApp ingestion.
+  - API endpoints added for message classification, project AI insights, suggested task listing, and accept/reject actions.
+  - Dashboard inbox message panels now show classification status, category, summary, location, priority, confidence, and suggested tasks.
+  - Project detail pages now show AI Insights and human-reviewed Suggested Tasks.
+  - ADR 0006 documents the human-approval requirement for AI task suggestions.
 
 ## In-Progress Tasks
 
@@ -102,6 +110,9 @@ WhatsApp connector is live and being hardened with production pairing feedback.
 - Baileys is a WhatsApp Web adapter and should be used only with dedicated business test numbers until official Meta Cloud API support is implemented.
 - WhatsApp media storage is local filesystem-backed under `.storage` and needs object storage before production deployment.
 - Existing WhatsApp message rows created before this fix may need data cleanup if unsupported placeholders were already stored.
+- AI task suggestions are not converted into first-class project tasks yet; accepted suggestions only record human approval.
+- AI provider failures are recorded on the classification row, but retry/backoff policy is still basic.
+- Production environments must set `OPENAI_API_KEY` and confirm the intended `AI_MODEL` before AI classification can run.
 
 ## Upcoming Milestones
 
@@ -110,6 +121,8 @@ WhatsApp connector is live and being hardened with production pairing feedback.
 - Define product requirements and initial domain boundaries.
 - Add invite and membership management after the basic auth/org/project slice is verified.
 - Validate WhatsApp QR pairing, chat discovery, explicit activation, and inbound message ingestion with a dedicated business test number.
+- Validate AI classifications with real active WhatsApp project messages.
+- Convert accepted suggested tasks into first-class operational task records after the task domain exists.
 - Add official Meta WhatsApp Cloud API support for enterprise production deployments.
 
 ## Architecture Decisions Made
@@ -121,6 +134,7 @@ WhatsApp connector is live and being hardened with production pairing feedback.
 - ADR 0003: Build messaging as a channel-agnostic platform and plug channel adapters into it.
 - ADR 0004: Use Baileys as the first WhatsApp adapter while keeping WhatsApp logic outside the messaging core.
 - ADR 0005: Discover WhatsApp chats/groups but require explicit admin activation before ingestion.
+- ADR 0006: AI may suggest tasks, but humans must accept or reject them before they become operational work.
 
 ## Deployment Status
 
@@ -166,4 +180,5 @@ WhatsApp connector is live and being hardened with production pairing feedback.
 - Worker Redis startup has been verified locally.
 - Railway config-as-code was evaluated but not committed because the generated TypeScript SDK import failed on Windows in this environment.
 - Task 003, Task 005, Task 006, and Task 006B application code is included in the deployed dashboard, API, and worker services.
+- Task 007 code is validated locally; production deployment requires AI environment variables before provider-backed classification can run.
 - Live WhatsApp QR scanning and activation were not performed because no dedicated business test number was provided in this environment.

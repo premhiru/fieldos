@@ -1,7 +1,7 @@
 "use client";
 
 import { Badge, Card, CardContent, CardHeader, CardTitle } from "@fieldos/ui";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
@@ -147,7 +147,80 @@ function MessageBubble({ message }: { message: Message }) {
             ))}
           </div>
         ) : null}
+        <AIMessagePanel messageId={message.id} outbound={outbound} />
       </div>
+    </div>
+  );
+}
+
+function AIMessagePanel({ messageId, outbound }: { messageId: string; outbound: boolean }) {
+  const queryClient = useQueryClient();
+  const classificationQuery = useQuery({
+    queryFn: () => api.getMessageClassification(messageId),
+    queryKey: ["message-classification", messageId],
+    retry: false
+  });
+  const classifyMutation = useMutation({
+    mutationFn: () => api.classifyMessage(messageId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["message-classification", messageId] });
+    }
+  });
+  const classification = classificationQuery.data?.classification;
+  const surfaceClass = outbound
+    ? "mt-3 rounded-md border border-slate-700 bg-slate-900 p-3 text-xs text-slate-200"
+    : "mt-3 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700";
+
+  return (
+    <div className={surfaceClass}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="font-medium">AI</div>
+        <button
+          className={
+            outbound
+              ? "rounded border border-slate-600 px-2 py-1 text-xs text-white disabled:opacity-50"
+              : "rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 disabled:opacity-50"
+          }
+          disabled={classifyMutation.isPending}
+          onClick={() => classifyMutation.mutate()}
+          type="button"
+        >
+          Re-run AI classification
+        </button>
+      </div>
+
+      {classificationQuery.isLoading ? (
+        <p className="mt-2">AI classification pending</p>
+      ) : !classification ? (
+        <p className="mt-2">AI classification pending</p>
+      ) : classification.status === "PENDING" ? (
+        <p className="mt-2">AI classification pending</p>
+      ) : classification.status === "FAILED" ? (
+        <p className="mt-2">
+          AI classification failed
+          {classification.errorMessage ? `: ${classification.errorMessage}` : ""}
+        </p>
+      ) : (
+        <div className="mt-2 grid gap-1">
+          <div>Category: {classification.category ?? "UNKNOWN"}</div>
+          <div>Summary: {classification.summary ?? "No summary"}</div>
+          <div>Location: {classification.location ?? "Unknown"}</div>
+          <div>Priority: {classification.priority}</div>
+          <div>
+            Confidence:{" "}
+            {classification.confidence === null
+              ? "Unknown"
+              : `${Math.round(classification.confidence * 100)}%`}
+          </div>
+          <div>Status: {classification.status}</div>
+          {classification.suggestedTaskTitle ? (
+            <div>Suggested task: {classification.suggestedTaskTitle}</div>
+          ) : null}
+          {classification.reasoningSummary ? (
+            <div>Reason: {classification.reasoningSummary}</div>
+          ) : null}
+        </div>
+      )}
     </div>
   );
 }

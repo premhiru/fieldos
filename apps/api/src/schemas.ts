@@ -16,6 +16,10 @@ export const messageParamsSchema = z.object({
   id: z.string().min(1)
 });
 
+export const suggestedTaskParamsSchema = z.object({
+  id: z.string().min(1)
+});
+
 export const whatsappAccountParamsSchema = z.object({
   id: z.string().min(1)
 });

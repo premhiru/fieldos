@@ -42,6 +42,7 @@ import {
   messageParamsSchema,
   organizationParamsSchema,
   projectParamsSchema,
+  suggestedTaskParamsSchema,
   updateWhatsAppChatMappingSchema,
   whatsappAccountParamsSchema,
   whatsappAccountsQuerySchema,
@@ -259,6 +260,46 @@ export function buildServer(options: BuildServerOptions = {}) {
     };
   });
 
+  server.get(
+    "/projects/:projectId/ai-classifications",
+    { preHandler: requireAuth },
+    async (request) => {
+      const params = projectParamsSchema.parse(request.params);
+      const project = await repository.findProjectForUser(
+        requireCurrentUser(request).id,
+        params.projectId
+      );
+
+      if (!project) {
+        throw notFound("Project not found.");
+      }
+
+      return {
+        classifications: await repository.listProjectAIClassifications(params.projectId)
+      };
+    }
+  );
+
+  server.get(
+    "/projects/:projectId/suggested-tasks",
+    { preHandler: requireAuth },
+    async (request) => {
+      const params = projectParamsSchema.parse(request.params);
+      const project = await repository.findProjectForUser(
+        requireCurrentUser(request).id,
+        params.projectId
+      );
+
+      if (!project) {
+        throw notFound("Project not found.");
+      }
+
+      return {
+        suggestedTasks: await repository.listProjectSuggestedTasks(params.projectId)
+      };
+    }
+  );
+
   server.get("/conversations", { preHandler: requireAuth }, async (request) => {
     const query = listConversationsSchema.parse(request.query);
     const user = requireCurrentUser(request);
@@ -318,6 +359,62 @@ export function buildServer(options: BuildServerOptions = {}) {
     const user = requireCurrentUser(request);
 
     return messageService.deleteMessage(user.id, params.id);
+  });
+
+  server.get("/messages/:id/classification", { preHandler: requireAuth }, async (request) => {
+    const params = messageParamsSchema.parse(request.params);
+    const context = await repository.findMessageContext(params.id);
+
+    if (!context) {
+      throw notFound("Message not found.");
+    }
+
+    await requireOrganizationMembership(requireCurrentUser(request).id, context.organizationId);
+
+    return {
+      classification: await repository.getMessageClassification(params.id)
+    };
+  });
+
+  server.post("/messages/:id/classify", { preHandler: requireAuth }, async (request) => {
+    const params = messageParamsSchema.parse(request.params);
+    const context = await repository.findMessageContext(params.id);
+
+    if (!context) {
+      throw notFound("Message not found.");
+    }
+
+    await requireOrganizationMembership(requireCurrentUser(request).id, context.organizationId);
+
+    return {
+      classification: await repository.enqueueMessageClassification(params.id)
+    };
+  });
+
+  server.post("/suggested-tasks/:id/accept", { preHandler: requireAuth }, async (request) => {
+    const params = suggestedTaskParamsSchema.parse(request.params);
+    const user = requireCurrentUser(request);
+    const suggestedTask = await requireSuggestedTaskAccess(user.id, params.id);
+
+    return {
+      suggestedTask: await repository.acceptSuggestedTask({
+        suggestedTaskId: suggestedTask.id,
+        userId: user.id
+      })
+    };
+  });
+
+  server.post("/suggested-tasks/:id/reject", { preHandler: requireAuth }, async (request) => {
+    const params = suggestedTaskParamsSchema.parse(request.params);
+    const user = requireCurrentUser(request);
+    const suggestedTask = await requireSuggestedTaskAccess(user.id, params.id);
+
+    return {
+      suggestedTask: await repository.rejectSuggestedTask({
+        suggestedTaskId: suggestedTask.id,
+        userId: user.id
+      })
+    };
   });
 
   server.get("/whatsapp/accounts", { preHandler: requireAuth }, async (request) => {
@@ -537,6 +634,17 @@ export function buildServer(options: BuildServerOptions = {}) {
 
     await requireOrganizationMembership(userId, mapping.organizationId);
     return mapping;
+  }
+
+  async function requireSuggestedTaskAccess(userId: string, suggestedTaskId: string) {
+    const suggestedTask = await repository.getSuggestedTask(suggestedTaskId);
+
+    if (!suggestedTask) {
+      throw notFound("Suggested task not found.");
+    }
+
+    await requireOrganizationMembership(userId, suggestedTask.organizationId);
+    return suggestedTask;
   }
 
   async function validateMappingProject(

@@ -4,6 +4,23 @@ export type ProjectStatus = "ACTIVE" | "PAUSED" | "COMPLETED" | "ARCHIVED";
 export type Channel = "WHATSAPP" | "EMAIL" | "SLACK" | "TEAMS" | "SMS";
 export type MessageDirection = "INBOUND" | "OUTBOUND";
 export type MessageType = "TEXT" | "IMAGE" | "DOCUMENT" | "VOICE" | "VIDEO" | "SYSTEM";
+export type AIMessageCategory =
+  | "PROGRESS_UPDATE"
+  | "DEFECT"
+  | "DELAY"
+  | "SAFETY_ISSUE"
+  | "DELIVERY"
+  | "INSPECTION_REQUEST"
+  | "CLIENT_APPROVAL"
+  | "VARIATION_ORDER"
+  | "RFI"
+  | "MATERIAL_ISSUE"
+  | "MANPOWER_ISSUE"
+  | "GENERAL_NOTE"
+  | "UNKNOWN";
+export type AIPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+export type AIClassificationStatus = "PENDING" | "COMPLETED" | "FAILED" | "NEEDS_REVIEW";
+export type SuggestedTaskStatus = "PENDING" | "ACCEPTED" | "REJECTED" | "CONVERTED";
 
 export interface User {
   id: string;
@@ -79,6 +96,62 @@ export interface Message {
   occurredAt: string;
   createdAt: string;
   attachments: Attachment[];
+}
+
+export interface AIMessageClassification {
+  id: string;
+  organizationId: string;
+  projectId: string | null;
+  messageId: string;
+  category: AIMessageCategory | null;
+  summary: string | null;
+  location: string | null;
+  priority: AIPriority;
+  suggestedTaskTitle: string | null;
+  suggestedTaskDescription: string | null;
+  shouldCreateTask: boolean;
+  confidence: number | null;
+  reasoningSummary: string | null;
+  status: AIClassificationStatus;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+  message?: {
+    id: string;
+    body: string | null;
+    occurredAt: string;
+    conversation: {
+      id: string;
+      title: string;
+    };
+  };
+}
+
+export interface SuggestedTask {
+  id: string;
+  organizationId: string;
+  projectId: string;
+  messageId: string;
+  classificationId: string;
+  title: string;
+  description: string | null;
+  priority: AIPriority;
+  status: SuggestedTaskStatus;
+  createdAt: string;
+  updatedAt: string;
+  acceptedAt: string | null;
+  acceptedByUserId: string | null;
+  rejectedAt: string | null;
+  rejectedByUserId: string | null;
+  message?: {
+    id: string;
+    body: string | null;
+    occurredAt: string;
+    conversation: {
+      id: string;
+      title: string;
+    };
+  };
 }
 
 export type WhatsAppConnectorType = "BAILEYS" | "META_CLOUD";
@@ -184,6 +257,10 @@ export const api = {
     apiRequest<{ conversation: Conversation }>(`/conversations/${conversationId}`),
   getMe: () => apiRequest<{ user: User }>("/auth/me"),
   getProject: (projectId: string) => apiRequest<{ project: Project }>(`/projects/${projectId}`),
+  getMessageClassification: (messageId: string) =>
+    apiRequest<{ classification: AIMessageClassification | null }>(
+      `/messages/${messageId}/classification`
+    ),
   getWhatsAppQr: (accountId: string) =>
     apiRequest<{ qr: string | null; status: WhatsAppAccountStatus }>(
       `/whatsapp/accounts/${accountId}/qr`
@@ -202,6 +279,12 @@ export const api = {
   listOrganizations: () => apiRequest<{ organizations: Organization[] }>("/organizations"),
   listProjects: (organizationId: string) =>
     apiRequest<{ projects: Project[] }>(`/organizations/${organizationId}/projects`),
+  listProjectAIClassifications: (projectId: string) =>
+    apiRequest<{ classifications: AIMessageClassification[] }>(
+      `/projects/${projectId}/ai-classifications`
+    ),
+  listProjectSuggestedTasks: (projectId: string) =>
+    apiRequest<{ suggestedTasks: SuggestedTask[] }>(`/projects/${projectId}/suggested-tasks`),
   listWhatsAppAccounts: (organizationId: string) => {
     const params = new URLSearchParams({ organizationId });
     return apiRequest<{ accounts: WhatsAppAccount[] }>(`/whatsapp/accounts?${params.toString()}`);
@@ -235,6 +318,17 @@ export const api = {
       body: JSON.stringify(body),
       method: "POST"
     }),
+  classifyMessage: (messageId: string) =>
+    apiRequest<{ classification: AIMessageClassification | null }>(
+      `/messages/${messageId}/classify`,
+      {
+        method: "POST"
+      }
+    ),
+  acceptSuggestedTask: (suggestedTaskId: string) =>
+    apiRequest<{ suggestedTask: SuggestedTask }>(`/suggested-tasks/${suggestedTaskId}/accept`, {
+      method: "POST"
+    }),
   updateWhatsAppChatMapping: (mappingId: string, body: { projectId: string | null }) =>
     apiRequest<{ chat: WhatsAppChatMapping }>(`/whatsapp/chat-mappings/${mappingId}`, {
       body: JSON.stringify(body),
@@ -251,6 +345,10 @@ export const api = {
     }),
   ignoreWhatsAppChatMapping: (mappingId: string) =>
     apiRequest<{ chat: WhatsAppChatMapping }>(`/whatsapp/chat-mappings/${mappingId}/ignore`, {
+      method: "POST"
+    }),
+  rejectSuggestedTask: (suggestedTaskId: string) =>
+    apiRequest<{ suggestedTask: SuggestedTask }>(`/suggested-tasks/${suggestedTaskId}/reject`, {
       method: "POST"
     })
 };

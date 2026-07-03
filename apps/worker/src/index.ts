@@ -1,4 +1,5 @@
 import { Redis } from "ioredis";
+import { AIClassificationProcessor } from "@fieldos/ai";
 import { BaileysWhatsAppSessionManager, RedisWhatsAppQrStore } from "@fieldos/baileys-whatsapp";
 import { prisma } from "@fieldos/db";
 
@@ -19,23 +20,40 @@ const whatsappSessionManager = new BaileysWhatsAppSessionManager(
     rootStoragePath: workerEnv.WHATSAPP_STORAGE_PATH
   }
 );
+const aiClassificationProcessor = new AIClassificationProcessor(prisma);
 
 redis.on("error", (error: Error) => {
   logger.warn({ error }, "redis connection error");
 });
 
 let heartbeat: NodeJS.Timeout | undefined;
+let aiClassificationTimer: NodeJS.Timeout | undefined;
 
 async function start() {
   await redis.connect();
   await redis.ping();
   await whatsappSessionManager.start();
+  await processAIClassifications();
 
   logger.info("worker started and waiting for jobs");
 
   heartbeat = setInterval(() => {
     logger.debug("worker heartbeat");
   }, 30_000);
+
+  aiClassificationTimer = setInterval(() => {
+    processAIClassifications().catch((error: unknown) => {
+      logger.error({ error }, "AI classification processing failed");
+    });
+  }, workerEnv.AI_CLASSIFICATION_POLL_INTERVAL_MS);
+}
+
+async function processAIClassifications(): Promise<void> {
+  const processed = await aiClassificationProcessor.processPending();
+
+  if (processed > 0) {
+    logger.info({ processed }, "AI classifications processed");
+  }
 }
 
 async function shutdown(signal: NodeJS.Signals) {
@@ -43,6 +61,10 @@ async function shutdown(signal: NodeJS.Signals) {
 
   if (heartbeat) {
     clearInterval(heartbeat);
+  }
+
+  if (aiClassificationTimer) {
+    clearInterval(aiClassificationTimer);
   }
 
   await whatsappSessionManager.stop();

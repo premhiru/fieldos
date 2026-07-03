@@ -536,6 +536,12 @@ export class BaileysWhatsAppSessionManager {
         }
       })
     ]);
+
+    await this.enqueueClassification({
+      messageId: message.id,
+      organizationId: account.organizationId,
+      projectId: mapping.projectId
+    });
   }
 
   private async createAttachment(
@@ -625,6 +631,33 @@ export class BaileysWhatsAppSessionManager {
         }
       }
     });
+  }
+
+  private async enqueueClassification(input: {
+    messageId: string;
+    organizationId: string;
+    projectId: string;
+  }): Promise<void> {
+    try {
+      await this.prisma.aIMessageClassification.upsert({
+        create: {
+          messageId: input.messageId,
+          organizationId: input.organizationId,
+          projectId: input.projectId,
+          status: "PENDING"
+        },
+        update: {
+          errorMessage: null,
+          projectId: input.projectId,
+          status: "PENDING"
+        },
+        where: {
+          messageId: input.messageId
+        }
+      });
+    } catch (error: unknown) {
+      this.logger.error({ error, messageId: input.messageId }, "AI classification enqueue failed");
+    }
   }
 
   private async discoverChatMetadata(

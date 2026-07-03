@@ -5,7 +5,7 @@
 | Purpose      | Define the data model, ownership boundaries, migration policy, and database standards. |
 | Owner        | Engineering                                                                            |
 | Status       | Draft                                                                                  |
-| Last Updated | 2026-07-01                                                                             |
+| Last Updated | 2026-07-03                                                                             |
 
 ## Table of Contents
 
@@ -13,6 +13,7 @@
 - [Domain Model](#domain-model)
 - [Messaging Model](#messaging-model)
 - [WhatsApp Connector Model](#whatsapp-connector-model)
+- [AI Classification Model](#ai-classification-model)
 - [Schema Ownership](#schema-ownership)
 - [Migration Policy](#migration-policy)
 - [Retention and Compliance](#retention-and-compliance)
@@ -34,6 +35,8 @@ Current MVP models:
 - `Participant`: Sender or actor inside a conversation.
 - `Message`: Inbound, outbound, or system event inside a conversation.
 - `Attachment`: File metadata attached to a message.
+- `AIMessageClassification`: AI-derived classification, summary, extracted fields, and processing status for one message.
+- `SuggestedTask`: Human-reviewable task suggestion derived from an AI classification.
 - `WhatsAppAccount`: A WhatsApp connector account owned by an organization.
 - `WhatsAppChatMapping`: Connector-specific mapping between a WhatsApp chat JID, a generic conversation, and an optional project.
 
@@ -127,6 +130,54 @@ Status meanings:
 - `ACTIVE`: New messages may be ingested if `projectId` is set.
 - `IGNORED`: Admin chose not to use this chat/group.
 - `ARCHIVED`: Previously used chat/group is no longer ingesting.
+
+## AI Classification Model
+
+`AIMessageClassification` stores one classification job/result per message. It belongs to an organization, optionally belongs to a project, and is unique by `messageId`.
+
+Classification statuses:
+
+- `PENDING`: Waiting for worker processing.
+- `COMPLETED`: Provider output was validated and stored.
+- `FAILED`: Provider call or output validation failed.
+- `NEEDS_REVIEW`: Reserved for future policy-based manual review.
+
+Classification categories:
+
+- `GENERAL`
+- `REQUEST`
+- `ISSUE`
+- `DELAY`
+- `DEFECT`
+- `SAFETY`
+- `DOCUMENTATION`
+- `SCHEDULING`
+- `COST`
+- `MATERIAL`
+- `UNKNOWN`
+
+Priority values:
+
+- `LOW`
+- `MEDIUM`
+- `HIGH`
+- `URGENT`
+
+`SuggestedTask` stores a task-like recommendation from a completed classification. It is not a project task. It remains a review artifact until a user accepts or rejects it.
+
+Suggested task statuses:
+
+- `PENDING`: Awaiting human decision.
+- `ACCEPTED`: Approved by a user.
+- `REJECTED`: Rejected by a user.
+- `CONVERTED`: Reserved for future conversion into a first-class task.
+
+Key constraints:
+
+- `AIMessageClassification.messageId` is unique.
+- Classification rows cascade with messages, projects, and organizations.
+- Suggested tasks cascade with their source classification and message.
+- `acceptedByUserId` and `rejectedByUserId` are nullable audit references.
 
 ## Schema Ownership
 

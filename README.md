@@ -5,7 +5,7 @@
 | Purpose      | Introduce the FieldOS engineering foundation, repository layout, and development workflow. |
 | Owner        | Founding Engineering                                                                       |
 | Status       | Active                                                                                     |
-| Last Updated | 2026-07-01                                                                                 |
+| Last Updated | 2026-07-03                                                                                 |
 
 ## Table of Contents
 
@@ -25,11 +25,11 @@
 
 FieldOS is the AI Operating System for Field Operations.
 
-The repository is a pnpm and Turborepo monorepo containing a Next.js dashboard, a Fastify API, a standalone Redis-backed worker, shared packages for UI, database access, authentication, messaging, cross-cutting utilities, and a Baileys-based WhatsApp adapter.
+The repository is a pnpm and Turborepo monorepo containing a Next.js dashboard, a Fastify API, a standalone Redis-backed worker, shared packages for UI, database access, authentication, messaging, AI classification, cross-cutting utilities, and a Baileys-based WhatsApp adapter.
 
 ## Architecture
 
-FieldOS starts as a modular monolith with clear package boundaries. The current product slice supports JWT-cookie authentication, organization workspaces, organization memberships, projects, a channel-agnostic messaging foundation, and a WhatsApp Web connector that feeds messages into the unified inbox.
+FieldOS starts as a modular monolith with clear package boundaries. The current product slice supports JWT-cookie authentication, organization workspaces, organization memberships, projects, a channel-agnostic messaging foundation, a WhatsApp Web connector that feeds messages into the unified inbox, and a human-reviewed AI classification layer for active project messages.
 
 ```mermaid
 flowchart TD
@@ -41,19 +41,26 @@ flowchart TD
   Shared["packages/shared\nEnv, Logger, Utilities"]
   Auth["packages/auth\nJWT, Passwords, Auth Schemas"]
   Messaging["packages/messaging\nConversations, Messages, Attachments"]
+  AI["packages/ai\nMessage Classification, Suggestions"]
   WhatsApp["packages/integrations/whatsapp/baileys\nBaileys Adapter"]
   Postgres["PostgreSQL"]
   Redis["Redis"]
+  Provider["OpenAI-compatible API"]
 
   Dashboard --> UI
   Dashboard --> Shared
   API --> DB
   API --> Shared
   API --> Messaging
+  API --> AI
   Worker --> Shared
+  Worker --> AI
   Worker --> WhatsApp
   WhatsApp --> DB
   WhatsApp --> Messaging
+  WhatsApp --> AI
+  AI --> Provider
+  AI --> DB
   Worker --> Redis
   DB --> Postgres
   Auth --> Shared
@@ -86,6 +93,8 @@ pnpm db:generate
 pnpm db:migrate
 pnpm db:seed
 ```
+
+Configure AI classification by setting `OPENAI_API_KEY`. `AI_MODEL` defaults to `gpt-4.1-mini` for local development.
 
 Test the auth flow:
 
@@ -144,6 +153,7 @@ apps/
 packages/
   ui/              Shared UI components.
   db/              Prisma schema, migration, client, and database utilities.
+  ai/              Message classification, extraction, and suggested task generation.
   auth/            JWT cookie auth, password hashing, and auth schemas.
   integrations/
     whatsapp/
@@ -184,6 +194,7 @@ infrastructure/    Infrastructure definitions.
 - Playwright
 - Docker
 - GitHub Actions
+- OpenAI-compatible Chat Completions API
 
 ## Auth and Tenancy
 
@@ -207,12 +218,18 @@ FieldOS discovers WhatsApp chat and group metadata first. Discovered, ignored, a
 
 Use dedicated business numbers only. Do not connect personal WhatsApp accounts. FieldOS will add the official Meta WhatsApp Cloud API path for production enterprise deployments later.
 
+## AI Classification
+
+FieldOS classifies only messages that already passed the WhatsApp activation gate and belong to a project. Classification runs asynchronously in the worker so message ingestion is never blocked by the AI provider.
+
+The AI layer can classify a message, summarize it, extract a location and priority, and create a suggested task. Suggested tasks remain `PENDING` until a user accepts or rejects them; FieldOS does not automatically create operational work from AI output.
+
 ## Current Roadmap
 
 1. Validate WhatsApp QR pairing and explicit chat activation with dedicated business test numbers.
 2. Add invite and membership management.
 3. Add operational observability and deployment automation.
-4. Introduce AI, reports, tasks, and official Meta WhatsApp Cloud API support only after core workflow boundaries are stable.
+4. Expand AI-assisted triage into human-approved operational tasks, reports, and official Meta WhatsApp Cloud API support after core workflow boundaries are stable.
 
 ## Contributing Guidelines
 

@@ -16,6 +16,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
   AppRepository,
+  AIMessageClassificationRecord,
   MembershipRecord,
   OrganizationRecord,
   ProjectRecord,
@@ -23,6 +24,7 @@ import type {
   SafeUser,
   Status,
   StoredUser,
+  SuggestedTaskRecord,
   WhatsAppAccountRecord,
   WhatsAppChatMappingRecord
 } from "./repository.js";
@@ -588,6 +590,160 @@ describe("FieldOS API auth and tenancy", () => {
 
     expect(response.statusCode).toBe(404);
   });
+
+  it("manually queues and returns a message classification", async () => {
+    const cookie = await signup(server);
+    const organization = await createOrganization(server, cookie);
+    const project = await repository.createProject({
+      code: "AI-001",
+      name: "AI project",
+      organizationId: organization.id,
+      status: "ACTIVE"
+    });
+    const message = await createProjectMessage(repository, organization.id, project.id);
+
+    const classifyResponse = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "POST",
+      url: `/messages/${message.id}/classify`
+    });
+
+    expect(classifyResponse.statusCode).toBe(200);
+    expect(classifyResponse.json().classification.status).toBe("PENDING");
+
+    const getResponse = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "GET",
+      url: `/messages/${message.id}/classification`
+    });
+
+    expect(getResponse.statusCode).toBe(200);
+    expect(getResponse.json().classification.messageId).toBe(message.id);
+  });
+
+  it("lists project AI classifications and suggested tasks", async () => {
+    const cookie = await signup(server);
+    const organization = await createOrganization(server, cookie);
+    const project = await repository.createProject({
+      code: "AI-002",
+      name: "AI project",
+      organizationId: organization.id,
+      status: "ACTIVE"
+    });
+    const message = await createProjectMessage(repository, organization.id, project.id);
+    const classification = repository.addCompletedClassification({
+      messageId: message.id,
+      organizationId: organization.id,
+      projectId: project.id
+    });
+    repository.addSuggestedTask({
+      classificationId: classification.id,
+      messageId: message.id,
+      organizationId: organization.id,
+      projectId: project.id
+    });
+
+    const classificationsResponse = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "GET",
+      url: `/projects/${project.id}/ai-classifications`
+    });
+    const suggestedTasksResponse = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "GET",
+      url: `/projects/${project.id}/suggested-tasks`
+    });
+
+    expect(classificationsResponse.statusCode).toBe(200);
+    expect(classificationsResponse.json().classifications).toHaveLength(1);
+    expect(suggestedTasksResponse.statusCode).toBe(200);
+    expect(suggestedTasksResponse.json().suggestedTasks).toHaveLength(1);
+  });
+
+  it("accepts and rejects suggested tasks", async () => {
+    const cookie = await signup(server);
+    const organization = await createOrganization(server, cookie);
+    const project = await repository.createProject({
+      code: "AI-003",
+      name: "AI project",
+      organizationId: organization.id,
+      status: "ACTIVE"
+    });
+    const message = await createProjectMessage(repository, organization.id, project.id);
+    const classification = repository.addCompletedClassification({
+      messageId: message.id,
+      organizationId: organization.id,
+      projectId: project.id
+    });
+    const task = repository.addSuggestedTask({
+      classificationId: classification.id,
+      messageId: message.id,
+      organizationId: organization.id,
+      projectId: project.id
+    });
+
+    const acceptResponse = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "POST",
+      url: `/suggested-tasks/${task.id}/accept`
+    });
+    const rejectResponse = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "POST",
+      url: `/suggested-tasks/${task.id}/reject`
+    });
+
+    expect(acceptResponse.statusCode).toBe(200);
+    expect(acceptResponse.json().suggestedTask.status).toBe("ACCEPTED");
+    expect(rejectResponse.statusCode).toBe(200);
+    expect(rejectResponse.json().suggestedTask.status).toBe("REJECTED");
+  });
+
+  it("blocks cross-organization access to suggested tasks", async () => {
+    const ownerCookie = await signup(server, "owner@example.com");
+    const organization = await createOrganization(server, ownerCookie);
+    const project = await repository.createProject({
+      code: "AI-004",
+      name: "AI project",
+      organizationId: organization.id,
+      status: "ACTIVE"
+    });
+    const message = await createProjectMessage(repository, organization.id, project.id);
+    const classification = repository.addCompletedClassification({
+      messageId: message.id,
+      organizationId: organization.id,
+      projectId: project.id
+    });
+    const task = repository.addSuggestedTask({
+      classificationId: classification.id,
+      messageId: message.id,
+      organizationId: organization.id,
+      projectId: project.id
+    });
+    const outsiderCookie = await signup(server, "outsider@example.com");
+
+    const response = await server.inject({
+      headers: {
+        cookie: outsiderCookie
+      },
+      method: "POST",
+      url: `/suggested-tasks/${task.id}/accept`
+    });
+
+    expect(response.statusCode).toBe(404);
+  });
 });
 
 async function signup(
@@ -632,6 +788,37 @@ async function createOrganization(
   return response.json().organization as OrganizationRecord;
 }
 
+async function createProjectMessage(
+  repository: InMemoryRepository,
+  organizationId: string,
+  projectId: string
+): Promise<MessageRecord> {
+  const conversation = await repository.createConversation({
+    channel: "WHATSAPP",
+    externalId: nextId("external"),
+    isGroup: false,
+    lastMessageAt: null,
+    organizationId,
+    projectId,
+    title: "Site team"
+  });
+  const participant = await repository.addParticipant({
+    conversationId: conversation.id,
+    displayName: "Supervisor",
+    externalIdentifier: nextId("participant"),
+    role: "contact"
+  });
+
+  return repository.createMessage({
+    body: "Lobby light failed, please rectify.",
+    conversationId: conversation.id,
+    direction: "INBOUND",
+    occurredAt: new Date("2026-07-03T00:00:00.000Z"),
+    senderParticipantId: participant.id,
+    type: "TEXT"
+  });
+}
+
 class InMemoryRepository implements AppRepository {
   attachments: AttachmentRecord[] = [];
   conversations: ConversationRecord[] = [];
@@ -640,6 +827,8 @@ class InMemoryRepository implements AppRepository {
   organizations: Omit<OrganizationRecord, "role">[] = [];
   participants: ParticipantRecord[] = [];
   projects: ProjectRecord[] = [];
+  classifications: AIMessageClassificationRecord[] = [];
+  suggestedTasks: SuggestedTaskRecord[] = [];
   users: StoredUser[] = [];
   whatsAppAccounts: WhatsAppAccountRecord[] = [];
   whatsAppChatMappings: WhatsAppChatMappingRecord[] = [];
@@ -1088,6 +1277,165 @@ class InMemoryRepository implements AppRepository {
     }
 
     return mapping;
+  }
+
+  async acceptSuggestedTask(input: {
+    suggestedTaskId: string;
+    userId: string;
+  }): Promise<SuggestedTaskRecord> {
+    const task = this.requireSuggestedTask(input.suggestedTaskId);
+    task.acceptedAt = new Date();
+    task.acceptedByUserId = input.userId;
+    task.rejectedAt = null;
+    task.rejectedByUserId = null;
+    task.status = "ACCEPTED";
+    task.updatedAt = new Date();
+    return task;
+  }
+
+  async enqueueMessageClassification(
+    messageId: string
+  ): Promise<AIMessageClassificationRecord | null> {
+    const message = this.messages.find((candidate) => candidate.id === messageId);
+    const conversation = message
+      ? this.conversations.find((candidate) => candidate.id === message.conversationId)
+      : null;
+
+    if (!message || !conversation?.projectId) {
+      return null;
+    }
+
+    const existing = this.classifications.find(
+      (classification) => classification.messageId === messageId
+    );
+
+    if (existing) {
+      existing.errorMessage = null;
+      existing.projectId = conversation.projectId;
+      existing.status = "PENDING";
+      existing.updatedAt = new Date();
+      return existing;
+    }
+
+    const classification: AIMessageClassificationRecord = {
+      category: null,
+      confidence: null,
+      createdAt: new Date(),
+      errorMessage: null,
+      id: nextId("classification"),
+      location: null,
+      messageId,
+      organizationId: conversation.organizationId,
+      priority: "MEDIUM",
+      projectId: conversation.projectId,
+      reasoningSummary: null,
+      shouldCreateTask: false,
+      status: "PENDING",
+      suggestedTaskDescription: null,
+      suggestedTaskTitle: null,
+      summary: null,
+      updatedAt: new Date()
+    };
+    this.classifications.push(classification);
+    return classification;
+  }
+
+  async getMessageClassification(messageId: string): Promise<AIMessageClassificationRecord | null> {
+    return (
+      this.classifications.find((classification) => classification.messageId === messageId) ?? null
+    );
+  }
+
+  async getSuggestedTask(suggestedTaskId: string): Promise<SuggestedTaskRecord | null> {
+    return this.suggestedTasks.find((task) => task.id === suggestedTaskId) ?? null;
+  }
+
+  async listProjectAIClassifications(projectId: string): Promise<AIMessageClassificationRecord[]> {
+    return this.classifications.filter((classification) => classification.projectId === projectId);
+  }
+
+  async listProjectSuggestedTasks(projectId: string): Promise<SuggestedTaskRecord[]> {
+    return this.suggestedTasks.filter((task) => task.projectId === projectId);
+  }
+
+  async rejectSuggestedTask(input: {
+    suggestedTaskId: string;
+    userId: string;
+  }): Promise<SuggestedTaskRecord> {
+    const task = this.requireSuggestedTask(input.suggestedTaskId);
+    task.acceptedAt = null;
+    task.acceptedByUserId = null;
+    task.rejectedAt = new Date();
+    task.rejectedByUserId = input.userId;
+    task.status = "REJECTED";
+    task.updatedAt = new Date();
+    return task;
+  }
+
+  addCompletedClassification(input: {
+    messageId: string;
+    organizationId: string;
+    projectId: string;
+    shouldCreateTask?: boolean;
+  }): AIMessageClassificationRecord {
+    const classification: AIMessageClassificationRecord = {
+      category: "DEFECT",
+      confidence: 0.91,
+      createdAt: new Date(),
+      errorMessage: null,
+      id: nextId("classification"),
+      location: "Lobby",
+      messageId: input.messageId,
+      organizationId: input.organizationId,
+      priority: "HIGH",
+      projectId: input.projectId,
+      reasoningSummary: "The message requests rectification for a defect.",
+      shouldCreateTask: input.shouldCreateTask ?? true,
+      status: "COMPLETED",
+      suggestedTaskDescription: "Rectify the reported issue.",
+      suggestedTaskTitle: "Fix reported defect",
+      summary: "A defect was reported and needs follow-up.",
+      updatedAt: new Date()
+    };
+    this.classifications.push(classification);
+    return classification;
+  }
+
+  addSuggestedTask(input: {
+    classificationId: string;
+    messageId: string;
+    organizationId: string;
+    projectId: string;
+  }): SuggestedTaskRecord {
+    const task: SuggestedTaskRecord = {
+      acceptedAt: null,
+      acceptedByUserId: null,
+      classificationId: input.classificationId,
+      createdAt: new Date(),
+      description: "Rectify the reported issue.",
+      id: nextId("suggested_task"),
+      messageId: input.messageId,
+      organizationId: input.organizationId,
+      priority: "HIGH",
+      projectId: input.projectId,
+      rejectedAt: null,
+      rejectedByUserId: null,
+      status: "PENDING",
+      title: "Fix reported defect",
+      updatedAt: new Date()
+    };
+    this.suggestedTasks.push(task);
+    return task;
+  }
+
+  private requireSuggestedTask(suggestedTaskId: string): SuggestedTaskRecord {
+    const task = this.suggestedTasks.find((candidate) => candidate.id === suggestedTaskId);
+
+    if (!task) {
+      throw new Error("suggested task missing in test repository");
+    }
+
+    return task;
   }
 
   private requireWhatsAppChatMapping(mappingId: string): WhatsAppChatMappingRecord {
