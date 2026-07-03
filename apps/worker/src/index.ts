@@ -1,5 +1,5 @@
 import { Redis } from "ioredis";
-import { AIClassificationProcessor } from "@fieldos/ai";
+import { AIClassificationProcessor, MessageClassifier } from "@fieldos/ai";
 import { BaileysWhatsAppSessionManager, RedisWhatsAppQrStore } from "@fieldos/baileys-whatsapp";
 import { prisma } from "@fieldos/db";
 
@@ -20,7 +20,13 @@ const whatsappSessionManager = new BaileysWhatsAppSessionManager(
     rootStoragePath: workerEnv.WHATSAPP_STORAGE_PATH
   }
 );
-const aiClassificationProcessor = new AIClassificationProcessor(prisma);
+const aiClassificationProcessor = new AIClassificationProcessor(prisma, {
+  classifier: new MessageClassifier({
+    apiKey: workerEnv.OPENROUTER_API_KEY ?? workerEnv.OPENAI_API_KEY,
+    baseUrl: workerEnv.AI_BASE_URL,
+    model: workerEnv.AI_MODEL
+  })
+});
 
 redis.on("error", (error: Error) => {
   logger.warn({ error }, "redis connection error");

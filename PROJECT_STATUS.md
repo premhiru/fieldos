@@ -103,6 +103,10 @@ Sprint 1.5 architecture stabilization is complete locally and ready to continue 
   - API error payloads and ActionItem routes standardized.
   - Database indexes and organization-scoped query paths reviewed.
   - Architecture health and technical debt reports added.
+- Pre-Task-008 usability and AI provider polish.
+  - WhatsApp chats/groups in Settings can now be filtered by search, type, status, and project assignment.
+  - AI classification now defaults to OpenRouter's `openrouter/free` model through `https://openrouter.ai/api/v1`.
+  - `OPENROUTER_API_KEY` is now the primary AI provider key; `OPENAI_API_KEY` remains a fallback for OpenAI-compatible providers.
 
 ## In-Progress Tasks
 
@@ -124,7 +128,7 @@ Sprint 1.5 architecture stabilization is complete locally and ready to continue 
 - AI provider failures are recorded on the classification row; worker retries now use bounded exponential backoff, but provider-specific retry policy remains intentionally minimal.
 - Pagination is still limited to the highest-volume AI and ActionItem project views; conversation and message pagination should be formalized before large customer imports.
 - API route response envelopes are improved but not yet generated from a shared OpenAPI contract.
-- Production environments must set `OPENAI_API_KEY` and confirm the intended `AI_MODEL` before AI classification can run.
+- Production environments must set `OPENROUTER_API_KEY` and confirm the intended `AI_MODEL` before AI classification can run. `OPENAI_API_KEY` remains a fallback for OpenAI-compatible providers.
 
 ## Upcoming Milestones
 
@@ -195,5 +199,5 @@ Sprint 1.5 architecture stabilization is complete locally and ready to continue 
 - Railway config-as-code was evaluated but not committed because the generated TypeScript SDK import failed on Windows in this environment.
 - Task 003, Task 005, Task 006, and Task 006B application code is included in the deployed dashboard, API, and worker services.
 - Sprint 1.5 code has passed local validation; production deployment requires environment variable review and a deployment trigger.
-- Task 007 code is validated locally; production deployment requires AI environment variables before provider-backed classification can run.
+- Task 007 code is validated locally; production deployment requires `OPENROUTER_API_KEY` before provider-backed classification can run.
 - Live WhatsApp QR scanning and activation were not performed because no dedicated business test number was provided in this environment.

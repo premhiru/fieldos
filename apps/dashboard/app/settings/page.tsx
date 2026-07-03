@@ -159,6 +159,12 @@ function WhatsAppAccountCard({
 }) {
   const queryClient = useQueryClient();
   const [isPairingRequested, setIsPairingRequested] = React.useState(false);
+  const [chatSearch, setChatSearch] = React.useState("");
+  const [chatTypeFilter, setChatTypeFilter] = React.useState<"ALL" | "GROUPS" | "DIRECT">("ALL");
+  const [projectFilter, setProjectFilter] = React.useState<"ALL" | "MAPPED" | "UNASSIGNED">("ALL");
+  const [statusFilter, setStatusFilter] = React.useState<WhatsAppChatMapping["status"] | "ALL">(
+    "ALL"
+  );
   const isPairingStatus = account.status === "PENDING_QR" || account.status === "CONNECTING";
   const shouldPollQr = isPairingRequested || isPairingStatus;
   const chatsQuery = useQuery({
@@ -204,6 +210,56 @@ function WhatsAppAccountCard({
       void queryClient.invalidateQueries({ queryKey: ["whatsapp-accounts", organizationId] });
     }
   }, [account.status, organizationId, qrQuery.data?.status, queryClient]);
+
+  const chats = chatsQuery.data?.chats ?? [];
+  const filteredChats = React.useMemo(() => {
+    const normalizedSearch = chatSearch.trim().toLowerCase();
+
+    return chats.filter((chat) => {
+      const chatName = chat.chatName ?? chat.conversation?.title ?? "";
+      const mappedProjectName = projects.find((project) => project.id === chat.projectId)?.name;
+      const searchable = [chatName, chat.jid, chat.status, mappedProjectName ?? ""]
+        .join(" ")
+        .toLowerCase();
+
+      if (normalizedSearch && !searchable.includes(normalizedSearch)) {
+        return false;
+      }
+
+      if (chatTypeFilter === "GROUPS" && !chat.isGroup) {
+        return false;
+      }
+
+      if (chatTypeFilter === "DIRECT" && chat.isGroup) {
+        return false;
+      }
+
+      if (statusFilter !== "ALL" && chat.status !== statusFilter) {
+        return false;
+      }
+
+      if (projectFilter === "MAPPED" && !chat.projectId) {
+        return false;
+      }
+
+      if (projectFilter === "UNASSIGNED" && chat.projectId) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [chatSearch, chatTypeFilter, chats, projectFilter, projects, statusFilter]);
+  const hasActiveFilters =
+    chatSearch.trim() ||
+    chatTypeFilter !== "ALL" ||
+    statusFilter !== "ALL" ||
+    projectFilter !== "ALL";
+  const clearChatFilters = () => {
+    setChatSearch("");
+    setChatTypeFilter("ALL");
+    setProjectFilter("ALL");
+    setStatusFilter("ALL");
+  };
 
   return (
     <Card>
@@ -275,37 +331,113 @@ function WhatsAppAccountCard({
         ) : null}
 
         <div className={shouldShowPairing ? "mt-6 border-t border-slate-200 pt-6" : "mt-6"}>
-          <h2 className="text-sm font-semibold text-slate-950">Chats and Groups</h2>
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-950">Chats and Groups</h2>
+              <p className="mt-1 text-xs text-slate-500">
+                Showing {filteredChats.length} of {chats.length} discovered chats
+              </p>
+            </div>
+            {hasActiveFilters ? (
+              <Button type="button" variant="secondary" onClick={clearChatFilters}>
+                Clear filters
+              </Button>
+            ) : null}
+          </div>
           {chatsQuery.isLoading ? (
             <p className="mt-3 text-sm text-slate-600">Loading chats...</p>
-          ) : (chatsQuery.data?.chats ?? []).length === 0 ? (
+          ) : chats.length === 0 ? (
             <p className="mt-3 text-sm text-slate-600">No chats discovered yet.</p>
           ) : (
-            <div className="mt-3 overflow-x-auto">
-              <table className="w-full min-w-[860px] border-collapse text-left text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 text-xs font-semibold uppercase text-slate-500">
-                    <th className="py-3 pr-4">Chat/group name</th>
-                    <th className="py-3 pr-4">Type</th>
-                    <th className="py-3 pr-4">JID</th>
-                    <th className="py-3 pr-4">Status</th>
-                    <th className="py-3 pr-4">Mapped project</th>
-                    <th className="py-3 pr-4">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {chatsQuery.data?.chats.map((chat) => (
-                    <ChatMappingRow
-                      key={chat.id}
-                      accountId={account.id}
-                      canManage={canManage}
-                      chat={chat}
-                      projects={projects}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <>
+              <div className="mt-4 grid gap-3 md:grid-cols-[minmax(220px,1fr)_160px_170px_170px]">
+                <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+                  Search
+                  <input
+                    className="h-10 rounded-md border border-slate-300 px-3 text-sm"
+                    placeholder="Name, JID, status, or project"
+                    value={chatSearch}
+                    onChange={(event) => setChatSearch(event.target.value)}
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+                  Type
+                  <select
+                    className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm"
+                    value={chatTypeFilter}
+                    onChange={(event) =>
+                      setChatTypeFilter(event.target.value as "ALL" | "GROUPS" | "DIRECT")
+                    }
+                  >
+                    <option value="ALL">All</option>
+                    <option value="GROUPS">Groups only</option>
+                    <option value="DIRECT">Direct only</option>
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+                  Status
+                  <select
+                    className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm"
+                    value={statusFilter}
+                    onChange={(event) =>
+                      setStatusFilter(event.target.value as WhatsAppChatMapping["status"] | "ALL")
+                    }
+                  >
+                    <option value="ALL">All statuses</option>
+                    <option value="DISCOVERED">Discovered</option>
+                    <option value="ACTIVE">Active</option>
+                    <option value="IGNORED">Ignored</option>
+                    <option value="ARCHIVED">Archived</option>
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+                  Project
+                  <select
+                    className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm"
+                    value={projectFilter}
+                    onChange={(event) =>
+                      setProjectFilter(event.target.value as "ALL" | "MAPPED" | "UNASSIGNED")
+                    }
+                  >
+                    <option value="ALL">All projects</option>
+                    <option value="MAPPED">Mapped</option>
+                    <option value="UNASSIGNED">Unassigned</option>
+                  </select>
+                </label>
+              </div>
+
+              {filteredChats.length === 0 ? (
+                <p className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                  No chats match the current filters.
+                </p>
+              ) : (
+                <div className="mt-3 overflow-x-auto">
+                  <table className="w-full min-w-[860px] border-collapse text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-xs font-semibold uppercase text-slate-500">
+                        <th className="py-3 pr-4">Chat/group name</th>
+                        <th className="py-3 pr-4">Type</th>
+                        <th className="py-3 pr-4">JID</th>
+                        <th className="py-3 pr-4">Status</th>
+                        <th className="py-3 pr-4">Mapped project</th>
+                        <th className="py-3 pr-4">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {filteredChats.map((chat) => (
+                        <ChatMappingRow
+                          key={chat.id}
+                          accountId={account.id}
+                          canManage={canManage}
+                          chat={chat}
+                          projects={projects}
+                        />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
           )}
         </div>
       </CardContent>

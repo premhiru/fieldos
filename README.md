@@ -94,7 +94,7 @@ pnpm db:migrate
 pnpm db:seed
 ```
 
-Configure AI classification by setting `OPENAI_API_KEY`. `AI_MODEL` defaults to `gpt-4.1-mini` for local development.
+Configure AI classification by setting `OPENROUTER_API_KEY`. `AI_BASE_URL` defaults to `https://openrouter.ai/api/v1` and `AI_MODEL` defaults to `openrouter/free`. `OPENAI_API_KEY` remains supported as a fallback for OpenAI-compatible providers.
 
 Test the auth flow:
 

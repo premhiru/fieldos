@@ -45,17 +45,20 @@ export interface MessageClassifierOptions {
   provider?: AIProvider;
 }
 
+const defaultAIBaseUrl = "https://openrouter.ai/api/v1";
+const defaultAIModel = "openrouter/free";
+
 export class MessageClassifier {
   private readonly model: string;
   private readonly provider: AIProvider;
 
   constructor(options: MessageClassifierOptions = {}) {
-    this.model = options.model ?? process.env.AI_MODEL ?? "gpt-4.1-mini";
+    this.model = options.model ?? process.env.AI_MODEL ?? defaultAIModel;
     this.provider =
       options.provider ??
       new OpenAICompatibleProvider({
-        apiKey: options.apiKey ?? process.env.OPENAI_API_KEY,
-        baseUrl: options.baseUrl
+        apiKey: options.apiKey ?? process.env.OPENROUTER_API_KEY ?? process.env.OPENAI_API_KEY,
+        baseUrl: options.baseUrl ?? process.env.AI_BASE_URL
       });
   }
 
@@ -91,7 +94,7 @@ class OpenAICompatibleProvider implements AIProvider {
 
   constructor(options: { apiKey?: string; baseUrl?: string }) {
     this.apiKey = options.apiKey;
-    this.baseUrl = options.baseUrl ?? "https://api.openai.com/v1";
+    this.baseUrl = options.baseUrl ?? defaultAIBaseUrl;
   }
 
   async completeJson(input: {
