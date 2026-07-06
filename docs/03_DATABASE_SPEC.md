@@ -16,6 +16,7 @@
 - [AI Classification Model](#ai-classification-model)
 - [Event Model](#event-model)
 - [Milestone Model](#milestone-model)
+- [Search Model](#search-model)
 - [Schema Ownership](#schema-ownership)
 - [Migration Policy](#migration-policy)
 - [Retention and Compliance](#retention-and-compliance)
@@ -41,6 +42,7 @@ Current MVP models:
 - `ActionItem`: Human-reviewable recommendation derived from an AI classification or deterministic project suggestion.
 - `Event`: Generic organization-scoped activity record prepared for timeline features.
 - `Milestone`: Lightweight project deadline used by the Operations Command Center.
+- `SearchDocument`: Grounded search index entry for retrievable FieldOS records.
 - `WhatsAppAccount`: A WhatsApp connector account owned by an organization.
 - `WhatsAppChatMapping`: Connector-specific mapping between a WhatsApp chat JID, a generic conversation, and an optional project.
 
@@ -242,6 +244,39 @@ Key indexes:
 - `organizationId, dueDate`
 - `projectId, dueDate`
 - `status, dueDate`
+
+## Search Model
+
+`SearchDocument` is a generic retrieval index used by keyword search and grounded AI answers.
+
+Supported source types:
+
+- `PROJECT`
+- `MESSAGE`
+- `TIMELINE_EVENT`
+- `ACTION_ITEM`
+- `AI_CLASSIFICATION`
+
+Fields:
+
+- `organizationId`: Required tenant scope.
+- `projectId`: Optional project scope.
+- `sourceType`: Type of source record.
+- `sourceId`: Identifier of the source record.
+- `title`: Short searchable label.
+- `content`: Searchable source text.
+- `metadata`: JSON payload for source-specific navigation and display.
+- `occurredAt`: Optional source occurrence time.
+- `createdAt` and `updatedAt`: Index row timestamps.
+
+Key constraints and indexes:
+
+- `sourceType, sourceId` is unique.
+- `organizationId, createdAt` supports organization-scoped browsing.
+- `organizationId, projectId, createdAt` supports project-scoped search.
+- `organizationId, sourceType, createdAt` supports type filters.
+- `projectId, createdAt` supports project detail surfaces.
+- A PostgreSQL GIN full-text index supports keyword search over title and content.
 
 ## Schema Ownership
 

@@ -57,6 +57,30 @@ export type ClassificationStatus = z.infer<typeof classificationStatusSchema>;
 export type ClassifyMessageInput = z.infer<typeof classifyMessageInputSchema>;
 export type ClassifyMessageResult = z.infer<typeof classifyMessageResultSchema>;
 
+export const searchAnswerSourceSchema = z.object({
+  occurredAt: z.string().nullable(),
+  projectName: z.string().nullable(),
+  snippet: z.string().trim().min(1),
+  sourceId: z.string().trim().min(1),
+  sourceType: z.string().trim().min(1),
+  title: z.string().trim().min(1)
+});
+
+export const searchAnswerInputSchema = z.object({
+  question: z.string().trim().min(1).max(500),
+  sources: z.array(searchAnswerSourceSchema).max(12)
+});
+
+export const searchAnswerResultSchema = z.object({
+  answer: z.string().trim().min(1).max(1200),
+  confidence: z.enum(["HIGH", "MEDIUM", "LOW"]),
+  sourceIds: z.array(z.string().trim().min(1)).max(12)
+});
+
+export type SearchAnswerSource = z.infer<typeof searchAnswerSourceSchema>;
+export type SearchAnswerInput = z.infer<typeof searchAnswerInputSchema>;
+export type SearchAnswerResult = z.infer<typeof searchAnswerResultSchema>;
+
 export interface AIProvider {
   completeJson(input: {
     model: string;

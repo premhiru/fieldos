@@ -19,7 +19,7 @@
 
 ## Current Milestone
 
-Task 009 Operations Command Center is complete locally and ready for production deployment review.
+Task 010 AI Search is implemented locally and awaiting production deployment verification.
 
 ## Completed Tasks
 
@@ -117,10 +117,18 @@ Task 009 Operations Command Center is complete locally and ready for production 
   - Lightweight `Milestone` model added for upcoming and overdue project deadlines.
   - API endpoints added for dashboard aggregate, summary, projects, action items, recent activity, and daily brief.
   - ADR 0009 documents the command-center aggregation and deterministic health decision.
+- Task 010: AI Search.
+  - Grounded `SearchDocument` retrieval index added for projects, messages, timeline events, Action Items, and AI classifications.
+  - Organization and project-scoped search endpoints added.
+  - Grounded AI answer endpoints added with source citations and deterministic fallback behavior.
+  - Dashboard Search page added with project, source type, and date filters.
+  - Project detail pages now include a scoped `Ask about this project` panel.
+  - API tests cover search document creation, message search, timeline event search, Action Item search, scoped search, cross-organization isolation, AI answer citations, fallback, and invalid questions.
+  - ADR 0010 documents grounded AI search.
 
 ## In-Progress Tasks
 
-- None.
+- Task 010 production deployment verification.
 
 ## Known Technical Debt
 
@@ -141,12 +149,15 @@ Task 009 Operations Command Center is complete locally and ready for production 
 - Pagination is still limited to the highest-volume AI and ActionItem project views; conversation and message pagination should be formalized before large customer imports.
 - API route response envelopes are improved but not yet generated from a shared OpenAPI contract.
 - Production environments must set `OPENROUTER_API_KEY` and confirm the intended `AI_MODEL` before AI classification can run. `OPENAI_API_KEY` remains a fallback for OpenAI-compatible providers.
+- SearchDocument indexing is currently refreshed from API search calls; high-volume production usage should move indexing to an asynchronous worker job.
+- Search uses PostgreSQL keyword search for the MVP; semantic/vector search is intentionally deferred until search telemetry proves the need.
 
 ## Upcoming Milestones
 
+- Deploy Task 010 to Railway and verify the search migration.
+- Validate grounded AI search with real production tenant data.
 - Configure branch protection for `main` and `develop`.
 - Create `develop` branch after remote setup.
-- Define product requirements and initial domain boundaries.
 - Add invite and membership management after the basic auth/org/project slice is verified.
 - Validate WhatsApp QR pairing, chat discovery, explicit activation, and inbound message ingestion with a dedicated business test number.
 - Validate AI classifications and project suggestions with real active WhatsApp project messages.
@@ -167,6 +178,7 @@ Task 009 Operations Command Center is complete locally and ready for production 
 - ADR 0006: AI may create Action Items, but humans must accept or ignore them before they become operational work.
 - ADR 0007: Simplify the MVP around ActionItems, compact AI extraction, event-driven timeline preparation, and human-approved project suggestions.
 - ADR 0009: Use an API-owned Operations Command Center with deterministic health rules and lightweight milestones.
+- ADR 0010: Use PostgreSQL-backed grounded retrieval with cited sources for AI search.
 
 ## Deployment Status
 
@@ -214,5 +226,6 @@ Task 009 Operations Command Center is complete locally and ready for production 
 - Task 003, Task 005, Task 006, and Task 006B application code is included in the deployed dashboard, API, and worker services.
 - Sprint 1.5 code has passed local validation; production deployment requires environment variable review and a deployment trigger.
 - Task 007 code is validated locally; the Railway worker now has OpenRouter environment variables configured for provider-backed classification.
-- Task 009 code is validated locally; production deployment requires a deployment trigger and migration application for the `Milestone` and Action Item priority fields.
+- Task 009 code is deployed to Railway and migrations are applied.
+- Task 010 code is validated locally; production deployment requires a deployment trigger and migration application for the `SearchDocument` model.
 - Live WhatsApp QR scanning and activation were not performed because no dedicated business test number was provided in this environment.

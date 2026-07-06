@@ -18,6 +18,7 @@
 - [WhatsApp Connector](#whatsapp-connector)
 - [AI Classification](#ai-classification)
 - [Operations Command Center](#operations-command-center)
+- [AI Search](#ai-search)
 - [Event Model](#event-model)
 - [Evolution Path](#evolution-path)
 
@@ -143,6 +144,28 @@ Command center endpoints:
 - `GET /dashboard/action-items`
 - `GET /dashboard/recent-activity`
 - `GET /dashboard/brief`
+
+## AI Search
+
+AI search is grounded retrieval, not an open-ended assistant. The API owns search authorization, record retrieval, answer generation, and fallback behavior.
+
+Search records are normalized into `SearchDocument` rows with an organization scope, optional project scope, source type, source id, title, content, metadata, and occurrence timestamp. The first implementation indexes projects, messages, timeline events, Action Items, and AI classifications.
+
+Search API endpoints:
+
+- `GET /search`: Organization-scoped keyword search with optional project, source type, date, limit, and cursor filters.
+- `POST /search/ask`: Organization-scoped grounded answer generation.
+- `POST /projects/:projectId/search/ask`: Project-scoped grounded answer generation.
+
+The answer flow is:
+
+1. Validate the user session and organization or project access.
+2. Search `SearchDocument` for relevant records.
+3. If no records are found, return the deterministic not-enough-information fallback.
+4. Send only retrieved source snippets to the AI answer generator.
+5. Return the answer, confidence, and cited source records.
+
+The dashboard consumes this contract through a global Search page and a project-scoped ask panel. It does not build prompts or perform search ranking locally.
 
 ## Event Model
 

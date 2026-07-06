@@ -28,6 +28,8 @@ import type {
   DashboardHealth,
   MilestoneRecord,
   OperationsDashboardRecord,
+  SearchDocumentsResult,
+  SearchSourceType,
   WhatsAppAccountRecord,
   WhatsAppChatMappingRecord
 } from "./repository.js";
@@ -50,7 +52,17 @@ describe("FieldOS API auth and tenancy", () => {
 
   beforeEach(() => {
     repository = new InMemoryRepository();
-    server = buildServer({ qrStore: new InMemoryQrStore(), repository });
+    server = buildServer({
+      qrStore: new InMemoryQrStore(),
+      repository,
+      searchAnswerer: {
+        answer: async (input) => ({
+          answer: `Grounded answer for ${input.question}`,
+          confidence: "HIGH",
+          sourceIds: input.sources.map((source) => source.sourceId)
+        })
+      }
+    });
   });
 
   it("signs up a user", async () => {
@@ -840,6 +852,246 @@ describe("FieldOS API auth and tenancy", () => {
     expect(response.statusCode).toBe(404);
   });
 
+  it("searches messages, timeline events, Action Items, projects, and AI classifications", async () => {
+    const cookie = await signup(server);
+    const organization = await createOrganization(server, cookie);
+    const project = await repository.createProject({
+      code: "T2-RUNWAY",
+      name: "Terminal 2 runway lighting",
+      organizationId: organization.id,
+      status: "ACTIVE"
+    });
+    const message = await createProjectMessage(
+      repository,
+      organization.id,
+      project.id,
+      "Terminal 2 runway lighting has a defect near gate B."
+    );
+    const classification = repository.addCompletedClassification({
+      messageId: message.id,
+      organizationId: organization.id,
+      projectId: project.id
+    });
+    repository.addActionItem({
+      classificationId: classification.id,
+      messageId: message.id,
+      organizationId: organization.id,
+      projectId: project.id
+    });
+    repository.addEvent({
+      organizationId: organization.id,
+      projectId: project.id,
+      sourceType: "MESSAGE",
+      title: "Terminal 2 defect inspection completed"
+    });
+
+    const searches = [
+      { query: "Terminal 2", sourceType: "PROJECT" },
+      { query: "gate B", sourceType: "MESSAGE" },
+      { query: "inspection completed", sourceType: "TIMELINE_EVENT" },
+      { query: "reported defect", sourceType: "ACTION_ITEM" },
+      { query: "defect", sourceType: "AI_CLASSIFICATION" }
+    ];
+
+    for (const search of searches) {
+      const response = await server.inject({
+        headers: {
+          cookie
+        },
+        method: "GET",
+        url: `/search?organizationId=${organization.id}&type=${
+          search.sourceType
+        }&q=${encodeURIComponent(search.query)}`
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(
+        response
+          .json()
+          .results.some((result: { sourceType: string }) => result.sourceType === search.sourceType)
+      ).toBe(true);
+    }
+  });
+
+  it("supports project-scoped search", async () => {
+    const cookie = await signup(server);
+    const organization = await createOrganization(server, cookie);
+    const runwayProject = await repository.createProject({
+      code: "RUNWAY",
+      name: "Runway lighting",
+      organizationId: organization.id,
+      status: "ACTIVE"
+    });
+    const lobbyProject = await repository.createProject({
+      code: "LOBBY",
+      name: "Lobby works",
+      organizationId: organization.id,
+      status: "ACTIVE"
+    });
+    await createProjectMessage(
+      repository,
+      organization.id,
+      runwayProject.id,
+      "Runway lighting cable tray needs review."
+    );
+    await createProjectMessage(
+      repository,
+      organization.id,
+      lobbyProject.id,
+      "Lobby lighting cable tray needs review."
+    );
+
+    const response = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "GET",
+      url: `/search?organizationId=${organization.id}&projectId=${
+        runwayProject.id
+      }&q=${encodeURIComponent("lighting cable tray")}`
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().results.length).toBeGreaterThan(0);
+    expect(
+      response
+        .json()
+        .results.every(
+          (result: { projectId: string | null }) => result.projectId === runwayProject.id
+        )
+    ).toBe(true);
+  });
+
+  it("prevents cross-organization search", async () => {
+    const ownerCookie = await signup(server, "search-owner@example.com");
+    const organization = await createOrganization(server, ownerCookie);
+    const outsiderCookie = await signup(server, "search-outsider@example.com");
+
+    const response = await server.inject({
+      headers: {
+        cookie: outsiderCookie
+      },
+      method: "GET",
+      url: `/search?organizationId=${organization.id}&q=runway`
+    });
+
+    expect(response.statusCode).toBe(404);
+  });
+
+  it("answers search questions with cited sources", async () => {
+    const cookie = await signup(server);
+    const organization = await createOrganization(server, cookie);
+    const project = await repository.createProject({
+      code: "ASK-001",
+      name: "Search answer project",
+      organizationId: organization.id,
+      status: "ACTIVE"
+    });
+    await createProjectMessage(
+      repository,
+      organization.id,
+      project.id,
+      "Gate 4 inspection found damaged lighting conduit."
+    );
+
+    const response = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "POST",
+      payload: {
+        organizationId: organization.id,
+        question: "Gate 4 inspection"
+      },
+      url: "/search/ask"
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().answer).toBe("Grounded answer for Gate 4 inspection");
+    expect(response.json().sources).toHaveLength(1);
+    expect(response.json().sources[0].sourceType).toBe("MESSAGE");
+  });
+
+  it("returns a fallback answer when no search records are found", async () => {
+    const cookie = await signup(server);
+    const organization = await createOrganization(server, cookie);
+
+    const response = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "POST",
+      payload: {
+        organizationId: organization.id,
+        question: "What happened at the solar farm?"
+      },
+      url: "/search/ask"
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().answer).toBe(
+      "I could not find enough information in FieldOS to answer that."
+    );
+    expect(response.json().sources).toHaveLength(0);
+  });
+
+  it("rejects empty search questions", async () => {
+    const cookie = await signup(server);
+    const organization = await createOrganization(server, cookie);
+
+    const response = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "POST",
+      payload: {
+        organizationId: organization.id,
+        question: " "
+      },
+      url: "/search/ask"
+    });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it("answers project-scoped search questions", async () => {
+    const cookie = await signup(server);
+    const organization = await createOrganization(server, cookie);
+    const project = await repository.createProject({
+      code: "ASK-002",
+      name: "Project ask",
+      organizationId: organization.id,
+      status: "ACTIVE"
+    });
+    await createProjectMessage(
+      repository,
+      organization.id,
+      project.id,
+      "Basement pump test passed with no defects."
+    );
+
+    const response = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "POST",
+      payload: {
+        question: "Basement pump"
+      },
+      url: `/projects/${project.id}/search/ask`
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().answer).toBe("Grounded answer for Basement pump");
+    expect(
+      response
+        .json()
+        .sources.every(
+          (source: { projectName: string | null }) => source.projectName === project.name
+        )
+    ).toBe(true);
+  });
+
   it("reassigns project suggestion Action Items only after acceptance", async () => {
     const cookie = await signup(server);
     const organization = await createOrganization(server, cookie);
@@ -971,7 +1223,8 @@ async function createOrganization(
 async function createProjectMessage(
   repository: InMemoryRepository,
   organizationId: string,
-  projectId: string
+  projectId: string,
+  body = "Lobby light failed, please rectify."
 ): Promise<MessageRecord> {
   const conversation = await repository.createConversation({
     channel: "WHATSAPP",
@@ -990,7 +1243,7 @@ async function createProjectMessage(
   });
 
   return repository.createMessage({
-    body: "Lobby light failed, please rectify.",
+    body,
     conversationId: conversation.id,
     direction: "INBOUND",
     occurredAt: new Date("2026-07-03T00:00:00.000Z"),
@@ -1730,6 +1983,43 @@ class InMemoryRepository implements AppRepository {
     };
   }
 
+  async searchDocuments(input: {
+    cursor?: string | null;
+    dateFrom?: Date | null;
+    dateTo?: Date | null;
+    limit: number;
+    organizationId: string;
+    projectId?: string | null;
+    query: string;
+    sourceType?: SearchSourceType | null;
+  }): Promise<SearchDocumentsResult> {
+    const query = input.query.trim().toLowerCase();
+    const documents = this.buildSearchDocuments()
+      .filter((document) => document.organizationId === input.organizationId)
+      .filter((document) => !input.projectId || document.projectId === input.projectId)
+      .filter((document) => !input.sourceType || document.sourceType === input.sourceType)
+      .filter((document) => {
+        const date = document.occurredAt ?? document.createdAt;
+        return (
+          (!input.dateFrom || date >= input.dateFrom) && (!input.dateTo || date <= input.dateTo)
+        );
+      })
+      .filter(
+        (document) =>
+          !query ||
+          document.title.toLowerCase().includes(query) ||
+          document.snippet.toLowerCase().includes(query)
+      )
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+    const page = documents.slice(0, input.limit);
+
+    return {
+      nextCursor:
+        documents.length > input.limit ? (page.at(-1)?.createdAt.toISOString() ?? null) : null,
+      results: page
+    };
+  }
+
   addCompletedClassification(input: {
     messageId: string;
     organizationId: string;
@@ -1850,6 +2140,144 @@ class InMemoryRepository implements AppRepository {
     };
     this.milestones.push(milestone);
     return milestone;
+  }
+
+  private buildSearchDocuments(): SearchDocumentsResult["results"] {
+    const projectDocuments = this.projects.map((project) => ({
+      createdAt: project.createdAt,
+      id: `search_project_${project.id}`,
+      metadata: {
+        code: project.code,
+        status: project.status
+      },
+      occurredAt: project.updatedAt,
+      organizationId: project.organizationId,
+      project: {
+        code: project.code,
+        id: project.id,
+        name: project.name
+      },
+      projectId: project.id,
+      snippet: `Project ${project.name} ${project.code} status ${project.status}`,
+      sourceId: project.id,
+      sourceType: "PROJECT" as const,
+      title: `${project.code} ${project.name}`,
+      updatedAt: project.updatedAt
+    }));
+    const messageDocuments = this.messages.flatMap((message) => {
+      const conversation = this.conversations.find(
+        (candidate) => candidate.id === message.conversationId
+      );
+
+      if (!conversation) {
+        return [];
+      }
+
+      const project = conversation.projectId
+        ? this.projects.find((candidate) => candidate.id === conversation.projectId)
+        : null;
+
+      return [
+        {
+          createdAt: message.createdAt,
+          id: `search_message_${message.id}`,
+          metadata: {
+            conversationId: conversation.id
+          },
+          occurredAt: message.occurredAt,
+          organizationId: conversation.organizationId,
+          project: project
+            ? {
+                code: project.code,
+                id: project.id,
+                name: project.name
+              }
+            : null,
+          projectId: conversation.projectId,
+          snippet: `${message.senderParticipant.displayName}: ${message.body ?? ""}`,
+          sourceId: message.id,
+          sourceType: "MESSAGE" as const,
+          title: conversation.title,
+          updatedAt: message.createdAt
+        }
+      ];
+    });
+    const eventDocuments = this.events.map((event) => ({
+      createdAt: event.createdAt,
+      id: `search_event_${event.id}`,
+      metadata: {
+        eventType: event.eventType
+      },
+      occurredAt: event.occurredAt,
+      organizationId: event.organizationId,
+      project: this.projectReference(event.projectId),
+      projectId: event.projectId,
+      snippet: event.description ?? event.eventType,
+      sourceId: event.id,
+      sourceType: "TIMELINE_EVENT" as const,
+      title: event.title,
+      updatedAt: event.createdAt
+    }));
+    const actionItemDocuments = this.actionItems.map((actionItem) => ({
+      createdAt: actionItem.createdAt,
+      id: `search_action_${actionItem.id}`,
+      metadata: {
+        priority: actionItem.priority,
+        status: actionItem.status
+      },
+      occurredAt: actionItem.updatedAt,
+      organizationId: actionItem.organizationId,
+      project: this.projectReference(actionItem.projectId),
+      projectId: actionItem.projectId,
+      snippet: `${actionItem.description ?? ""} ${actionItem.status} ${actionItem.priority}`,
+      sourceId: actionItem.id,
+      sourceType: "ACTION_ITEM" as const,
+      title: actionItem.title,
+      updatedAt: actionItem.updatedAt
+    }));
+    const classificationDocuments = this.classifications.map((classification) => ({
+      createdAt: classification.createdAt,
+      id: `search_classification_${classification.id}`,
+      metadata: {
+        category: classification.category,
+        status: classification.status
+      },
+      occurredAt: classification.updatedAt,
+      organizationId: classification.organizationId,
+      project: this.projectReference(classification.projectId),
+      projectId: classification.projectId,
+      snippet: `${classification.summary ?? ""} ${classification.location ?? ""} ${
+        classification.category ?? ""
+      }`,
+      sourceId: classification.id,
+      sourceType: "AI_CLASSIFICATION" as const,
+      title: classification.category
+        ? `AI classification: ${classification.category}`
+        : "AI classification",
+      updatedAt: classification.updatedAt
+    }));
+
+    return [
+      ...projectDocuments,
+      ...messageDocuments,
+      ...eventDocuments,
+      ...actionItemDocuments,
+      ...classificationDocuments
+    ];
+  }
+
+  private projectReference(projectId: string | null) {
+    const project = projectId
+      ? this.projects.find((candidate) => candidate.id === projectId)
+      : null;
+
+    return project
+      ? {
+          code: project.code,
+          id: project.id,
+          name: project.name
+        }
+      : null;
   }
 
   private requireActionItem(actionItemId: string): ActionItemRecord {

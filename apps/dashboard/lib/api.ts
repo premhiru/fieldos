@@ -24,6 +24,8 @@ export type ActionItemType = "FOLLOW_UP" | "PROJECT_SUGGESTION";
 export type ActionItemPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 export type MilestoneStatus = "UPCOMING" | "DUE_SOON" | "OVERDUE" | "COMPLETED";
 export type DashboardHealth = "HEALTHY" | "NEEDS_ATTENTION" | "CRITICAL";
+export type SearchSourceType =
+  "PROJECT" | "MESSAGE" | "TIMELINE_EVENT" | "ACTION_ITEM" | "AI_CLASSIFICATION";
 
 export interface User {
   id: string;
@@ -228,6 +230,41 @@ export interface OperationsDashboard {
   brief: DashboardBrief;
 }
 
+export interface SearchResult {
+  id: string;
+  organizationId: string;
+  projectId: string | null;
+  sourceType: SearchSourceType;
+  sourceId: string;
+  title: string;
+  snippet: string;
+  metadata: unknown;
+  occurredAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  project: ProjectReference | null;
+}
+
+export interface SearchResponse {
+  results: SearchResult[];
+  nextCursor: string | null;
+}
+
+export interface SearchAnswerSource {
+  sourceType: SearchSourceType;
+  sourceId: string;
+  title: string;
+  snippet: string;
+  occurredAt: string | null;
+  projectName: string | null;
+}
+
+export interface SearchAnswer {
+  answer: string;
+  confidence: "HIGH" | "MEDIUM" | "LOW";
+  sources: SearchAnswerSource[];
+}
+
 export type WhatsAppConnectorType = "BAILEYS" | "META_CLOUD";
 export type WhatsAppAccountStatus =
   "PENDING_QR" | "CONNECTING" | "CONNECTED" | "DISCONNECTED" | "ERROR";
@@ -367,6 +404,54 @@ export const api = {
     return apiRequest<{ conversations: Conversation[] }>(`/conversations?${params.toString()}`);
   },
   listOrganizations: () => apiRequest<{ organizations: Organization[] }>("/organizations"),
+  search: (input: {
+    cursor?: string | null;
+    dateFrom?: string;
+    dateTo?: string;
+    limit?: number;
+    organizationId: string;
+    projectId?: string | null;
+    q: string;
+    type?: SearchSourceType | "";
+  }) => {
+    const params = new URLSearchParams({
+      limit: String(input.limit ?? 10),
+      organizationId: input.organizationId,
+      q: input.q
+    });
+
+    if (input.cursor) {
+      params.set("cursor", input.cursor);
+    }
+
+    if (input.projectId) {
+      params.set("projectId", input.projectId);
+    }
+
+    if (input.type) {
+      params.set("type", input.type);
+    }
+
+    if (input.dateFrom) {
+      params.set("dateFrom", input.dateFrom);
+    }
+
+    if (input.dateTo) {
+      params.set("dateTo", input.dateTo);
+    }
+
+    return apiRequest<SearchResponse>(`/search?${params.toString()}`);
+  },
+  askSearch: (body: { organizationId: string; projectId?: string | null; question: string }) =>
+    apiRequest<SearchAnswer>("/search/ask", {
+      body: JSON.stringify(body),
+      method: "POST"
+    }),
+  askProjectSearch: (projectId: string, body: { question: string }) =>
+    apiRequest<SearchAnswer>(`/projects/${projectId}/search/ask`, {
+      body: JSON.stringify(body),
+      method: "POST"
+    }),
   listProjects: (organizationId: string) =>
     apiRequest<{ projects: Project[] }>(`/organizations/${organizationId}/projects`),
   listProjectAIClassifications: (projectId: string) =>

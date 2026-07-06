@@ -1,9 +1,10 @@
 "use client";
 
-import { Badge, Card, CardContent, CardHeader, CardTitle } from "@fieldos/ui";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@fieldos/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import * as React from "react";
 
 import { AppShell } from "../../../components/app-shell";
 import { AuthGuard } from "../../../components/auth-guard";
@@ -55,6 +56,13 @@ function ProjectDetailContent() {
       });
     }
   });
+  const [projectQuestion, setProjectQuestion] = React.useState("");
+  const projectSearchMutation = useMutation({
+    mutationFn: () =>
+      api.askProjectSearch(params.projectId, {
+        question: projectQuestion
+      })
+  });
   const project = projectQuery.data?.project;
   const classifications = classificationsQuery.data?.classifications ?? [];
   const actionItems = actionItemsQuery.data?.actionItems ?? [];
@@ -82,6 +90,57 @@ function ProjectDetailContent() {
         <PlaceholderCard title="WhatsApp messages coming soon" />
         <PlaceholderCard title="Reports coming soon" />
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Ask about this project</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form
+            className="space-y-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+
+              if (projectQuestion.trim()) {
+                projectSearchMutation.mutate();
+              }
+            }}
+          >
+            <div className="flex flex-col gap-3 md:flex-row">
+              <input
+                className="h-10 flex-1 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-950"
+                onChange={(event) => setProjectQuestion(event.target.value)}
+                placeholder="Ask about defects, messages, inspections, or pending work..."
+                value={projectQuestion}
+              />
+              <Button disabled={!projectQuestion.trim() || projectSearchMutation.isPending}>
+                Ask
+              </Button>
+            </div>
+          </form>
+          {projectSearchMutation.data ? (
+            <div className="mt-4 rounded-md border border-slate-200 p-3">
+              <div className="flex items-center gap-2">
+                <Badge variant="muted">{projectSearchMutation.data.confidence} Confidence</Badge>
+              </div>
+              <p className="mt-2 text-sm leading-6 text-slate-800">
+                {projectSearchMutation.data.answer}
+              </p>
+              <div className="mt-3 space-y-2">
+                {projectSearchMutation.data.sources.map((source) => (
+                  <div
+                    className="rounded-md bg-slate-50 p-2 text-xs text-slate-600"
+                    key={`${source.sourceType}-${source.sourceId}`}
+                  >
+                    <div className="font-medium text-slate-950">{source.title}</div>
+                    <div>{source.snippet}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

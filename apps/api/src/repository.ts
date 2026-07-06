@@ -9,8 +9,10 @@ import type {
   MilestoneStatus,
   PrismaClient,
   ProjectStatus,
+  SearchDocumentSourceType,
   WhatsAppChatMappingStatus
 } from "@fieldos/db";
+import { Prisma } from "@fieldos/db";
 import type {
   AttachmentRecord,
   ConversationRecord,
@@ -34,6 +36,7 @@ export type ActionType = ActionItemType;
 export type ActionPriority = ActionItemPriority;
 export type DashboardHealth = "HEALTHY" | "NEEDS_ATTENTION" | "CRITICAL";
 export type DashboardBriefSource = "AI" | "FALLBACK";
+export type SearchSourceType = SearchDocumentSourceType;
 
 export interface SafeUser {
   id: string;
@@ -253,6 +256,30 @@ export interface OperationsDashboardRecord {
   brief: DashboardBriefRecord;
 }
 
+export interface SearchDocumentRecord {
+  id: string;
+  organizationId: string;
+  projectId: string | null;
+  sourceType: SearchSourceType;
+  sourceId: string;
+  title: string;
+  snippet: string;
+  metadata: unknown;
+  occurredAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  project: {
+    code: string;
+    id: string;
+    name: string;
+  } | null;
+}
+
+export interface SearchDocumentsResult {
+  results: SearchDocumentRecord[];
+  nextCursor: string | null;
+}
+
 export interface AppRepository extends MessagingRepository {
   createOrganization(input: {
     name: string;
@@ -301,6 +328,16 @@ export interface AppRepository extends MessagingRepository {
     organizationId: string;
     userId: string;
   }): Promise<OperationsDashboardRecord>;
+  searchDocuments(input: {
+    cursor?: string | null;
+    dateFrom?: Date | null;
+    dateTo?: Date | null;
+    limit: number;
+    organizationId: string;
+    projectId?: string | null;
+    query: string;
+    sourceType?: SearchSourceType | null;
+  }): Promise<SearchDocumentsResult>;
   listProjectAIClassifications(projectId: string): Promise<AIMessageClassificationRecord[]>;
   listProjectActionItems(projectId: string): Promise<ActionItemRecord[]>;
   ignoreActionItem(input: { actionItemId: string; userId: string }): Promise<ActionItemRecord>;
@@ -771,6 +808,104 @@ export function createPrismaRepository(): AppRepository {
         recentActivity,
         summary
       };
+    },
+
+    async searchDocuments(input) {
+      const prisma = await getPrisma();
+      await syncSearchDocuments(prisma, input.organizationId);
+
+      const limit = Math.min(Math.max(input.limit, 1), 25);
+      const take = limit + 1;
+      const cursorDate = input.cursor ? new Date(input.cursor) : null;
+      const projectFilter = input.projectId ?? null;
+      const typeFilter = input.sourceType ?? null;
+      const query = input.query.trim();
+
+      if (query) {
+        const filters = [
+          Prisma.sql`"organizationId" = ${input.organizationId}`,
+          projectFilter ? Prisma.sql`"projectId" = ${projectFilter}` : null,
+          typeFilter ? Prisma.sql`"sourceType" = ${typeFilter}::"SearchDocumentSourceType"` : null,
+          input.dateFrom
+            ? Prisma.sql`coalesce("occurredAt", "createdAt") >= ${input.dateFrom}`
+            : null,
+          input.dateTo ? Prisma.sql`coalesce("occurredAt", "createdAt") <= ${input.dateTo}` : null,
+          cursorDate && !Number.isNaN(cursorDate.getTime())
+            ? Prisma.sql`"createdAt" < ${cursorDate}`
+            : null
+        ].filter((filter): filter is Prisma.Sql => Boolean(filter));
+
+        const rows = await prisma.$queryRaw<Array<{ id: string }>>(
+          Prisma.sql`
+            SELECT "id"
+            FROM "SearchDocument"
+            WHERE ${Prisma.join(filters, " AND ")}
+              AND to_tsvector('english', coalesce("title", '') || ' ' || coalesce("content", '')) @@ plainto_tsquery('english', ${query})
+            ORDER BY ts_rank(to_tsvector('english', coalesce("title", '') || ' ' || coalesce("content", '')), plainto_tsquery('english', ${query})) DESC,
+              "createdAt" DESC
+            LIMIT ${take}
+          `
+        );
+        const ids = rows.map((row) => row.id);
+        const documents = ids.length
+          ? await prisma.searchDocument.findMany({
+              include: searchDocumentInclude(),
+              where: {
+                id: {
+                  in: ids
+                }
+              }
+            })
+          : [];
+        const byId = new Map(documents.map((document) => [document.id, document]));
+        const ordered = ids.flatMap((id) => {
+          const document = byId.get(id);
+          return document ? [document] : [];
+        });
+
+        return toSearchDocumentsResult(ordered, limit);
+      }
+
+      const documents = await prisma.searchDocument.findMany({
+        include: searchDocumentInclude(),
+        orderBy: {
+          createdAt: "desc"
+        },
+        take,
+        where: {
+          organizationId: input.organizationId,
+          ...(projectFilter ? { projectId: projectFilter } : {}),
+          ...(typeFilter ? { sourceType: typeFilter } : {}),
+          ...(input.dateFrom || input.dateTo
+            ? {
+                OR: [
+                  {
+                    occurredAt: {
+                      ...(input.dateFrom ? { gte: input.dateFrom } : {}),
+                      ...(input.dateTo ? { lte: input.dateTo } : {})
+                    }
+                  },
+                  {
+                    occurredAt: null,
+                    createdAt: {
+                      ...(input.dateFrom ? { gte: input.dateFrom } : {}),
+                      ...(input.dateTo ? { lte: input.dateTo } : {})
+                    }
+                  }
+                ]
+              }
+            : {}),
+          ...(cursorDate && !Number.isNaN(cursorDate.getTime())
+            ? {
+                createdAt: {
+                  lt: cursorDate
+                }
+              }
+            : {})
+        }
+      });
+
+      return toSearchDocumentsResult(documents, limit);
     },
 
     async listProjectAIClassifications(projectId) {
@@ -1382,6 +1517,260 @@ function actionItemInclude() {
       }
     }
   };
+}
+
+function searchDocumentInclude() {
+  return {
+    project: {
+      select: {
+        code: true,
+        id: true,
+        name: true
+      }
+    }
+  };
+}
+
+async function syncSearchDocuments(prisma: PrismaClient, organizationId: string): Promise<void> {
+  const [projects, messages, events, actionItems, classifications] = await Promise.all([
+    prisma.project.findMany({
+      orderBy: {
+        updatedAt: "desc"
+      },
+      take: 500,
+      where: {
+        organizationId
+      }
+    }),
+    prisma.message.findMany({
+      include: {
+        conversation: {
+          select: {
+            organizationId: true,
+            project: {
+              select: {
+                code: true,
+                id: true,
+                name: true
+              }
+            },
+            projectId: true,
+            title: true
+          }
+        },
+        senderParticipant: {
+          select: {
+            displayName: true
+          }
+        }
+      },
+      orderBy: {
+        occurredAt: "desc"
+      },
+      take: 500,
+      where: {
+        conversation: {
+          organizationId
+        }
+      }
+    }),
+    prisma.event.findMany({
+      orderBy: {
+        occurredAt: "desc"
+      },
+      take: 500,
+      where: {
+        organizationId
+      }
+    }),
+    prisma.actionItem.findMany({
+      orderBy: {
+        updatedAt: "desc"
+      },
+      take: 500,
+      where: {
+        organizationId
+      }
+    }),
+    prisma.aIMessageClassification.findMany({
+      orderBy: {
+        updatedAt: "desc"
+      },
+      take: 500,
+      where: {
+        organizationId
+      }
+    })
+  ]);
+
+  const documents = [
+    ...projects.map((project) => ({
+      content: `Project ${project.name} ${project.code} status ${project.status}`,
+      metadata: {
+        code: project.code,
+        status: project.status
+      },
+      occurredAt: project.updatedAt,
+      organizationId: project.organizationId,
+      projectId: project.id,
+      sourceId: project.id,
+      sourceType: "PROJECT" as const,
+      title: `${project.code} ${project.name}`
+    })),
+    ...messages.map((message) => ({
+      content: [
+        message.body ?? "",
+        `Sender: ${message.senderParticipant.displayName}`,
+        `Conversation: ${message.conversation.title}`,
+        message.conversation.project ? `Project: ${message.conversation.project.name}` : ""
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      metadata: {
+        conversationId: message.conversationId,
+        conversationTitle: message.conversation.title,
+        messageType: message.type,
+        sender: message.senderParticipant.displayName
+      },
+      occurredAt: message.occurredAt,
+      organizationId: message.conversation.organizationId,
+      projectId: message.conversation.projectId,
+      sourceId: message.id,
+      sourceType: "MESSAGE" as const,
+      title: message.conversation.title
+    })),
+    ...events.map((event) => ({
+      content: [event.description ?? "", `Event type: ${event.eventType}`]
+        .filter(Boolean)
+        .join("\n"),
+      metadata: {
+        eventType: event.eventType
+      },
+      occurredAt: event.occurredAt,
+      organizationId: event.organizationId,
+      projectId: event.projectId,
+      sourceId: event.id,
+      sourceType: "TIMELINE_EVENT" as const,
+      title: event.title
+    })),
+    ...actionItems.map((actionItem) => ({
+      content: [
+        actionItem.description ?? "",
+        `Status: ${actionItem.status}`,
+        `Priority: ${actionItem.priority}`,
+        `Type: ${actionItem.type}`
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      metadata: {
+        priority: actionItem.priority,
+        status: actionItem.status,
+        type: actionItem.type
+      },
+      occurredAt: actionItem.updatedAt,
+      organizationId: actionItem.organizationId,
+      projectId: actionItem.projectId ?? actionItem.suggestedProjectId,
+      sourceId: actionItem.id,
+      sourceType: "ACTION_ITEM" as const,
+      title: actionItem.title
+    })),
+    ...classifications.map((classification) => ({
+      content: [
+        classification.summary ?? "",
+        classification.location ? `Location: ${classification.location}` : "",
+        classification.reasoningSummary ?? "",
+        classification.category ? `Category: ${classification.category}` : ""
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      metadata: {
+        category: classification.category,
+        confidence: classification.confidence,
+        status: classification.status
+      },
+      occurredAt: classification.updatedAt,
+      organizationId: classification.organizationId,
+      projectId: classification.projectId,
+      sourceId: classification.id,
+      sourceType: "AI_CLASSIFICATION" as const,
+      title: classification.category
+        ? `AI classification: ${classification.category}`
+        : "AI classification"
+    }))
+  ];
+
+  for (const document of documents) {
+    await prisma.searchDocument.upsert({
+      create: {
+        content: document.content || document.title,
+        metadata: document.metadata,
+        occurredAt: document.occurredAt,
+        organizationId: document.organizationId,
+        projectId: document.projectId,
+        sourceId: document.sourceId,
+        sourceType: document.sourceType,
+        title: document.title
+      },
+      update: {
+        content: document.content || document.title,
+        metadata: document.metadata,
+        occurredAt: document.occurredAt,
+        organizationId: document.organizationId,
+        projectId: document.projectId,
+        title: document.title
+      },
+      where: {
+        sourceType_sourceId: {
+          sourceId: document.sourceId,
+          sourceType: document.sourceType
+        }
+      }
+    });
+  }
+}
+
+function toSearchDocumentsResult(
+  documents: Array<{
+    content: string;
+    createdAt: Date;
+    id: string;
+    metadata: unknown;
+    occurredAt: Date | null;
+    organizationId: string;
+    project: SearchDocumentRecord["project"];
+    projectId: string | null;
+    sourceId: string;
+    sourceType: SearchSourceType;
+    title: string;
+    updatedAt: Date;
+  }>,
+  limit: number
+): SearchDocumentsResult {
+  const page = documents.slice(0, limit);
+  const hasMore = documents.length > limit;
+
+  return {
+    nextCursor: hasMore ? (page.at(-1)?.createdAt.toISOString() ?? null) : null,
+    results: page.map((document) => ({
+      createdAt: document.createdAt,
+      id: document.id,
+      metadata: document.metadata,
+      occurredAt: document.occurredAt,
+      organizationId: document.organizationId,
+      project: document.project,
+      projectId: document.projectId,
+      snippet: createSnippet(document.content),
+      sourceId: document.sourceId,
+      sourceType: document.sourceType,
+      title: document.title,
+      updatedAt: document.updatedAt
+    }))
+  };
+}
+
+function createSnippet(content: string): string {
+  const normalized = content.replace(/\s+/g, " ").trim();
+  return normalized.length > 240 ? `${normalized.slice(0, 237)}...` : normalized;
 }
 
 const openActionItemStatuses = new Set<ActionStatus>(["PENDING", "ACCEPTED"]);

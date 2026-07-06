@@ -18,6 +18,8 @@ export type {
   PrismaClient,
   Project,
   ProjectStatus,
+  SearchDocument,
+  SearchDocumentSourceType,
   User,
   WhatsAppAccount,
   WhatsAppAccountStatus,

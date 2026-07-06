@@ -19,6 +19,7 @@ model Organization {
   milestones               Milestone[]
   memberships              Membership[]
   projects                 Project[]
+  searchDocuments          SearchDocument[]
   whatsAppAccounts         WhatsAppAccount[]
   whatsAppChatMapping      WhatsAppChatMapping[]
 }
@@ -65,6 +66,7 @@ model Project {
   events                   Event[]
   milestones               Milestone[]
   organization             Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  searchDocuments          SearchDocument[]
   suggestedActionItems     ActionItem[]              @relation("ActionItemSuggestedProject")
   whatsAppChatMapping      WhatsAppChatMapping[]
 
@@ -249,6 +251,28 @@ model Event {
   @@index([sourceType, sourceId])
 }
 
+model SearchDocument {
+  id             String                   @id @default(cuid())
+  organizationId String
+  projectId      String?
+  sourceType     SearchDocumentSourceType
+  sourceId       String
+  title          String
+  content        String
+  metadata       Json?
+  occurredAt     DateTime?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  organization   Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project        Project?                 @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@unique([sourceType, sourceId])
+  @@index([organizationId, createdAt])
+  @@index([organizationId, projectId, createdAt])
+  @@index([organizationId, sourceType, createdAt])
+  @@index([projectId, createdAt])
+}
+
 model WhatsAppAccount {
   id                 String                @id @default(cuid())
   organizationId     String
@@ -408,4 +432,12 @@ enum MilestoneStatus {
   DUE_SOON
   OVERDUE
   COMPLETED
+}
+
+enum SearchDocumentSourceType {
+  PROJECT
+  MESSAGE
+  TIMELINE_EVENT
+  ACTION_ITEM
+  AI_CLASSIFICATION
 }

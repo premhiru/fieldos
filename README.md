@@ -15,6 +15,7 @@
 - [Commands](#commands)
 - [Deployment](#deployment)
 - [Operations Command Center](#operations-command-center)
+- [AI Search](#ai-search)
 - [Repository Layout](#repository-layout)
 - [Development Philosophy](#development-philosophy)
 - [Tech Stack](#tech-stack)
@@ -42,7 +43,8 @@ flowchart TD
   Shared["packages/shared\nEnv, Logger, Utilities"]
   Auth["packages/auth\nJWT, Passwords, Auth Schemas"]
   Messaging["packages/messaging\nConversations, Messages, Attachments"]
-  AI["packages/ai\nMessage Classification, Action Items"]
+  AI["packages/ai\nClassification, Search Answers"]
+  Search["SearchDocument\nGrounded Retrieval Index"]
   WhatsApp["packages/integrations/whatsapp/baileys\nBaileys Adapter"]
   Postgres["PostgreSQL"]
   Redis["Redis"]
@@ -54,6 +56,7 @@ flowchart TD
   API --> Shared
   API --> Messaging
   API --> AI
+  API --> Search
   Worker --> Shared
   Worker --> AI
   Worker --> WhatsApp
@@ -62,6 +65,7 @@ flowchart TD
   WhatsApp --> AI
   AI --> Provider
   AI --> DB
+  Search --> DB
   Worker --> Redis
   DB --> Postgres
   Auth --> Shared
@@ -240,13 +244,28 @@ The API exposes command center data through:
 - `GET /dashboard/recent-activity`
 - `GET /dashboard/brief`
 
+## AI Search
+
+FieldOS includes grounded AI search across organization and project records. Search is powered by the `SearchDocument` index in PostgreSQL and covers projects, messages, timeline events, Action Items, and AI classifications.
+
+The API exposes:
+
+- `GET /search`
+- `POST /search/ask`
+- `POST /projects/:projectId/search/ask`
+
+Answers are grounded in retrieved FieldOS records and return cited source records. If the system cannot find enough evidence, it returns: `I could not find enough information in FieldOS to answer that.`
+
+The dashboard includes a Search page with project, source type, and date filters. Project detail pages include a scoped `Ask about this project` panel.
+
 ## Current Roadmap
 
-1. Validate the Operations Command Center with production tenant data.
+1. Validate grounded AI search with production tenant data.
 2. Validate WhatsApp QR pairing and explicit chat activation with dedicated business test numbers.
-3. Add invite and membership management.
-4. Add operational observability and deployment automation.
-5. Expand AI-assisted triage into human-approved operational tasks, reports, event timeline views, and official Meta WhatsApp Cloud API support after core workflow boundaries are stable.
+3. Build Task 011 on top of the stabilized command center, messaging, and search foundation.
+4. Add invite and membership management.
+5. Add operational observability and deployment automation.
+6. Expand AI-assisted triage into human-approved operational tasks, reports, event timeline views, and official Meta WhatsApp Cloud API support after core workflow boundaries are stable.
 
 ## Contributing Guidelines
 

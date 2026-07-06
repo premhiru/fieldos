@@ -12,6 +12,12 @@ import {
   verifySessionToken
 } from "@fieldos/auth";
 import {
+  AIConfigurationError,
+  SearchAnswerGenerator,
+  type SearchAnswerInput,
+  type SearchAnswerResult
+} from "@fieldos/ai";
+import {
   AttachmentService,
   ConversationService,
   createAttachmentSchema,
@@ -43,7 +49,10 @@ import {
   messageParamsSchema,
   organizationParamsSchema,
   projectParamsSchema,
+  projectSearchAskSchema,
   actionItemParamsSchema,
+  searchAskSchema,
+  searchQuerySchema,
   updateWhatsAppChatMappingSchema,
   whatsappAccountParamsSchema,
   whatsappAccountsQuerySchema,
@@ -55,6 +64,9 @@ const writableRoles = new Set<Role>(["OWNER", "ADMIN"]);
 export interface BuildServerOptions {
   qrStore?: WhatsAppQrStore;
   repository?: AppRepository;
+  searchAnswerer?: {
+    answer(input: SearchAnswerInput): Promise<SearchAnswerResult>;
+  };
 }
 
 declare module "fastify" {
@@ -68,6 +80,7 @@ export function buildServer(options: BuildServerOptions = {}) {
   const conversationService = new ConversationService(repository);
   const messageService = new MessageService(repository);
   const attachmentService = new AttachmentService(repository);
+  const searchAnswerer = options.searchAnswerer ?? new SearchAnswerGenerator();
   const qrRedis = options.qrStore ? null : new Redis(apiEnv.REDIS_URL, { lazyConnect: true });
   const qrStore = options.qrStore ?? new RedisWhatsAppQrStore(qrRedis as Redis);
   const server = fastify({
@@ -263,6 +276,39 @@ export function buildServer(options: BuildServerOptions = {}) {
     };
   });
 
+  server.get("/search", { preHandler: requireAuth }, async (request) => {
+    const query = searchQuerySchema.parse(request.query);
+    const user = requireCurrentUser(request);
+    await requireOrganizationMembership(user.id, query.organizationId);
+    await validateMappingProject(user.id, query.organizationId, query.projectId ?? null);
+
+    const results = await repository.searchDocuments({
+      cursor: query.cursor ?? null,
+      dateFrom: query.dateFrom ?? null,
+      dateTo: query.dateTo ?? null,
+      limit: query.limit,
+      organizationId: query.organizationId,
+      projectId: query.projectId ?? null,
+      query: query.q,
+      sourceType: query.type ?? null
+    });
+
+    return results;
+  });
+
+  server.post("/search/ask", { preHandler: requireAuth }, async (request) => {
+    const body = searchAskSchema.parse(request.body);
+    const user = requireCurrentUser(request);
+    await requireOrganizationMembership(user.id, body.organizationId);
+    await validateMappingProject(user.id, body.organizationId, body.projectId ?? null);
+
+    return answerSearchQuestion({
+      organizationId: body.organizationId,
+      projectId: body.projectId ?? null,
+      question: body.question
+    });
+  });
+
   server.get(
     "/organizations/:organizationId/projects",
     { preHandler: requireAuth },
@@ -323,6 +369,25 @@ export function buildServer(options: BuildServerOptions = {}) {
     return {
       project
     };
+  });
+
+  server.post("/projects/:projectId/search/ask", { preHandler: requireAuth }, async (request) => {
+    const params = projectParamsSchema.parse(request.params);
+    const body = projectSearchAskSchema.parse(request.body);
+    const project = await repository.findProjectForUser(
+      requireCurrentUser(request).id,
+      params.projectId
+    );
+
+    if (!project) {
+      throw notFound("Project not found.");
+    }
+
+    return answerSearchQuestion({
+      organizationId: project.organizationId,
+      projectId: project.id,
+      question: body.question
+    });
   });
 
   server.get(
@@ -728,6 +793,62 @@ export function buildServer(options: BuildServerOptions = {}) {
     });
   }
 
+  async function answerSearchQuestion(input: {
+    organizationId: string;
+    projectId: string | null;
+    question: string;
+  }) {
+    const search = await repository.searchDocuments({
+      limit: 8,
+      organizationId: input.organizationId,
+      projectId: input.projectId,
+      query: input.question,
+      sourceType: null
+    });
+
+    if (search.results.length === 0) {
+      return {
+        answer: notEnoughInformationAnswer,
+        confidence: "LOW",
+        sources: []
+      };
+    }
+
+    const sources = search.results.map((result) => ({
+      occurredAt: result.occurredAt?.toISOString() ?? null,
+      projectName: result.project?.name ?? null,
+      snippet: result.snippet,
+      sourceId: result.sourceId,
+      sourceType: result.sourceType,
+      title: result.title
+    }));
+
+    try {
+      const answer = await searchAnswerer.answer({
+        question: input.question,
+        sources
+      });
+      const citedSourceIds = new Set(answer.sourceIds);
+      const citedSources = sources.filter((source) => citedSourceIds.has(source.sourceId));
+
+      return {
+        answer: answer.answer,
+        confidence: answer.confidence,
+        sources: citedSources.length > 0 ? citedSources : sources
+      };
+    } catch (error) {
+      if (!(error instanceof AIConfigurationError)) {
+        server.log.warn({ error }, "search answer generation failed");
+      }
+
+      return {
+        answer: buildDeterministicSearchAnswer(input.question, sources),
+        confidence: "MEDIUM",
+        sources
+      };
+    }
+  }
+
   async function validateMappingProject(
     userId: string,
     organizationId: string,
@@ -745,6 +866,27 @@ export function buildServer(options: BuildServerOptions = {}) {
   }
 
   return server;
+}
+
+const notEnoughInformationAnswer = "I could not find enough information in FieldOS to answer that.";
+
+function buildDeterministicSearchAnswer(
+  question: string,
+  sources: Array<{
+    occurredAt: string | null;
+    projectName: string | null;
+    snippet: string;
+    sourceId: string;
+    sourceType: string;
+    title: string;
+  }>
+): string {
+  const summary = sources
+    .slice(0, 3)
+    .map((source) => `${source.title}: ${source.snippet}`)
+    .join(" ");
+
+  return `I found ${sources.length} FieldOS source${sources.length === 1 ? "" : "s"} related to "${question}". ${summary}`;
 }
 
 function getCookieBaseOptions() {

@@ -20,6 +20,35 @@ export const actionItemParamsSchema = z.object({
   id: z.string().min(1)
 });
 
+export const searchSourceTypeSchema = z.enum([
+  "PROJECT",
+  "MESSAGE",
+  "TIMELINE_EVENT",
+  "ACTION_ITEM",
+  "AI_CLASSIFICATION"
+]);
+
+export const searchQuerySchema = z.object({
+  cursor: z.string().trim().min(1).optional(),
+  dateFrom: z.coerce.date().optional(),
+  dateTo: z.coerce.date().optional(),
+  limit: z.coerce.number().int().min(1).max(25).default(10),
+  organizationId: z.string().trim().min(1),
+  projectId: z.string().trim().min(1).optional(),
+  q: z.string().trim().max(500).default(""),
+  type: searchSourceTypeSchema.optional()
+});
+
+export const searchAskSchema = z.object({
+  organizationId: z.string().trim().min(1),
+  projectId: z.string().trim().min(1).nullable().optional(),
+  question: z.string().trim().min(1).max(500)
+});
+
+export const projectSearchAskSchema = z.object({
+  question: z.string().trim().min(1).max(500)
+});
+
 export const whatsappAccountParamsSchema = z.object({
   id: z.string().min(1)
 });
