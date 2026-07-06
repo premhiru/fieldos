@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as React from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -19,6 +20,11 @@ vi.mock("../lib/queries", () => ({
     },
     isLoading: false
   }),
+  useOperationsDashboard: () => ({
+    data: undefined,
+    isError: false,
+    isLoading: false
+  }),
   useProjects: () => ({
     data: {
       projects: []
@@ -33,9 +39,17 @@ vi.mock("../components/organization-onboarding", () => ({
 
 describe("DashboardPage", () => {
   it("renders the dashboard onboarding state", () => {
-    render(React.createElement(DashboardPage));
+    const queryClient = new QueryClient();
 
-    expect(screen.getByRole("heading", { name: "FieldOS Dashboard" })).toBeTruthy();
+    render(
+      React.createElement(
+        QueryClientProvider,
+        { client: queryClient },
+        React.createElement(DashboardPage)
+      )
+    );
+
+    expect(screen.getByRole("heading", { name: "Operations Command Center" })).toBeTruthy();
     expect(screen.getByText("Create your first organization")).toBeTruthy();
   });
 });

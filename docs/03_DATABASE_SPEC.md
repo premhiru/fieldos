@@ -5,7 +5,7 @@
 | Purpose      | Define the data model, ownership boundaries, migration policy, and database standards. |
 | Owner        | Engineering                                                                            |
 | Status       | Draft                                                                                  |
-| Last Updated | 2026-07-03                                                                             |
+| Last Updated | 2026-07-06                                                                             |
 
 ## Table of Contents
 
@@ -15,6 +15,7 @@
 - [WhatsApp Connector Model](#whatsapp-connector-model)
 - [AI Classification Model](#ai-classification-model)
 - [Event Model](#event-model)
+- [Milestone Model](#milestone-model)
 - [Schema Ownership](#schema-ownership)
 - [Migration Policy](#migration-policy)
 - [Retention and Compliance](#retention-and-compliance)
@@ -39,6 +40,7 @@ Current MVP models:
 - `AIMessageClassification`: AI-derived classification, summary, extracted fields, and processing status for one message.
 - `ActionItem`: Human-reviewable recommendation derived from an AI classification or deterministic project suggestion.
 - `Event`: Generic organization-scoped activity record prepared for timeline features.
+- `Milestone`: Lightweight project deadline used by the Operations Command Center.
 - `WhatsAppAccount`: A WhatsApp connector account owned by an organization.
 - `WhatsAppChatMapping`: Connector-specific mapping between a WhatsApp chat JID, a generic conversation, and an optional project.
 
@@ -178,16 +180,24 @@ ActionItem statuses:
 
 - `PENDING`: Awaiting human decision.
 - `ACCEPTED`: Approved by a user.
+- `COMPLETED`: Completed by a user.
 - `IGNORED`: Dismissed by a user.
 - `CONVERTED`: Reserved for future conversion into a first-class task.
+
+ActionItem priorities:
+
+- `LOW`
+- `MEDIUM`
+- `HIGH`
+- `URGENT`
 
 Key constraints:
 
 - `AIMessageClassification.messageId` is unique.
 - Classification rows cascade with messages, projects, and organizations.
 - Action Items cascade with their source message and optional classification.
-- `acceptedByUserId` and `ignoredByUserId` are nullable audit references.
-- Organization, project, status, message, classification, and suggested-project query paths are indexed.
+- `assignedToUserId`, `acceptedByUserId`, and `ignoredByUserId` are nullable user references.
+- Organization, project, status, priority, assignee, message, classification, and suggested-project query paths are indexed.
 
 ## Event Model
 
@@ -214,6 +224,24 @@ Key indexes:
 - `organizationId, occurredAt`
 - `projectId, occurredAt`
 - `sourceType, sourceId`
+
+## Milestone Model
+
+`Milestone` is intentionally lightweight. It supports command-center visibility into upcoming and overdue project deadlines without introducing a full scheduling domain.
+
+Fields:
+
+- `organizationId`: Required tenant scope.
+- `projectId`: Owning project.
+- `title`: User-facing milestone name.
+- `dueDate`: Deadline used for ordering and overdue checks.
+- `status`: `UPCOMING`, `DUE_SOON`, `OVERDUE`, or `COMPLETED`.
+
+Key indexes:
+
+- `organizationId, dueDate`
+- `projectId, dueDate`
+- `status, dueDate`
 
 ## Schema Ownership
 

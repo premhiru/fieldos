@@ -25,6 +25,9 @@ import type {
   Status,
   StoredUser,
   ActionItemRecord,
+  DashboardHealth,
+  MilestoneRecord,
+  OperationsDashboardRecord,
   WhatsAppAccountRecord,
   WhatsAppChatMappingRecord
 } from "./repository.js";
@@ -711,6 +714,132 @@ describe("FieldOS API auth and tenancy", () => {
     expect(ignoreResponse.json().actionItem.status).toBe("IGNORED");
   });
 
+  it("completes Action Items", async () => {
+    const cookie = await signup(server);
+    const organization = await createOrganization(server, cookie);
+    const user = repository.users.find((candidate) => candidate.email === "founder@example.com");
+    const project = await repository.createProject({
+      code: "AI-006",
+      name: "Completion project",
+      organizationId: organization.id,
+      status: "ACTIVE"
+    });
+    const message = await createProjectMessage(repository, organization.id, project.id);
+    const classification = repository.addCompletedClassification({
+      messageId: message.id,
+      organizationId: organization.id,
+      projectId: project.id
+    });
+    const actionItem = repository.addActionItem({
+      assignedToUserId: user?.id,
+      classificationId: classification.id,
+      messageId: message.id,
+      organizationId: organization.id,
+      projectId: project.id
+    });
+
+    const response = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "POST",
+      url: `/action-items/${actionItem.id}/complete`
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().actionItem.status).toBe("COMPLETED");
+  });
+
+  it("returns dashboard summary, project ranking, grouped action items, activity, and fallback brief", async () => {
+    const cookie = await signup(server);
+    const organization = await createOrganization(server, cookie);
+    const user = repository.users.find((candidate) => candidate.email === "founder@example.com");
+
+    if (!user) {
+      throw new Error("founder user was not created");
+    }
+
+    const healthyProject = await repository.createProject({
+      code: "OPS-001",
+      name: "Healthy project",
+      organizationId: organization.id,
+      status: "ACTIVE"
+    });
+    const criticalProject = await repository.createProject({
+      code: "OPS-002",
+      name: "Critical project",
+      organizationId: organization.id,
+      status: "ACTIVE"
+    });
+    const message = await createProjectMessage(repository, organization.id, criticalProject.id);
+    const classification = repository.addCompletedClassification({
+      category: "SAFETY_ISSUE",
+      messageId: message.id,
+      organizationId: organization.id,
+      projectId: criticalProject.id
+    });
+    repository.addActionItem({
+      assignedToUserId: user.id,
+      classificationId: classification.id,
+      messageId: message.id,
+      organizationId: organization.id,
+      priority: "URGENT",
+      projectId: criticalProject.id
+    });
+    repository.addEvent({
+      organizationId: organization.id,
+      projectId: criticalProject.id,
+      sourceType: "MESSAGE",
+      title: "Safety issue reported"
+    });
+    repository.addEvent({
+      organizationId: organization.id,
+      projectId: healthyProject.id,
+      sourceType: "SYSTEM",
+      title: "Technical sync completed"
+    });
+    repository.addMilestone({
+      dueDate: new Date("2026-07-10T00:00:00.000Z"),
+      organizationId: organization.id,
+      projectId: criticalProject.id,
+      status: "UPCOMING",
+      title: "Inspection"
+    });
+
+    const response = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "GET",
+      url: `/dashboard?organizationId=${organization.id}`
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().dashboard.summary.activeProjects).toBe(2);
+    expect(response.json().dashboard.summary.criticalProjects).toBe(1);
+    expect(response.json().dashboard.projects[0].name).toBe("Critical project");
+    expect(response.json().dashboard.actionItems.urgent).toHaveLength(1);
+    expect(response.json().dashboard.recentActivity).toHaveLength(1);
+    expect(response.json().dashboard.brief.generatedBy).toBe("FALLBACK");
+    expect(response.json().dashboard.milestones).toHaveLength(1);
+  });
+
+  it("blocks cross-organization dashboard access", async () => {
+    const ownerCookie = await signup(server, "owner-dashboard@example.com");
+    const organization = await createOrganization(server, ownerCookie);
+    const outsiderCookie = await signup(server, "dashboard-outsider@example.com");
+
+    const response = await server.inject({
+      headers: {
+        cookie: outsiderCookie
+      },
+      method: "GET",
+      url: `/dashboard/summary?organizationId=${organization.id}`
+    });
+
+    expect(response.statusCode).toBe(404);
+  });
+
   it("reassigns project suggestion Action Items only after acceptance", async () => {
     const cookie = await signup(server);
     const organization = await createOrganization(server, cookie);
@@ -873,8 +1002,21 @@ async function createProjectMessage(
 class InMemoryRepository implements AppRepository {
   attachments: AttachmentRecord[] = [];
   conversations: ConversationRecord[] = [];
+  events: Array<{
+    id: string;
+    organizationId: string;
+    projectId: string | null;
+    sourceType: "MESSAGE" | "ACTION_ITEM" | "REPORT" | "SYSTEM";
+    sourceId: string;
+    eventType: string;
+    title: string;
+    description: string | null;
+    occurredAt: Date;
+    createdAt: Date;
+  }> = [];
   memberships: MembershipRecord[] = [];
   messages: MessageRecord[] = [];
+  milestones: MilestoneRecord[] = [];
   organizations: Omit<OrganizationRecord, "role">[] = [];
   participants: ParticipantRecord[] = [];
   projects: ProjectRecord[] = [];
@@ -1350,6 +1492,7 @@ class InMemoryRepository implements AppRepository {
 
     task.acceptedAt = new Date();
     task.acceptedByUserId = input.userId;
+    task.completedAt = null;
     task.ignoredAt = null;
     task.ignoredByUserId = null;
     task.status = "ACCEPTED";
@@ -1428,6 +1571,7 @@ class InMemoryRepository implements AppRepository {
     const task = this.requireActionItem(input.actionItemId);
     task.acceptedAt = null;
     task.acceptedByUserId = null;
+    task.completedAt = null;
     task.ignoredAt = new Date();
     task.ignoredByUserId = input.userId;
     task.status = "IGNORED";
@@ -1435,14 +1579,166 @@ class InMemoryRepository implements AppRepository {
     return task;
   }
 
+  async completeActionItem(input: {
+    actionItemId: string;
+    userId: string;
+  }): Promise<ActionItemRecord> {
+    const task = this.requireActionItem(input.actionItemId);
+    void input.userId;
+    task.completedAt = new Date();
+    task.status = "COMPLETED";
+    task.updatedAt = new Date();
+    return task;
+  }
+
+  async getOperationsDashboard(input: {
+    organizationId: string;
+    userId: string;
+  }): Promise<OperationsDashboardRecord> {
+    const projects = this.projects.filter(
+      (project) => project.organizationId === input.organizationId && project.status === "ACTIVE"
+    );
+    const actionItems = this.actionItems.filter(
+      (actionItem) => actionItem.organizationId === input.organizationId
+    );
+    const classifications = this.classifications.filter(
+      (classification) => classification.organizationId === input.organizationId
+    );
+    const milestones = this.milestones
+      .filter(
+        (milestone) =>
+          milestone.organizationId === input.organizationId && milestone.status !== "COMPLETED"
+      )
+      .sort((left, right) => left.dueDate.getTime() - right.dueDate.getTime())
+      .slice(0, 12);
+    const events = this.events
+      .filter(
+        (event) =>
+          event.organizationId === input.organizationId &&
+          event.projectId &&
+          event.sourceType !== "SYSTEM"
+      )
+      .sort((left, right) => right.occurredAt.getTime() - left.occurredAt.getTime())
+      .slice(0, 12);
+    const dashboardProjects = projects
+      .map((project) => {
+        const projectActionItems = actionItems.filter(
+          (actionItem) =>
+            actionItem.projectId === project.id &&
+            ["PENDING", "ACCEPTED"].includes(actionItem.status)
+        );
+        const urgentCount = projectActionItems.filter(
+          (actionItem) => actionItem.priority === "URGENT"
+        ).length;
+        const highCount = projectActionItems.filter((actionItem) =>
+          ["HIGH", "URGENT"].includes(actionItem.priority)
+        ).length;
+        const overdueCount = milestones.filter(
+          (milestone) => milestone.projectId === project.id && milestone.status === "OVERDUE"
+        ).length;
+        const hasSafetyIssue = classifications.some(
+          (classification) =>
+            classification.projectId === project.id && classification.category === "SAFETY_ISSUE"
+        );
+        const hasAttentionIssue = classifications.some(
+          (classification) =>
+            classification.projectId === project.id &&
+            ["DELAY", "DEFECT", "INSPECTION_REQUEST"].includes(classification.category ?? "")
+        );
+        const health: DashboardHealth =
+          hasSafetyIssue || urgentCount >= 3 || overdueCount >= 2
+            ? "CRITICAL"
+            : highCount > 0 || overdueCount > 0 || hasAttentionIssue
+              ? "NEEDS_ATTENTION"
+              : "HEALTHY";
+        const rankScore =
+          (health === "CRITICAL" ? 300 : health === "NEEDS_ATTENTION" ? 150 : 0) +
+          urgentCount * 20 +
+          highCount * 10 +
+          overdueCount * 15;
+
+        return {
+          code: project.code,
+          health,
+          highestPriorityIssue: projectActionItems[0]?.title ?? null,
+          id: project.id,
+          lastActivityAt:
+            events.find((event) => event.projectId === project.id)?.occurredAt ?? project.updatedAt,
+          name: project.name,
+          openActionItemCount: projectActionItems.length,
+          rankScore,
+          status: project.status
+        };
+      })
+      .sort(
+        (left, right) => right.rankScore - left.rankScore || left.name.localeCompare(right.name)
+      );
+    const openActionItems = actionItems.filter((actionItem) =>
+      ["PENDING", "ACCEPTED"].includes(actionItem.status)
+    );
+    const myActionItems = openActionItems.filter(
+      (actionItem) => actionItem.assignedToUserId === input.userId
+    );
+    const recentActivity = events.map((event) => {
+      const project = this.projects.find((candidate) => candidate.id === event.projectId);
+      return {
+        eventType: event.eventType,
+        icon: event.sourceType === "MESSAGE" ? "message-circle" : "check-circle",
+        id: event.id,
+        occurredAt: event.occurredAt,
+        projectId: event.projectId ?? "",
+        projectName: project?.name ?? "Unknown project",
+        sourceType: event.sourceType,
+        title: event.title
+      };
+    });
+    const summary = {
+      activeProjects: dashboardProjects.length,
+      criticalProjects: dashboardProjects.filter((project) => project.health === "CRITICAL").length,
+      healthyProjects: dashboardProjects.filter((project) => project.health === "HEALTHY").length,
+      highPriorityActionItems: openActionItems.filter((actionItem) =>
+        ["HIGH", "URGENT"].includes(actionItem.priority)
+      ).length,
+      openActionItems: openActionItems.length,
+      pendingAIReviews: classifications.filter((classification) =>
+        ["PENDING", "NEEDS_REVIEW"].includes(classification.status)
+      ).length,
+      projectsNeedingAttention: dashboardProjects.filter(
+        (project) => project.health === "NEEDS_ATTENTION"
+      ).length,
+      todaysActivityCount: recentActivity.length
+    };
+
+    return {
+      actionItems: {
+        high: myActionItems.filter((actionItem) => actionItem.priority === "HIGH"),
+        low: myActionItems.filter((actionItem) => actionItem.priority === "LOW"),
+        medium: myActionItems.filter((actionItem) => actionItem.priority === "MEDIUM"),
+        urgent: myActionItems.filter((actionItem) => actionItem.priority === "URGENT")
+      },
+      brief: {
+        bullets: [
+          `${summary.activeProjects} active projects are being tracked.`,
+          `${summary.openActionItems} open Action Items remain.`
+        ],
+        generatedBy: "FALLBACK"
+      },
+      milestones,
+      projects: dashboardProjects,
+      recentActivity,
+      summary
+    };
+  }
+
   addCompletedClassification(input: {
     messageId: string;
     organizationId: string;
     projectId: string;
     actionRequired?: boolean;
+    category?: AIMessageClassificationRecord["category"];
   }): AIMessageClassificationRecord {
     const classification: AIMessageClassificationRecord = {
-      category: "DEFECT",
+      category: input.category ?? "DEFECT",
       confidence: 0.91,
       createdAt: new Date(),
       errorMessage: null,
@@ -1466,19 +1762,27 @@ class InMemoryRepository implements AppRepository {
     messageId: string;
     organizationId: string;
     projectId: string | null;
+    assignedToUserId?: string | null;
+    priority?: ActionItemRecord["priority"];
     suggestedProjectId?: string | null;
     type?: "FOLLOW_UP" | "PROJECT_SUGGESTION";
   }): ActionItemRecord {
     const task: ActionItemRecord = {
       acceptedAt: null,
       acceptedByUserId: null,
+      assignedToUserId: input.assignedToUserId ?? null,
       classificationId: input.classificationId,
+      completedAt: null,
       confidence: 0.91,
       createdAt: new Date(),
       description: "Rectify the reported issue.",
       id: nextId("action_item"),
       messageId: input.messageId,
       organizationId: input.organizationId,
+      priority: input.priority ?? "MEDIUM",
+      project: input.projectId
+        ? (this.projects.find((project) => project.id === input.projectId) ?? null)
+        : null,
       projectId: input.projectId,
       ignoredAt: null,
       ignoredByUserId: null,
@@ -1491,6 +1795,61 @@ class InMemoryRepository implements AppRepository {
     };
     this.actionItems.push(task);
     return task;
+  }
+
+  addEvent(input: {
+    organizationId: string;
+    projectId: string | null;
+    sourceType: "MESSAGE" | "ACTION_ITEM" | "REPORT" | "SYSTEM";
+    title: string;
+    occurredAt?: Date;
+  }) {
+    const event = {
+      createdAt: new Date(),
+      description: null,
+      eventType: "created",
+      id: nextId("event"),
+      occurredAt: input.occurredAt ?? new Date(),
+      organizationId: input.organizationId,
+      projectId: input.projectId,
+      sourceId: nextId("source"),
+      sourceType: input.sourceType,
+      title: input.title
+    };
+    this.events.push(event);
+    return event;
+  }
+
+  addMilestone(input: {
+    organizationId: string;
+    projectId: string;
+    title: string;
+    dueDate: Date;
+    status?: MilestoneRecord["status"];
+  }): MilestoneRecord {
+    const project = this.projects.find((candidate) => candidate.id === input.projectId);
+
+    if (!project) {
+      throw new Error("project missing in test repository");
+    }
+
+    const milestone: MilestoneRecord = {
+      createdAt: new Date(),
+      dueDate: input.dueDate,
+      id: nextId("milestone"),
+      organizationId: input.organizationId,
+      project: {
+        code: project.code,
+        id: project.id,
+        name: project.name
+      },
+      projectId: input.projectId,
+      status: input.status ?? "UPCOMING",
+      title: input.title,
+      updatedAt: new Date()
+    };
+    this.milestones.push(milestone);
+    return milestone;
   }
 
   private requireActionItem(actionItemId: string): ActionItemRecord {

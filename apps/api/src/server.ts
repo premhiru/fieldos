@@ -39,6 +39,7 @@ import {
   createProjectSchema,
   conversationParamsSchema,
   createWhatsAppAccountSchema,
+  dashboardQuerySchema,
   messageParamsSchema,
   organizationParamsSchema,
   projectParamsSchema,
@@ -211,6 +212,54 @@ export function buildServer(options: BuildServerOptions = {}) {
 
     return {
       organization
+    };
+  });
+
+  server.get("/dashboard", { preHandler: requireAuth }, async (request) => {
+    const dashboard = await getDashboardForRequest(request);
+
+    return {
+      dashboard
+    };
+  });
+
+  server.get("/dashboard/summary", { preHandler: requireAuth }, async (request) => {
+    const dashboard = await getDashboardForRequest(request);
+
+    return {
+      summary: dashboard.summary
+    };
+  });
+
+  server.get("/dashboard/projects", { preHandler: requireAuth }, async (request) => {
+    const dashboard = await getDashboardForRequest(request);
+
+    return {
+      projects: dashboard.projects
+    };
+  });
+
+  server.get("/dashboard/action-items", { preHandler: requireAuth }, async (request) => {
+    const dashboard = await getDashboardForRequest(request);
+
+    return {
+      actionItems: dashboard.actionItems
+    };
+  });
+
+  server.get("/dashboard/recent-activity", { preHandler: requireAuth }, async (request) => {
+    const dashboard = await getDashboardForRequest(request);
+
+    return {
+      recentActivity: dashboard.recentActivity
+    };
+  });
+
+  server.get("/dashboard/brief", { preHandler: requireAuth }, async (request) => {
+    const dashboard = await getDashboardForRequest(request);
+
+    return {
+      brief: dashboard.brief
     };
   });
 
@@ -410,6 +459,19 @@ export function buildServer(options: BuildServerOptions = {}) {
 
     return {
       actionItem: await repository.acceptActionItem({
+        actionItemId: actionItem.id,
+        userId: user.id
+      })
+    };
+  });
+
+  server.post("/action-items/:id/complete", { preHandler: requireAuth }, async (request) => {
+    const params = actionItemParamsSchema.parse(request.params);
+    const user = requireCurrentUser(request);
+    const actionItem = await requireActionItemAccess(user.id, params.id);
+
+    return {
+      actionItem: await repository.completeActionItem({
         actionItemId: actionItem.id,
         userId: user.id
       })
@@ -653,6 +715,17 @@ export function buildServer(options: BuildServerOptions = {}) {
 
     await requireOrganizationMembership(userId, actionItem.organizationId);
     return actionItem;
+  }
+
+  async function getDashboardForRequest(request: FastifyRequest) {
+    const query = dashboardQuerySchema.parse(request.query);
+    const user = requireCurrentUser(request);
+    await requireOrganizationMembership(user.id, query.organizationId);
+
+    return repository.getOperationsDashboard({
+      organizationId: query.organizationId,
+      userId: user.id
+    });
   }
 
   async function validateMappingProject(

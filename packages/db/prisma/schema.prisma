@@ -16,6 +16,7 @@ model Organization {
   actionItems              ActionItem[]
   conversations            Conversation[]
   events                   Event[]
+  milestones               Milestone[]
   memberships              Membership[]
   projects                 Project[]
   whatsAppAccounts         WhatsAppAccount[]
@@ -23,15 +24,16 @@ model Organization {
 }
 
 model User {
-  id                            String                   @id @default(cuid())
-  email                         String                   @unique
+  id                            String                @id @default(cuid())
+  email                         String                @unique
   name                          String
   passwordHash                  String
-  createdAt                     DateTime                 @default(now())
-  updatedAt                     DateTime                 @updatedAt
+  createdAt                     DateTime              @default(now())
+  updatedAt                     DateTime              @updatedAt
   activatedWhatsAppChatMappings WhatsAppChatMapping[]
-  acceptedActionItems           ActionItem[]             @relation("ActionItemAcceptedBy")
-  ignoredActionItems            ActionItem[]             @relation("ActionItemIgnoredBy")
+  acceptedActionItems           ActionItem[]          @relation("ActionItemAcceptedBy")
+  assignedActionItems           ActionItem[]          @relation("ActionItemAssignedTo")
+  ignoredActionItems            ActionItem[]          @relation("ActionItemIgnoredBy")
   memberships                   Membership[]
 }
 
@@ -61,35 +63,36 @@ model Project {
   actionItems              ActionItem[]
   conversations            Conversation[]
   events                   Event[]
+  milestones               Milestone[]
   organization             Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   suggestedActionItems     ActionItem[]              @relation("ActionItemSuggestedProject")
   whatsAppChatMapping      WhatsAppChatMapping[]
 
-  @@index([organizationId])
   @@unique([organizationId, code])
+  @@index([organizationId])
 }
 
 model Conversation {
-  id             String        @id @default(cuid())
-  organizationId String
-  projectId      String?
-  externalId     String
-  channel        Channel
-  title          String
-  isGroup        Boolean       @default(false)
-  lastMessageAt  DateTime?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  attachments    Attachment[]
-  messages       Message[]
-  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  participants   Participant[]
-  project        Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  id              String               @id @default(cuid())
+  organizationId  String
+  projectId       String?
+  externalId      String
+  channel         Channel
+  title           String
+  isGroup         Boolean              @default(false)
+  lastMessageAt   DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  attachments     Attachment[]
+  messages        Message[]
+  organization    Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  participants    Participant[]
+  project         Project?             @relation(fields: [projectId], references: [id], onDelete: SetNull)
   whatsAppMapping WhatsAppChatMapping?
 
+  @@unique([organizationId, channel, externalId])
   @@index([organizationId, updatedAt])
   @@index([projectId])
-  @@unique([organizationId, channel, externalId])
 }
 
 model Participant {
@@ -102,12 +105,12 @@ model Participant {
   conversation       Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sentMessages       Message[]
 
-  @@index([conversationId])
   @@unique([conversationId, externalIdentifier])
+  @@index([conversationId])
 }
 
 model Message {
-  id                  String           @id @default(cuid())
+  id                  String                   @id @default(cuid())
   conversationId      String
   senderParticipantId String
   direction           MessageDirection
@@ -115,16 +118,16 @@ model Message {
   body                String?
   externalMessageId   String?
   occurredAt          DateTime
-  createdAt           DateTime         @default(now())
-  aiClassification     AIMessageClassification?
-  actionItems          ActionItem[]
+  createdAt           DateTime                 @default(now())
+  aiClassification    AIMessageClassification?
+  actionItems         ActionItem[]
   attachments         Attachment[]
-  conversation        Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  senderParticipant   Participant      @relation(fields: [senderParticipantId], references: [id], onDelete: Restrict)
+  conversation        Conversation             @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderParticipant   Participant              @relation(fields: [senderParticipantId], references: [id], onDelete: Restrict)
 
+  @@unique([conversationId, externalMessageId])
   @@index([conversationId, occurredAt])
   @@index([senderParticipantId])
-  @@unique([conversationId, externalMessageId])
 }
 
 model Attachment {
@@ -169,39 +172,62 @@ model AIMessageClassification {
 }
 
 model ActionItem {
-  id                 String          @id @default(cuid())
+  id                 String                   @id @default(cuid())
   organizationId     String
   projectId          String?
   messageId          String
   classificationId   String?
   suggestedProjectId String?
-  type               ActionItemType  @default(FOLLOW_UP)
+  type               ActionItemType           @default(FOLLOW_UP)
+  priority           ActionItemPriority       @default(MEDIUM)
   title              String
   description        String?
   confidence         Float?
-  status             ActionItemStatus @default(PENDING)
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
+  status             ActionItemStatus         @default(PENDING)
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
   acceptedAt         DateTime?
   acceptedByUserId   String?
+  assignedToUserId   String?
+  completedAt        DateTime?
   ignoredAt          DateTime?
   ignoredByUserId    String?
-  acceptedByUser     User?           @relation("ActionItemAcceptedBy", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
+  acceptedByUser     User?                    @relation("ActionItemAcceptedBy", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
+  assignedToUser     User?                    @relation("ActionItemAssignedTo", fields: [assignedToUserId], references: [id], onDelete: SetNull)
   classification     AIMessageClassification? @relation(fields: [classificationId], references: [id], onDelete: Cascade)
-  ignoredByUser      User?           @relation("ActionItemIgnoredBy", fields: [ignoredByUserId], references: [id], onDelete: SetNull)
-  message            Message         @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  organization       Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  project            Project?        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  suggestedProject   Project?        @relation("ActionItemSuggestedProject", fields: [suggestedProjectId], references: [id], onDelete: SetNull)
+  ignoredByUser      User?                    @relation("ActionItemIgnoredBy", fields: [ignoredByUserId], references: [id], onDelete: SetNull)
+  message            Message                  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  organization       Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project            Project?                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  suggestedProject   Project?                 @relation("ActionItemSuggestedProject", fields: [suggestedProjectId], references: [id], onDelete: SetNull)
 
   @@index([organizationId, status, createdAt])
+  @@index([organizationId, priority, status])
   @@index([organizationId, type, status])
   @@index([projectId, status, createdAt])
   @@index([suggestedProjectId, status, createdAt])
+  @@index([assignedToUserId, status, priority])
   @@index([messageId])
   @@index([classificationId])
   @@index([acceptedByUserId])
   @@index([ignoredByUserId])
+}
+
+model Milestone {
+  id             String          @id @default(cuid())
+  organizationId String
+  projectId      String
+  title          String
+  dueDate        DateTime
+  status         MilestoneStatus @default(UPCOMING)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, dueDate])
+  @@index([projectId, dueDate])
+  @@index([status, dueDate])
 }
 
 model Event {
@@ -224,51 +250,51 @@ model Event {
 }
 
 model WhatsAppAccount {
-  id                 String                 @id @default(cuid())
+  id                 String                @id @default(cuid())
   organizationId     String
   displayName        String
   phoneNumber        String?
-  connectorType      WhatsAppConnectorType  @default(BAILEYS)
-  status             WhatsAppAccountStatus  @default(PENDING_QR)
+  connectorType      WhatsAppConnectorType @default(BAILEYS)
+  status             WhatsAppAccountStatus @default(PENDING_QR)
   sessionKey         String
   lastConnectedAt    DateTime?
   lastDisconnectedAt DateTime?
   lastMessageAt      DateTime?
-  createdAt          DateTime               @default(now())
-  updatedAt          DateTime               @updatedAt
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
   chatMappings       WhatsAppChatMapping[]
-  organization       Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization       Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  @@index([organizationId])
   @@unique([sessionKey])
+  @@index([organizationId])
 }
 
 model WhatsAppChatMapping {
-  id                String          @id @default(cuid())
+  id                String                    @id @default(cuid())
   organizationId    String
   whatsappAccountId String
   conversationId    String?
   projectId         String?
   jid               String
   chatName          String?
-  isGroup           Boolean         @default(false)
+  isGroup           Boolean                   @default(false)
   status            WhatsAppChatMappingStatus @default(DISCOVERED)
   activatedAt       DateTime?
   activatedByUserId String?
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-  activatedByUser   User?           @relation(fields: [activatedByUserId], references: [id], onDelete: SetNull)
-  conversation      Conversation?   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  project           Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  whatsappAccount   WhatsAppAccount @relation(fields: [whatsappAccountId], references: [id], onDelete: Cascade)
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  activatedByUser   User?                     @relation(fields: [activatedByUserId], references: [id], onDelete: SetNull)
+  conversation      Conversation?             @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  organization      Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project           Project?                  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  whatsappAccount   WhatsAppAccount           @relation(fields: [whatsappAccountId], references: [id], onDelete: Cascade)
 
+  @@unique([whatsappAccountId, jid])
+  @@unique([conversationId])
   @@index([activatedByUserId])
   @@index([organizationId])
   @@index([projectId])
   @@index([status])
-  @@unique([whatsappAccountId, jid])
-  @@unique([conversationId])
 }
 
 enum MembershipRole {
@@ -353,6 +379,7 @@ enum AIClassificationStatus {
 enum ActionItemStatus {
   PENDING
   ACCEPTED
+  COMPLETED
   IGNORED
   CONVERTED
 }
@@ -362,9 +389,23 @@ enum ActionItemType {
   PROJECT_SUGGESTION
 }
 
+enum ActionItemPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
 enum EventSourceType {
   MESSAGE
   ACTION_ITEM
   REPORT
   SYSTEM
+}
+
+enum MilestoneStatus {
+  UPCOMING
+  DUE_SOON
+  OVERDUE
+  COMPLETED
 }

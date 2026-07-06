@@ -32,6 +32,10 @@ export const whatsappAccountsQuerySchema = z.object({
   organizationId: z.string().trim().min(1)
 });
 
+export const dashboardQuerySchema = z.object({
+  organizationId: z.string().trim().min(1)
+});
+
 export const createWhatsAppAccountSchema = z.object({
   displayName: z.string().trim().min(1).max(120),
   organizationId: z.string().trim().min(1)

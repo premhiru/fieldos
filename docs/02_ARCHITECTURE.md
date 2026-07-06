@@ -5,7 +5,7 @@
 | Purpose      | Describe the FieldOS system architecture, boundaries, integration points, and evolution plan. |
 | Owner        | Engineering                                                                                   |
 | Status       | Draft                                                                                         |
-| Last Updated | 2026-07-03                                                                                    |
+| Last Updated | 2026-07-06                                                                                    |
 
 ## Table of Contents
 
@@ -17,6 +17,7 @@
 - [Integration Strategy](#integration-strategy)
 - [WhatsApp Connector](#whatsapp-connector)
 - [AI Classification](#ai-classification)
+- [Operations Command Center](#operations-command-center)
 - [Event Model](#event-model)
 - [Evolution Path](#evolution-path)
 
@@ -117,6 +118,31 @@ The worker polls pending `AIMessageClassification` rows, sends normalized messag
 Action Items are not operational tasks. They are human-review records that can be accepted or ignored through the API and dashboard. Future task-domain work can convert accepted follow-up Action Items into first-class task records.
 
 Project suggestions are represented as `ActionItem` records with type `PROJECT_SUGGESTION`. Accepting one updates the conversation and WhatsApp chat mapping to the suggested project. Ignoring one records the human decision without changing project assignment.
+
+## Operations Command Center
+
+The Operations Command Center is the authenticated homepage. The dashboard remains presentation-oriented and consumes organization-scoped aggregates from the API instead of calculating health locally.
+
+The API owns:
+
+- Tenant authorization for dashboard endpoints.
+- Deterministic project health calculations.
+- Project attention ranking.
+- Personal Action Item grouping by priority.
+- Recent business activity filtering.
+- Upcoming milestone retrieval.
+- Daily brief fallback generation.
+
+Project health is intentionally not AI-driven. AI may contribute source records, such as classifications and Action Items, but final homepage status is calculated from explicit rules and thresholds.
+
+Command center endpoints:
+
+- `GET /dashboard`
+- `GET /dashboard/summary`
+- `GET /dashboard/projects`
+- `GET /dashboard/action-items`
+- `GET /dashboard/recent-activity`
+- `GET /dashboard/brief`
 
 ## Event Model
 

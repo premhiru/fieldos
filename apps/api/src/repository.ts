@@ -1,9 +1,12 @@
 import type {
   AIClassificationStatus,
   AIMessageCategory,
+  ActionItemPriority,
   ActionItemStatus,
   ActionItemType,
+  EventSourceType,
   MembershipRole,
+  MilestoneStatus,
   PrismaClient,
   ProjectStatus,
   WhatsAppChatMappingStatus
@@ -28,6 +31,9 @@ export type AIStatus = AIClassificationStatus;
 export type AICategory = AIMessageCategory;
 export type ActionStatus = ActionItemStatus;
 export type ActionType = ActionItemType;
+export type ActionPriority = ActionItemPriority;
+export type DashboardHealth = "HEALTHY" | "NEEDS_ATTENTION" | "CRITICAL";
+export type DashboardBriefSource = "AI" | "FALLBACK";
 
 export interface SafeUser {
   id: string;
@@ -142,6 +148,7 @@ export interface ActionItemRecord {
   classificationId: string | null;
   suggestedProjectId: string | null;
   type: ActionType;
+  priority: ActionPriority;
   title: string;
   description: string | null;
   confidence: number | null;
@@ -150,6 +157,8 @@ export interface ActionItemRecord {
   updatedAt: Date;
   acceptedAt: Date | null;
   acceptedByUserId: string | null;
+  assignedToUserId: string | null;
+  completedAt: Date | null;
   ignoredAt: Date | null;
   ignoredByUserId: string | null;
   message?: {
@@ -166,6 +175,82 @@ export interface ActionItemRecord {
     id: string;
     name: string;
   } | null;
+  project?: {
+    code: string;
+    id: string;
+    name: string;
+  } | null;
+}
+
+export interface MilestoneRecord {
+  id: string;
+  organizationId: string;
+  projectId: string;
+  title: string;
+  dueDate: Date;
+  status: MilestoneStatus;
+  createdAt: Date;
+  updatedAt: Date;
+  project: {
+    code: string;
+    id: string;
+    name: string;
+  };
+}
+
+export interface DashboardSummaryRecord {
+  activeProjects: number;
+  healthyProjects: number;
+  projectsNeedingAttention: number;
+  criticalProjects: number;
+  openActionItems: number;
+  highPriorityActionItems: number;
+  todaysActivityCount: number;
+  pendingAIReviews: number;
+}
+
+export interface DashboardProjectRecord {
+  id: string;
+  code: string;
+  name: string;
+  status: Status;
+  health: DashboardHealth;
+  lastActivityAt: Date | null;
+  highestPriorityIssue: string | null;
+  openActionItemCount: number;
+  rankScore: number;
+}
+
+export interface DashboardActionItemGroupsRecord {
+  urgent: ActionItemRecord[];
+  high: ActionItemRecord[];
+  medium: ActionItemRecord[];
+  low: ActionItemRecord[];
+}
+
+export interface DashboardRecentActivityRecord {
+  id: string;
+  projectId: string;
+  projectName: string;
+  sourceType: EventSourceType;
+  eventType: string;
+  icon: string;
+  title: string;
+  occurredAt: Date;
+}
+
+export interface DashboardBriefRecord {
+  bullets: string[];
+  generatedBy: DashboardBriefSource;
+}
+
+export interface OperationsDashboardRecord {
+  summary: DashboardSummaryRecord;
+  projects: DashboardProjectRecord[];
+  actionItems: DashboardActionItemGroupsRecord;
+  recentActivity: DashboardRecentActivityRecord[];
+  milestones: MilestoneRecord[];
+  brief: DashboardBriefRecord;
 }
 
 export interface AppRepository extends MessagingRepository {
@@ -208,9 +293,14 @@ export interface AppRepository extends MessagingRepository {
   listOrganizations(userId: string): Promise<OrganizationRecord[]>;
   listProjects(userId: string, organizationId: string): Promise<ProjectRecord[]>;
   acceptActionItem(input: { actionItemId: string; userId: string }): Promise<ActionItemRecord>;
+  completeActionItem(input: { actionItemId: string; userId: string }): Promise<ActionItemRecord>;
   enqueueMessageClassification(messageId: string): Promise<AIMessageClassificationRecord | null>;
   getMessageClassification(messageId: string): Promise<AIMessageClassificationRecord | null>;
   getActionItem(actionItemId: string): Promise<ActionItemRecord | null>;
+  getOperationsDashboard(input: {
+    organizationId: string;
+    userId: string;
+  }): Promise<OperationsDashboardRecord>;
   listProjectAIClassifications(projectId: string): Promise<AIMessageClassificationRecord[]>;
   listProjectActionItems(projectId: string): Promise<ActionItemRecord[]>;
   ignoreActionItem(input: { actionItemId: string; userId: string }): Promise<ActionItemRecord>;
@@ -445,6 +535,7 @@ export function createPrismaRepository(): AppRepository {
           data: {
             acceptedAt: new Date(),
             acceptedByUserId: input.userId,
+            completedAt: null,
             ignoredAt: null,
             ignoredByUserId: null,
             projectId: existing.suggestedProjectId ?? existing.projectId,
@@ -455,6 +546,21 @@ export function createPrismaRepository(): AppRepository {
             id: input.actionItemId
           }
         });
+      });
+    },
+
+    async completeActionItem(input) {
+      const prisma = await getPrisma();
+      void input.userId;
+      return prisma.actionItem.update({
+        data: {
+          completedAt: new Date(),
+          status: "COMPLETED"
+        },
+        include: actionItemInclude(),
+        where: {
+          id: input.actionItemId
+        }
       });
     },
 
@@ -516,6 +622,157 @@ export function createPrismaRepository(): AppRepository {
       });
     },
 
+    async getOperationsDashboard(input) {
+      const prisma = await getPrisma();
+      const todayStart = getUtcDayStart(new Date());
+
+      const [projects, actionItems, classifications, events, milestones, pendingAIReviews] =
+        await Promise.all([
+          prisma.project.findMany({
+            orderBy: {
+              updatedAt: "desc"
+            },
+            where: {
+              organizationId: input.organizationId
+            }
+          }),
+          prisma.actionItem.findMany({
+            include: actionItemInclude(),
+            orderBy: {
+              updatedAt: "desc"
+            },
+            take: 250,
+            where: {
+              organizationId: input.organizationId
+            }
+          }),
+          prisma.aIMessageClassification.findMany({
+            orderBy: {
+              createdAt: "desc"
+            },
+            take: 250,
+            where: {
+              organizationId: input.organizationId
+            }
+          }),
+          prisma.event.findMany({
+            include: {
+              project: {
+                select: {
+                  code: true,
+                  id: true,
+                  name: true
+                }
+              }
+            },
+            orderBy: {
+              occurredAt: "desc"
+            },
+            take: 12,
+            where: {
+              organizationId: input.organizationId,
+              projectId: {
+                not: null
+              },
+              sourceType: {
+                in: ["MESSAGE", "ACTION_ITEM", "REPORT"]
+              }
+            }
+          }),
+          prisma.milestone.findMany({
+            include: {
+              project: {
+                select: {
+                  code: true,
+                  id: true,
+                  name: true
+                }
+              }
+            },
+            orderBy: {
+              dueDate: "asc"
+            },
+            take: 12,
+            where: {
+              organizationId: input.organizationId,
+              status: {
+                not: "COMPLETED"
+              }
+            }
+          }),
+          prisma.aIMessageClassification.count({
+            where: {
+              organizationId: input.organizationId,
+              status: {
+                in: ["PENDING", "NEEDS_REVIEW"]
+              }
+            }
+          })
+        ]);
+
+      const dashboardProjects = projects
+        .filter((project) => project.status === "ACTIVE")
+        .map((project) =>
+          buildDashboardProject({
+            actionItems,
+            classifications,
+            events,
+            milestones,
+            project
+          })
+        )
+        .sort(
+          (left, right) => right.rankScore - left.rankScore || left.name.localeCompare(right.name)
+        );
+
+      const openActionItems = actionItems.filter(isOpenActionItem);
+      const highPriorityActionItems = openActionItems.filter((actionItem) =>
+        ["HIGH", "URGENT"].includes(actionItem.priority)
+      );
+      const todaysActivityCount = events.filter(
+        (event) => event.occurredAt.getTime() >= todayStart.getTime()
+      ).length;
+      const myActionItems = actionItems.filter(
+        (actionItem) => actionItem.assignedToUserId === input.userId && isOpenActionItem(actionItem)
+      );
+
+      const summary: DashboardSummaryRecord = {
+        activeProjects: dashboardProjects.length,
+        criticalProjects: dashboardProjects.filter((project) => project.health === "CRITICAL")
+          .length,
+        healthyProjects: dashboardProjects.filter((project) => project.health === "HEALTHY").length,
+        highPriorityActionItems: highPriorityActionItems.length,
+        openActionItems: openActionItems.length,
+        pendingAIReviews,
+        projectsNeedingAttention: dashboardProjects.filter(
+          (project) => project.health === "NEEDS_ATTENTION"
+        ).length,
+        todaysActivityCount
+      };
+
+      const recentActivity = events
+        .filter((event) => event.project)
+        .map((event) => ({
+          eventType: event.eventType,
+          icon: getActivityIcon(event.sourceType),
+          id: event.id,
+          occurredAt: event.occurredAt,
+          projectId: event.project?.id ?? "",
+          projectName: event.project?.name ?? "Unknown project",
+          sourceType: event.sourceType,
+          title: event.title
+        }));
+
+      return {
+        actionItems: groupActionItems(myActionItems),
+        brief: buildFallbackBrief(summary, dashboardProjects, milestones),
+        milestones,
+        projects: dashboardProjects,
+        recentActivity,
+        summary
+      };
+    },
+
     async listProjectAIClassifications(projectId) {
       const prisma = await getPrisma();
       return prisma.aIMessageClassification.findMany({
@@ -557,6 +814,7 @@ export function createPrismaRepository(): AppRepository {
         data: {
           acceptedAt: null,
           acceptedByUserId: null,
+          completedAt: null,
           ignoredAt: new Date(),
           ignoredByUserId: input.userId,
           status: "IGNORED"
@@ -1109,6 +1367,13 @@ function actionItemInclude() {
         occurredAt: true
       }
     },
+    project: {
+      select: {
+        code: true,
+        id: true,
+        name: true
+      }
+    },
     suggestedProject: {
       select: {
         code: true,
@@ -1117,6 +1382,217 @@ function actionItemInclude() {
       }
     }
   };
+}
+
+const openActionItemStatuses = new Set<ActionStatus>(["PENDING", "ACCEPTED"]);
+const dashboardHealthThresholds = {
+  overdueMilestonesForCritical: 2,
+  urgentActionItemsForCritical: 3
+};
+
+function isOpenActionItem(actionItem: Pick<ActionItemRecord, "status">): boolean {
+  return openActionItemStatuses.has(actionItem.status);
+}
+
+function getUtcDayStart(date: Date): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
+function buildDashboardProject(input: {
+  actionItems: ActionItemRecord[];
+  classifications: AIMessageClassificationRecord[];
+  events: Array<{ occurredAt: Date; projectId: string | null }>;
+  milestones: MilestoneRecord[];
+  project: ProjectRecord;
+}): DashboardProjectRecord {
+  const projectActionItems = input.actionItems.filter(
+    (actionItem) =>
+      (actionItem.projectId === input.project.id ||
+        actionItem.suggestedProjectId === input.project.id) &&
+      isOpenActionItem(actionItem)
+  );
+  const projectClassifications = input.classifications.filter(
+    (classification) => classification.projectId === input.project.id
+  );
+  const projectMilestones = input.milestones.filter(
+    (milestone) => milestone.projectId === input.project.id
+  );
+  const urgentActionItemCount = projectActionItems.filter(
+    (actionItem) => actionItem.priority === "URGENT"
+  ).length;
+  const highActionItemCount = projectActionItems.filter((actionItem) =>
+    ["HIGH", "URGENT"].includes(actionItem.priority)
+  ).length;
+  const overdueMilestoneCount = projectMilestones.filter(
+    (milestone) => milestone.status === "OVERDUE" || isPastDue(milestone.dueDate)
+  ).length;
+  const hasSafetyIssue = projectClassifications.some(
+    (classification) => classification.category === "SAFETY_ISSUE"
+  );
+  const hasAttentionClassification = projectClassifications.some((classification) =>
+    ["DELAY", "DEFECT", "INSPECTION_REQUEST"].includes(classification.category ?? "")
+  );
+  const health = calculateProjectHealth({
+    hasAttentionClassification,
+    hasSafetyIssue,
+    highActionItemCount,
+    overdueMilestoneCount,
+    urgentActionItemCount
+  });
+  const lastActivityAt = getLastActivityAt({
+    actionItems: projectActionItems,
+    events: input.events.filter((event) => event.projectId === input.project.id),
+    project: input.project
+  });
+
+  return {
+    code: input.project.code,
+    health,
+    highestPriorityIssue: getHighestPriorityIssue(projectActionItems, projectMilestones),
+    id: input.project.id,
+    lastActivityAt,
+    name: input.project.name,
+    openActionItemCount: projectActionItems.length,
+    rankScore: getProjectRankScore({
+      health,
+      highActionItemCount,
+      overdueMilestoneCount,
+      urgentActionItemCount
+    }),
+    status: input.project.status
+  };
+}
+
+function calculateProjectHealth(input: {
+  hasAttentionClassification: boolean;
+  hasSafetyIssue: boolean;
+  highActionItemCount: number;
+  overdueMilestoneCount: number;
+  urgentActionItemCount: number;
+}): DashboardHealth {
+  if (
+    input.hasSafetyIssue ||
+    input.urgentActionItemCount >= dashboardHealthThresholds.urgentActionItemsForCritical ||
+    input.overdueMilestoneCount >= dashboardHealthThresholds.overdueMilestonesForCritical
+  ) {
+    return "CRITICAL";
+  }
+
+  if (
+    input.highActionItemCount > 0 ||
+    input.hasAttentionClassification ||
+    input.overdueMilestoneCount > 0
+  ) {
+    return "NEEDS_ATTENTION";
+  }
+
+  return "HEALTHY";
+}
+
+function getProjectRankScore(input: {
+  health: DashboardHealth;
+  highActionItemCount: number;
+  overdueMilestoneCount: number;
+  urgentActionItemCount: number;
+}): number {
+  const healthScore = {
+    CRITICAL: 300,
+    HEALTHY: 0,
+    NEEDS_ATTENTION: 150
+  } satisfies Record<DashboardHealth, number>;
+
+  return (
+    healthScore[input.health] +
+    input.urgentActionItemCount * 20 +
+    input.highActionItemCount * 10 +
+    input.overdueMilestoneCount * 15
+  );
+}
+
+function getHighestPriorityIssue(
+  actionItems: ActionItemRecord[],
+  milestones: MilestoneRecord[]
+): string | null {
+  const priorityOrder: ActionPriority[] = ["URGENT", "HIGH", "MEDIUM", "LOW"];
+  const actionItem = [...actionItems].sort(
+    (left, right) => priorityOrder.indexOf(left.priority) - priorityOrder.indexOf(right.priority)
+  )[0];
+
+  if (actionItem) {
+    return actionItem.title;
+  }
+
+  const overdueMilestone = milestones.find(
+    (milestone) => milestone.status === "OVERDUE" || isPastDue(milestone.dueDate)
+  );
+
+  return overdueMilestone ? `Overdue milestone: ${overdueMilestone.title}` : null;
+}
+
+function getLastActivityAt(input: {
+  actionItems: ActionItemRecord[];
+  events: Array<{ occurredAt: Date }>;
+  project: ProjectRecord;
+}): Date | null {
+  const dates = [
+    input.project.updatedAt,
+    ...input.actionItems.map((actionItem) => actionItem.updatedAt),
+    ...input.events.map((event) => event.occurredAt)
+  ];
+
+  return dates.sort((left, right) => right.getTime() - left.getTime())[0] ?? null;
+}
+
+function groupActionItems(actionItems: ActionItemRecord[]): DashboardActionItemGroupsRecord {
+  const sorted = [...actionItems].sort(
+    (left, right) => right.createdAt.getTime() - left.createdAt.getTime()
+  );
+
+  return {
+    high: sorted.filter((actionItem) => actionItem.priority === "HIGH"),
+    low: sorted.filter((actionItem) => actionItem.priority === "LOW"),
+    medium: sorted.filter((actionItem) => actionItem.priority === "MEDIUM"),
+    urgent: sorted.filter((actionItem) => actionItem.priority === "URGENT")
+  };
+}
+
+function getActivityIcon(sourceType: EventSourceType): string {
+  const icons = {
+    ACTION_ITEM: "check-circle",
+    MESSAGE: "message-circle",
+    REPORT: "file-text",
+    SYSTEM: "settings"
+  } satisfies Record<EventSourceType, string>;
+
+  return icons[sourceType];
+}
+
+function buildFallbackBrief(
+  summary: DashboardSummaryRecord,
+  projects: DashboardProjectRecord[],
+  milestones: MilestoneRecord[]
+): DashboardBriefRecord {
+  const bullets = [
+    `${summary.activeProjects} active projects are being tracked.`,
+    `${summary.criticalProjects} projects are critical and ${summary.projectsNeedingAttention} need attention.`,
+    `${summary.openActionItems} open Action Items remain, including ${summary.highPriorityActionItems} high-priority items.`,
+    `${summary.pendingAIReviews} AI reviews are pending.`,
+    `${milestones.length} upcoming or overdue milestones are visible.`
+  ];
+  const attentionProject = projects.find((project) => project.health !== "HEALTHY");
+
+  if (attentionProject) {
+    bullets[1] = `${attentionProject.name} is the highest-ranked project needing review.`;
+  }
+
+  return {
+    bullets: bullets.slice(0, 5),
+    generatedBy: "FALLBACK"
+  };
+}
+
+function isPastDue(date: Date): boolean {
+  return date.getTime() < Date.now();
 }
 
 function toConversationRecord(

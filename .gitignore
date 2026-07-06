@@ -22,6 +22,7 @@ turbo-*.log
 dist/
 build/
 coverage/
+tests/artifacts/
 
 # pnpm
 pnpm-debug.log*

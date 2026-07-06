@@ -5,7 +5,7 @@
 | Purpose      | Track FieldOS milestone progress, task completion, technical debt, architecture decisions, and deployment readiness. |
 | Owner        | Founding Engineering                                                                                                 |
 | Status       | Active                                                                                                               |
-| Last Updated | 2026-07-03                                                                                                           |
+| Last Updated | 2026-07-06                                                                                                           |
 
 ## Table of Contents
 
@@ -19,7 +19,7 @@
 
 ## Current Milestone
 
-Sprint 1.5 architecture stabilization is complete locally and ready to continue toward Task 008 after review.
+Task 009 Operations Command Center is complete locally and ready for production deployment review.
 
 ## Completed Tasks
 
@@ -108,6 +108,15 @@ Sprint 1.5 architecture stabilization is complete locally and ready to continue 
   - AI classification now defaults to OpenRouter's `openrouter/free` model through `https://openrouter.ai/api/v1`.
   - `OPENROUTER_API_KEY` is now the primary AI provider key; `OPENAI_API_KEY` remains a fallback for OpenAI-compatible providers.
   - Railway production worker has `OPENROUTER_API_KEY`, `AI_BASE_URL`, and `AI_MODEL` configured.
+- Task 009: Operations Command Center.
+  - Authenticated homepage replaced with the Operations Command Center.
+  - Deterministic operations summary cards added for project health, Action Items, activity, and pending AI reviews.
+  - Projects Requiring Attention ranks active projects by criticality and open operational issues.
+  - My Action Items groups assigned items by urgent, high, medium, and low priority with accept, complete, and dismiss actions.
+  - Recent Activity shows business events across projects.
+  - Lightweight `Milestone` model added for upcoming and overdue project deadlines.
+  - API endpoints added for dashboard aggregate, summary, projects, action items, recent activity, and daily brief.
+  - ADR 0009 documents the command-center aggregation and deterministic health decision.
 
 ## In-Progress Tasks
 
@@ -126,6 +135,8 @@ Sprint 1.5 architecture stabilization is complete locally and ready to continue 
 - WhatsApp media storage is local filesystem-backed under `.storage` and needs object storage before production deployment.
 - Existing WhatsApp message rows created before this fix may need data cleanup if unsupported placeholders were already stored.
 - AI Action Items are not converted into first-class project tasks yet; accepted follow-up Action Items only record human approval.
+- Milestones are lightweight command-center records; full scheduling dependencies and recurrence are intentionally deferred.
+- The AI Daily Brief currently has a deterministic fallback path and should be connected to provider-backed generation after production prompt telemetry is available.
 - AI provider failures are recorded on the classification row; worker retries now use bounded exponential backoff, but provider-specific retry policy remains intentionally minimal.
 - Pagination is still limited to the highest-volume AI and ActionItem project views; conversation and message pagination should be formalized before large customer imports.
 - API route response envelopes are improved but not yet generated from a shared OpenAPI contract.
@@ -141,6 +152,7 @@ Sprint 1.5 architecture stabilization is complete locally and ready to continue 
 - Validate AI classifications and project suggestions with real active WhatsApp project messages.
 - Convert accepted Action Items into first-class operational task records after the task domain exists.
 - Build Task 008 activity timeline on top of the generic `Event` model.
+- Add CRUD surfaces for milestones when project planning workflows are defined.
 - Add official Meta WhatsApp Cloud API support for enterprise production deployments.
 
 ## Architecture Decisions Made
@@ -154,6 +166,7 @@ Sprint 1.5 architecture stabilization is complete locally and ready to continue 
 - ADR 0005: Discover WhatsApp chats/groups but require explicit admin activation before ingestion.
 - ADR 0006: AI may create Action Items, but humans must accept or ignore them before they become operational work.
 - ADR 0007: Simplify the MVP around ActionItems, compact AI extraction, event-driven timeline preparation, and human-approved project suggestions.
+- ADR 0009: Use an API-owned Operations Command Center with deterministic health rules and lightweight milestones.
 
 ## Deployment Status
 
@@ -201,4 +214,5 @@ Sprint 1.5 architecture stabilization is complete locally and ready to continue 
 - Task 003, Task 005, Task 006, and Task 006B application code is included in the deployed dashboard, API, and worker services.
 - Sprint 1.5 code has passed local validation; production deployment requires environment variable review and a deployment trigger.
 - Task 007 code is validated locally; the Railway worker now has OpenRouter environment variables configured for provider-backed classification.
+- Task 009 code is validated locally; production deployment requires a deployment trigger and migration application for the `Milestone` and Action Item priority fields.
 - Live WhatsApp QR scanning and activation were not performed because no dedicated business test number was provided in this environment.

@@ -5,7 +5,7 @@
 | Purpose      | Introduce the FieldOS engineering foundation, repository layout, and development workflow. |
 | Owner        | Founding Engineering                                                                       |
 | Status       | Active                                                                                     |
-| Last Updated | 2026-07-03                                                                                 |
+| Last Updated | 2026-07-06                                                                                 |
 
 ## Table of Contents
 
@@ -14,6 +14,7 @@
 - [Development Setup](#development-setup)
 - [Commands](#commands)
 - [Deployment](#deployment)
+- [Operations Command Center](#operations-command-center)
 - [Repository Layout](#repository-layout)
 - [Development Philosophy](#development-philosophy)
 - [Tech Stack](#tech-stack)
@@ -224,12 +225,28 @@ FieldOS classifies only messages that already passed the WhatsApp activation gat
 
 The AI layer classifies a message, writes a concise summary, extracts a location when present, decides whether human action is required, and creates Action Items when review is useful. Action Items remain `PENDING` until a user accepts or ignores them; FieldOS does not automatically create operational work or reassign projects from AI output.
 
+## Operations Command Center
+
+The authenticated dashboard homepage is the Operations Command Center. It aggregates organization-scoped project health, Action Items assigned to the current user, recent business activity, upcoming milestones, and a short daily brief.
+
+Project health is deterministic. Critical status is driven by safety classifications, several urgent Action Items, or multiple overdue milestones. Needs Attention is driven by high-priority Action Items, delivery or inspection signals, or overdue work. The AI brief must use known project, event, milestone, and Action Item data only; a deterministic fallback is returned when provider-backed generation is unavailable.
+
+The API exposes command center data through:
+
+- `GET /dashboard`
+- `GET /dashboard/summary`
+- `GET /dashboard/projects`
+- `GET /dashboard/action-items`
+- `GET /dashboard/recent-activity`
+- `GET /dashboard/brief`
+
 ## Current Roadmap
 
-1. Validate WhatsApp QR pairing and explicit chat activation with dedicated business test numbers.
-2. Add invite and membership management.
-3. Add operational observability and deployment automation.
-4. Expand AI-assisted triage into human-approved operational tasks, reports, event timeline views, and official Meta WhatsApp Cloud API support after core workflow boundaries are stable.
+1. Validate the Operations Command Center with production tenant data.
+2. Validate WhatsApp QR pairing and explicit chat activation with dedicated business test numbers.
+3. Add invite and membership management.
+4. Add operational observability and deployment automation.
+5. Expand AI-assisted triage into human-approved operational tasks, reports, event timeline views, and official Meta WhatsApp Cloud API support after core workflow boundaries are stable.
 
 ## Contributing Guidelines
 

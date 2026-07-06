@@ -27,6 +27,15 @@ export function useProjects(organizationId: string | null) {
   });
 }
 
+export function useOperationsDashboard(organizationId: string | null) {
+  return useQuery({
+    enabled: Boolean(organizationId),
+    queryFn: () => api.getDashboard(organizationId ?? ""),
+    queryKey: ["operations-dashboard", organizationId],
+    retry: false
+  });
+}
+
 export function useConversations(organizationId: string | null, search: string) {
   return useQuery({
     enabled: Boolean(organizationId),

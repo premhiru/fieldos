@@ -19,8 +19,11 @@ export type AIMessageCategory =
   | "GENERAL_NOTE"
   | "UNKNOWN";
 export type AIClassificationStatus = "PENDING" | "COMPLETED" | "FAILED" | "NEEDS_REVIEW";
-export type ActionItemStatus = "PENDING" | "ACCEPTED" | "IGNORED" | "CONVERTED";
+export type ActionItemStatus = "PENDING" | "ACCEPTED" | "COMPLETED" | "IGNORED" | "CONVERTED";
 export type ActionItemType = "FOLLOW_UP" | "PROJECT_SUGGESTION";
+export type ActionItemPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+export type MilestoneStatus = "UPCOMING" | "DUE_SOON" | "OVERDUE" | "COMPLETED";
+export type DashboardHealth = "HEALTHY" | "NEEDS_ATTENTION" | "CRITICAL";
 
 export interface User {
   id: string;
@@ -132,6 +135,7 @@ export interface ActionItem {
   classificationId: string | null;
   suggestedProjectId: string | null;
   type: ActionItemType;
+  priority: ActionItemPriority;
   title: string;
   description: string | null;
   confidence: number | null;
@@ -140,6 +144,8 @@ export interface ActionItem {
   updatedAt: string;
   acceptedAt: string | null;
   acceptedByUserId: string | null;
+  assignedToUserId: string | null;
+  completedAt: string | null;
   ignoredAt: string | null;
   ignoredByUserId: string | null;
   message?: {
@@ -152,6 +158,74 @@ export interface ActionItem {
     };
   };
   suggestedProject?: ProjectReference | null;
+  project?: ProjectReference | null;
+}
+
+export interface DashboardSummary {
+  activeProjects: number;
+  healthyProjects: number;
+  projectsNeedingAttention: number;
+  criticalProjects: number;
+  openActionItems: number;
+  highPriorityActionItems: number;
+  todaysActivityCount: number;
+  pendingAIReviews: number;
+}
+
+export interface DashboardProject {
+  id: string;
+  code: string;
+  name: string;
+  status: ProjectStatus;
+  health: DashboardHealth;
+  lastActivityAt: string | null;
+  highestPriorityIssue: string | null;
+  openActionItemCount: number;
+  rankScore: number;
+}
+
+export interface DashboardActionItemGroups {
+  urgent: ActionItem[];
+  high: ActionItem[];
+  medium: ActionItem[];
+  low: ActionItem[];
+}
+
+export interface DashboardRecentActivity {
+  id: string;
+  projectId: string;
+  projectName: string;
+  sourceType: "MESSAGE" | "ACTION_ITEM" | "REPORT" | "SYSTEM";
+  eventType: string;
+  icon: string;
+  title: string;
+  occurredAt: string;
+}
+
+export interface Milestone {
+  id: string;
+  organizationId: string;
+  projectId: string;
+  title: string;
+  dueDate: string;
+  status: MilestoneStatus;
+  createdAt: string;
+  updatedAt: string;
+  project: ProjectReference;
+}
+
+export interface DashboardBrief {
+  bullets: string[];
+  generatedBy: "AI" | "FALLBACK";
+}
+
+export interface OperationsDashboard {
+  summary: DashboardSummary;
+  projects: DashboardProject[];
+  actionItems: DashboardActionItemGroups;
+  recentActivity: DashboardRecentActivity[];
+  milestones: Milestone[];
+  brief: DashboardBrief;
 }
 
 export type WhatsAppConnectorType = "BAILEYS" | "META_CLOUD";
@@ -268,6 +342,10 @@ export const api = {
   getConversation: (conversationId: string) =>
     apiRequest<{ conversation: Conversation }>(`/conversations/${conversationId}`),
   getMe: () => apiRequest<{ user: User }>("/auth/me"),
+  getDashboard: (organizationId: string) => {
+    const params = new URLSearchParams({ organizationId });
+    return apiRequest<{ dashboard: OperationsDashboard }>(`/dashboard?${params.toString()}`);
+  },
   getProject: (projectId: string) => apiRequest<{ project: Project }>(`/projects/${projectId}`),
   getMessageClassification: (messageId: string) =>
     apiRequest<{ classification: AIMessageClassification | null }>(
@@ -339,6 +417,10 @@ export const api = {
     ),
   acceptActionItem: (actionItemId: string) =>
     apiRequest<{ actionItem: ActionItem }>(`/action-items/${actionItemId}/accept`, {
+      method: "POST"
+    }),
+  completeActionItem: (actionItemId: string) =>
+    apiRequest<{ actionItem: ActionItem }>(`/action-items/${actionItemId}/complete`, {
       method: "POST"
     }),
   updateWhatsAppChatMapping: (mappingId: string, body: { projectId: string | null }) =>
