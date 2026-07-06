@@ -620,6 +620,12 @@ export function buildServer(options: BuildServerOptions = {}) {
     const params = whatsappAccountParamsSchema.parse(request.params);
     const account = await requireWhatsAppAccountAccess(requireCurrentUser(request).id, params.id);
 
+    if (account.status !== "CONNECTED") {
+      return {
+        chats: []
+      };
+    }
+
     return {
       chats: await repository.listWhatsAppChatMappings(account.id)
     };

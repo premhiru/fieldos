@@ -24,12 +24,14 @@ function ConversationDetailContent() {
   const conversationQuery = useQuery({
     queryFn: () => api.getConversation(params.conversationId),
     queryKey: ["conversation", params.conversationId],
+    refetchInterval: 5_000,
     retry: false
   });
   const messagesQuery = useQuery({
     enabled: Boolean(conversationQuery.data?.conversation),
     queryFn: () => api.listConversationMessages(params.conversationId),
     queryKey: ["conversation-messages", params.conversationId],
+    refetchInterval: 5_000,
     retry: false
   });
   const conversation = conversationQuery.data?.conversation;
@@ -158,6 +160,7 @@ function AIMessagePanel({ messageId, outbound }: { messageId: string; outbound: 
   const classificationQuery = useQuery({
     queryFn: () => api.getMessageClassification(messageId),
     queryKey: ["message-classification", messageId],
+    refetchInterval: 10_000,
     retry: false
   });
   const classifyMutation = useMutation({

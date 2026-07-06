@@ -347,6 +347,55 @@ describe("FieldOS API auth and tenancy", () => {
     expect(ownerConnect.json().account.sessionKey).not.toBe(previousSessionKey);
   });
 
+  it("hides WhatsApp chats after the account is disconnected", async () => {
+    const cookie = await signup(server);
+    const organization = await createOrganization(server, cookie);
+    const account = await repository.createWhatsAppAccount({
+      displayName: "Dispatch line",
+      organizationId: organization.id
+    });
+    await repository.updateWhatsAppAccountStatus(account.id, "CONNECTED");
+    repository.addWhatsAppChatMapping({
+      accountId: account.id,
+      conversationId: null,
+      jid: "site-team@g.us",
+      organizationId: organization.id,
+      status: "DISCOVERED"
+    });
+
+    const connectedChats = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "GET",
+      url: `/whatsapp/accounts/${account.id}/chats`
+    });
+
+    expect(connectedChats.statusCode).toBe(200);
+    expect(connectedChats.json().chats).toHaveLength(1);
+
+    const disconnectResponse = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "POST",
+      url: `/whatsapp/accounts/${account.id}/disconnect`
+    });
+
+    expect(disconnectResponse.statusCode).toBe(200);
+
+    const disconnectedChats = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "GET",
+      url: `/whatsapp/accounts/${account.id}/chats`
+    });
+
+    expect(disconnectedChats.statusCode).toBe(200);
+    expect(disconnectedChats.json().chats).toHaveLength(0);
+  });
+
   it("maps a WhatsApp chat to a project", async () => {
     const cookie = await signup(server);
     const organization = await createOrganization(server, cookie);

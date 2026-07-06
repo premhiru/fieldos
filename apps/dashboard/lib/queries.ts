@@ -41,6 +41,7 @@ export function useConversations(organizationId: string | null, search: string) 
     enabled: Boolean(organizationId),
     queryFn: () => api.listConversations(organizationId ?? "", search),
     queryKey: ["conversations", organizationId, search],
+    refetchInterval: 5_000,
     retry: false
   });
 }

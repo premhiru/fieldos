@@ -166,10 +166,13 @@ function WhatsAppAccountCard({
     "ALL"
   );
   const isPairingStatus = account.status === "PENDING_QR" || account.status === "CONNECTING";
+  const isConnected = account.status === "CONNECTED";
   const shouldPollQr = isPairingRequested || isPairingStatus;
   const chatsQuery = useQuery({
+    enabled: isConnected,
     queryFn: () => api.listWhatsAppChats(account.id),
     queryKey: ["whatsapp-chats", account.id],
+    refetchInterval: isConnected ? 5_000 : false,
     retry: false
   });
   const qrQuery = useQuery({
@@ -194,6 +197,7 @@ function WhatsAppAccountCard({
     onSuccess: async () => {
       setIsPairingRequested(false);
       await queryClient.invalidateQueries({ queryKey: ["whatsapp-accounts", organizationId] });
+      await queryClient.removeQueries({ queryKey: ["whatsapp-chats", account.id] });
       await queryClient.removeQueries({ queryKey: ["whatsapp-qr", account.id] });
     }
   });
@@ -211,7 +215,7 @@ function WhatsAppAccountCard({
     }
   }, [account.status, organizationId, qrQuery.data?.status, queryClient]);
 
-  const chats = chatsQuery.data?.chats ?? [];
+  const chats = isConnected ? (chatsQuery.data?.chats ?? []) : [];
   const filteredChats = React.useMemo(() => {
     const normalizedSearch = chatSearch.trim().toLowerCase();
 
@@ -344,7 +348,11 @@ function WhatsAppAccountCard({
               </Button>
             ) : null}
           </div>
-          {chatsQuery.isLoading ? (
+          {!isConnected ? (
+            <p className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+              Chats and groups will appear after this WhatsApp account is connected.
+            </p>
+          ) : chatsQuery.isLoading ? (
             <p className="mt-3 text-sm text-slate-600">Loading chats...</p>
           ) : chats.length === 0 ? (
             <p className="mt-3 text-sm text-slate-600">No chats discovered yet.</p>
