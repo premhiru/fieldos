@@ -161,7 +161,7 @@ export async function buildUnifiedEvidenceContext(
     organizationId: message.conversation.organizationId,
     processingStatus: message.processingStatus,
     project: message.conversation.project,
-    sender: message.senderParticipant,
+    sender: normalizeSender(message.senderParticipant),
     timestamp: message.occurredAt,
     voiceTranscript: transcripts.length > 0 ? transcripts.join("\n\n") : null
   };
@@ -219,6 +219,22 @@ function toVoiceEvidenceAttachment(attachment: Attachment): EvidenceVoiceNoteMet
     transcript: attachment.transcript,
     transcriptionError: attachment.transcriptionError,
     transcriptionStatus: attachment.transcriptionStatus
+  };
+}
+
+function normalizeSender(sender: {
+  displayName: string;
+  externalIdentifier: string;
+  id: string;
+}): UnifiedEvidenceContext["sender"] {
+  const displayName = sender.displayName.trim();
+  const externalIdentifier = sender.externalIdentifier.trim();
+
+  return {
+    displayName: displayName.length > 0 ? displayName : "Unknown sender",
+    externalIdentifier:
+      externalIdentifier.length > 0 ? externalIdentifier : `unknown-sender:${sender.id}`,
+    id: sender.id
   };
 }
 

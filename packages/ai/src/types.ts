@@ -89,7 +89,7 @@ export const classifyMessageInputSchema = z.object({
     .nullable(),
   sender: z.object({
     displayName: z.string().trim().min(1),
-    externalIdentifier: z.string().trim().min(1),
+    externalIdentifier: z.string().trim(),
     id: z.string().trim().min(1)
   }),
   timestamp: z.coerce.date(),

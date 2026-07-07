@@ -932,6 +932,15 @@ describe("FieldOS API auth and tenancy", () => {
       priority: "URGENT",
       projectId: criticalProject.id
     });
+    repository.addActionItem({
+      assignedToUserId: user.id,
+      classificationId: classification.id,
+      messageId: message.id,
+      organizationId: organization.id,
+      priority: "HIGH",
+      projectId: criticalProject.id,
+      status: "ACCEPTED"
+    });
     repository.addEvent({
       organizationId: organization.id,
       projectId: criticalProject.id,
@@ -963,8 +972,12 @@ describe("FieldOS API auth and tenancy", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json().dashboard.summary.activeProjects).toBe(2);
     expect(response.json().dashboard.summary.criticalProjects).toBe(1);
+    expect(response.json().dashboard.summary.openActionItems).toBe(1);
+    expect(response.json().dashboard.summary.highPriorityActionItems).toBe(1);
     expect(response.json().dashboard.projects[0].name).toBe("Critical project");
+    expect(response.json().dashboard.projects[0].openActionItemCount).toBe(1);
     expect(response.json().dashboard.actionItems.urgent).toHaveLength(1);
+    expect(response.json().dashboard.actionItems.high).toHaveLength(0);
     expect(response.json().dashboard.recentActivity).toHaveLength(1);
     expect(response.json().dashboard.brief.generatedBy).toBe("FALLBACK");
     expect(response.json().dashboard.milestones).toHaveLength(1);
@@ -2237,9 +2250,7 @@ class InMemoryRepository implements AppRepository {
     const dashboardProjects = projects
       .map((project) => {
         const projectActionItems = actionItems.filter(
-          (actionItem) =>
-            actionItem.projectId === project.id &&
-            ["PENDING", "ACCEPTED"].includes(actionItem.status)
+          (actionItem) => actionItem.projectId === project.id && actionItem.status === "PENDING"
         );
         const urgentCount = projectActionItems.filter(
           (actionItem) => actionItem.priority === "URGENT"
@@ -2287,9 +2298,7 @@ class InMemoryRepository implements AppRepository {
       .sort(
         (left, right) => right.rankScore - left.rankScore || left.name.localeCompare(right.name)
       );
-    const openActionItems = actionItems.filter((actionItem) =>
-      ["PENDING", "ACCEPTED"].includes(actionItem.status)
-    );
+    const openActionItems = actionItems.filter((actionItem) => actionItem.status === "PENDING");
     const myActionItems = openActionItems.filter(
       (actionItem) => actionItem.assignedToUserId === input.userId
     );
@@ -2535,6 +2544,7 @@ class InMemoryRepository implements AppRepository {
     projectId: string | null;
     assignedToUserId?: string | null;
     priority?: ActionItemRecord["priority"];
+    status?: ActionItemRecord["status"];
     suggestedProjectId?: string | null;
     type?: "FOLLOW_UP" | "PROJECT_SUGGESTION";
   }): ActionItemRecord {
@@ -2559,7 +2569,7 @@ class InMemoryRepository implements AppRepository {
       ignoredByUserId: null,
       suggestedProject: null,
       suggestedProjectId: input.suggestedProjectId ?? null,
-      status: "PENDING",
+      status: input.status ?? "PENDING",
       title: "Fix reported defect",
       type: input.type ?? "FOLLOW_UP",
       updatedAt: new Date()

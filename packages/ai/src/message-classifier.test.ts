@@ -14,6 +14,18 @@ describe("MessageClassifier", () => {
     expect(provider.userPrompt).toContain("Voice transcript");
     expect(provider.userPrompt).toContain("No image analysis performed.");
   });
+
+  it("accepts context with a blank sender external identifier", async () => {
+    const provider = new CapturingProvider();
+    const classifier = new MessageClassifier({ provider });
+    const context = classificationContext();
+
+    context.sender.externalIdentifier = "";
+
+    await expect(classifier.classifyMessage(context)).resolves.toMatchObject({
+      category: "GENERAL_NOTE"
+    });
+  });
 });
 
 class CapturingProvider implements AIProvider {

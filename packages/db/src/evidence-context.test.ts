@@ -62,6 +62,24 @@ describe("UnifiedEvidenceContext", () => {
     expect(context?.evidenceSummary.labels).toEqual(["1 Voice Note"]);
   });
 
+  it("normalizes blank sender identifiers for AI-safe context", async () => {
+    const context = await buildUnifiedEvidenceContext(
+      fakePrismaWithMessage(
+        messageRecord({
+          senderParticipant: {
+            displayName: "",
+            externalIdentifier: "",
+            id: "participant_blank"
+          }
+        })
+      ),
+      "msg_1"
+    );
+
+    expect(context?.sender.displayName).toBe("Unknown sender");
+    expect(context?.sender.externalIdentifier).toBe("unknown-sender:participant_blank");
+  });
+
   it("returns null for missing messages", async () => {
     const context = await buildUnifiedEvidenceContext(fakePrismaWithMessage(null), "missing");
 

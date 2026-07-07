@@ -1897,7 +1897,7 @@ function createSnippet(content: string): string {
   return normalized.length > 240 ? `${normalized.slice(0, 237)}...` : normalized;
 }
 
-const openActionItemStatuses = new Set<ActionStatus>(["PENDING", "ACCEPTED"]);
+const openActionItemStatuses = new Set<ActionStatus>(["PENDING"]);
 const dashboardHealthThresholds = {
   overdueMilestonesForCritical: 2,
   urgentActionItemsForCritical: 3
