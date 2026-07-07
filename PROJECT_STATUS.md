@@ -19,7 +19,7 @@
 
 ## Current Milestone
 
-Task 011 Unified Evidence Processing is implemented locally and awaiting production deployment verification.
+Task 011 Unified Evidence Processing is deployed to production. Live WhatsApp mixed-evidence verification is pending QR pairing and an audio transcription key.
 
 ## Completed Tasks
 
@@ -142,6 +142,7 @@ Task 011 Unified Evidence Processing is implemented locally and awaiting product
   - Command center Recent Evidence now opens grouped message updates when available.
   - API endpoints added for message context and evidence summary.
   - ADR 0011 documents the unified evidence processing decision.
+  - Production migration, API, worker, and dashboard deployment completed.
 
 ## In-Progress Tasks
 
@@ -172,8 +173,8 @@ Task 011 Unified Evidence Processing is implemented locally and awaiting product
 
 ## Upcoming Milestones
 
-- Deploy Task 011 and verify unified evidence processing with production services.
-- Validate live WhatsApp message ingestion, voice transcription, AI classification, and search indexing after the WhatsApp line is reconnected.
+- Pair the WhatsApp line again and validate live mixed-evidence ingestion, voice transcription, AI classification, and search indexing.
+- Configure `OPENAI_API_KEY` for production voice transcription if voice transcript generation is required.
 - Configure branch protection for `main` and `develop`.
 - Create `develop` branch after remote setup.
 - Add invite and membership management after the basic auth/org/project slice is verified.
@@ -203,7 +204,7 @@ Task 011 Unified Evidence Processing is implemented locally and awaiting product
 ## Deployment Status
 
 - Dashboard deployed to Vercel production: `https://fieldos-sand.vercel.app`.
-- Latest Vercel deployment URL: `https://fieldos-izz7unwme-premhirus-projects.vercel.app`.
+- Latest Vercel deployment URL: `https://fieldos-a1qlu1bqq-premhirus-projects.vercel.app`.
 - Backend deployed to Railway.
   - API deployed at `https://fieldos-api-production.up.railway.app`.
   - API health verified at `https://fieldos-api-production.up.railway.app/health`.
@@ -256,5 +257,14 @@ Task 011 Unified Evidence Processing is implemented locally and awaiting product
   - Worker heartbeat verified in `WorkerHeartbeat` with status `ONLINE`.
   - A production `SEARCH_INDEX` job was queued and completed by the worker.
   - Live WhatsApp sample-message verification is pending because the connected line is currently waiting for QR pairing.
-- Task 011 code is validated locally; production deployment requires migration application and API/worker/dashboard deployment.
-- Live WhatsApp message verification is pending until the WhatsApp line is paired again from the QR flow.
+- Task 011 is deployed.
+  - Migration `20260707010000_unified_evidence_processing` applied to Railway PostgreSQL.
+  - API deployment `d00084bf-ebf3-41b0-be38-ffb118459587` succeeded.
+  - Worker deployment `643f5843-845e-4d76-9be2-66bea781f7dc` succeeded.
+  - Dashboard deployment `dpl_8wBoSaf3jDUZR5kLK3o8axEPjhoe` deployed and aliased to `https://fieldos-sand.vercel.app`.
+  - API health verified at `https://fieldos-api-production.up.railway.app/health`.
+  - Dashboard route `/admin/operations` returned HTTP 200.
+  - Production attachment transcript columns verified in Railway PostgreSQL.
+  - Worker heartbeat verified in `WorkerHeartbeat` with status `ONLINE`.
+  - Live mixed WhatsApp evidence verification is pending because the WhatsApp line must be paired again.
+  - Production voice transcription requires `OPENAI_API_KEY`; OpenRouter is configured for chat classification, but not audio transcription.
