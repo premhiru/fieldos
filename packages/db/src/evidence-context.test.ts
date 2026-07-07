@@ -167,6 +167,54 @@ describe("message search indexing", () => {
     expect(searchDocuments[0]?.content).toContain("handover.pdf");
     expect(searchDocuments[0]?.content).toContain("Evidence summary: 1 Voice Note · 1 PDF");
   });
+
+  it("indexes photo analysis summaries, tags, and possible issues", async () => {
+    const searchDocuments: Array<{ content: string; metadata: unknown; title: string }> = [];
+    const prisma = {
+      photoAnalysis: {
+        findUnique: async () => ({
+          confidence: 0.62,
+          createdAt: baseDate,
+          detectedObjects: ["Runway Light", "Electrical Cabinet"],
+          evidence: {
+            filename: "site-photo.jpg",
+            mimeType: "image/jpeg"
+          },
+          evidenceId: "photo_1",
+          id: "analysis_1",
+          organizationId: "org_1",
+          possibleIssues: ["Possible alignment issue. Needs Review."],
+          project: {
+            code: "T2",
+            name: "Terminal 2"
+          },
+          projectId: "project_1",
+          provider: "vision-test",
+          summary: "Runway lighting installation appears substantially complete.",
+          tags: ["runway light", "cabinet", "needs review"]
+        })
+      },
+      searchDocument: {
+        upsert: async ({
+          create
+        }: {
+          create: { content: string; metadata: unknown; title: string };
+        }) => {
+          searchDocuments.push(create);
+          return create;
+        }
+      }
+    };
+
+    await processSearchIndexJob(prisma as never, {
+      sourceId: "analysis_1",
+      sourceType: "PHOTO_ANALYSIS"
+    });
+
+    expect(searchDocuments[0]?.content).toContain("runway light");
+    expect(searchDocuments[0]?.content).toContain("Possible alignment issue");
+    expect(searchDocuments[0]?.title).toBe("Photo analysis: site-photo.jpg");
+  });
 });
 
 interface FakeAttachment {

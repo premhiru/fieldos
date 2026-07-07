@@ -47,8 +47,11 @@ import {
   conversationParamsSchema,
   createWhatsAppAccountSchema,
   dashboardQuerySchema,
+  evidenceParamsSchema,
   messageParamsSchema,
   organizationParamsSchema,
+  paginationQuerySchema,
+  photoAnalysisParamsSchema,
   processingJobParamsSchema,
   projectParamsSchema,
   projectSearchAskSchema,
@@ -479,6 +482,29 @@ export function buildServer(options: BuildServerOptions = {}) {
     };
   });
 
+  server.get(
+    "/projects/:projectId/photo-analysis",
+    { preHandler: requireAuth },
+    async (request) => {
+      const params = projectParamsSchema.parse(request.params);
+      const query = paginationQuerySchema.parse(request.query);
+      const project = await repository.findProjectForUser(
+        requireCurrentUser(request).id,
+        params.projectId
+      );
+
+      if (!project) {
+        throw notFound("Project not found.");
+      }
+
+      return repository.listProjectPhotoAnalyses({
+        cursor: query.cursor ?? null,
+        limit: query.limit,
+        projectId: params.projectId
+      });
+    }
+  );
+
   server.get("/conversations", { preHandler: requireAuth }, async (request) => {
     const query = listConversationsSchema.parse(request.query);
     const user = requireCurrentUser(request);
@@ -588,6 +614,36 @@ export function buildServer(options: BuildServerOptions = {}) {
 
     return {
       evidenceSummary: await repository.getMessageEvidenceSummary(params.id)
+    };
+  });
+
+  server.get("/photo-analysis/:id", { preHandler: requireAuth }, async (request) => {
+    const params = photoAnalysisParamsSchema.parse(request.params);
+    const analysis = await repository.getPhotoAnalysis(params.id);
+
+    if (!analysis) {
+      throw notFound("Photo analysis not found.");
+    }
+
+    await requireOrganizationMembership(requireCurrentUser(request).id, analysis.organizationId);
+
+    return {
+      analysis
+    };
+  });
+
+  server.get("/evidence/:id/photo-analysis", { preHandler: requireAuth }, async (request) => {
+    const params = evidenceParamsSchema.parse(request.params);
+    const analysis = await repository.getPhotoAnalysisByEvidenceId(params.id);
+
+    if (!analysis) {
+      throw notFound("Photo analysis not found.");
+    }
+
+    await requireOrganizationMembership(requireCurrentUser(request).id, analysis.organizationId);
+
+    return {
+      analysis
     };
   });
 

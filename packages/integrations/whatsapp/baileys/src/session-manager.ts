@@ -11,6 +11,7 @@ import {
 } from "@whiskeysockets/baileys";
 import {
   queueAIClassificationJob,
+  queuePhotoAnalysisJob,
   queueSearchIndexJob,
   queueVoiceTranscriptionJob,
   type Attachment,
@@ -614,6 +615,15 @@ export class BaileysWhatsAppSessionManager {
         projectId: activeMapping.projectId
       });
     } else {
+      if (attachment?.mimeType.toLowerCase().startsWith("image/")) {
+        await this.enqueuePhotoAnalysis({
+          attachmentId: attachment.id,
+          messageId: message.id,
+          organizationId: account.organizationId,
+          projectId: activeMapping.projectId
+        });
+      }
+
       await this.enqueueClassification({
         messageId: message.id,
         organizationId: account.organizationId,
@@ -719,6 +729,32 @@ export class BaileysWhatsAppSessionManager {
         organizationId: input.organizationId,
         projectId: input.projectId
       });
+    }
+  }
+
+  private async enqueuePhotoAnalysis(input: {
+    attachmentId: string;
+    messageId: string;
+    organizationId: string;
+    projectId: string | null;
+  }): Promise<void> {
+    try {
+      await queuePhotoAnalysisJob(this.prisma, {
+        organizationId: input.organizationId,
+        projectId: input.projectId,
+        sourceId: input.attachmentId
+      });
+    } catch (error: unknown) {
+      this.logger.error(
+        {
+          attachmentId: input.attachmentId,
+          error,
+          messageId: input.messageId,
+          organizationId: input.organizationId,
+          projectId: input.projectId
+        },
+        "photo analysis enqueue failed"
+      );
     }
   }
 

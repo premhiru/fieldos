@@ -18,6 +18,7 @@ model Organization {
   events                   Event[]
   milestones               Milestone[]
   memberships              Membership[]
+  photoAnalyses            PhotoAnalysis[]
   processingJobs           ProcessingJob[]
   projects                 Project[]
   searchDocuments          SearchDocument[]
@@ -67,6 +68,7 @@ model Project {
   events                   Event[]
   milestones               Milestone[]
   organization             Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  photoAnalyses            PhotoAnalysis[]
   searchDocuments          SearchDocument[]
   suggestedActionItems     ActionItem[]              @relation("ActionItemSuggestedProject")
   whatsAppChatMapping      WhatsAppChatMapping[]
@@ -89,6 +91,7 @@ model Conversation {
   attachments     Attachment[]
   messages        Message[]
   organization    Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  photoAnalyses   PhotoAnalysis[]
   participants    Participant[]
   project         Project?             @relation(fields: [projectId], references: [id], onDelete: SetNull)
   whatsAppMapping WhatsAppChatMapping?
@@ -127,6 +130,7 @@ model Message {
   actionItems         ActionItem[]
   attachments         Attachment[]
   conversation        Conversation             @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  photoAnalyses       PhotoAnalysis[]
   senderParticipant   Participant              @relation(fields: [senderParticipantId], references: [id], onDelete: Restrict)
 
   @@unique([conversationId, externalMessageId])
@@ -149,10 +153,37 @@ model Attachment {
   createdAt           DateTime                 @default(now())
   conversation        Conversation             @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   message             Message                  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  photoAnalysis       PhotoAnalysis?
 
   @@index([conversationId])
   @@index([messageId])
   @@index([transcriptionStatus, createdAt])
+}
+
+model PhotoAnalysis {
+  id              String       @id @default(cuid())
+  evidenceId      String       @unique
+  organizationId  String
+  projectId       String?
+  conversationId  String
+  messageId       String
+  provider        String
+  summary         String
+  detectedObjects Json
+  possibleIssues  Json
+  confidence      Float
+  tags            Json
+  createdAt       DateTime     @default(now())
+  evidence        Attachment   @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project         Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  message         Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([messageId])
+  @@index([conversationId])
 }
 
 model AIMessageClassification {
@@ -419,6 +450,7 @@ enum ProcessingJobType {
   SEARCH_INDEX
   AI_CLASSIFICATION
   VOICE_TRANSCRIPTION
+  PHOTO_ANALYSIS
   MEDIA_DOWNLOAD
 }
 
@@ -526,4 +558,5 @@ enum SearchDocumentSourceType {
   TIMELINE_EVENT
   ACTION_ITEM
   AI_CLASSIFICATION
+  PHOTO_ANALYSIS
 }

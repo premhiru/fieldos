@@ -18,6 +18,7 @@
 - [Operations Health](#operations-health)
 - [AI Search](#ai-search)
 - [Unified Evidence Processing](#unified-evidence-processing)
+- [Photo Intelligence](#photo-intelligence)
 - [Repository Layout](#repository-layout)
 - [Development Philosophy](#development-philosophy)
 - [Tech Stack](#tech-stack)
@@ -29,11 +30,11 @@
 
 FieldOS is the AI Operating System for Field Operations.
 
-The repository is a pnpm and Turborepo monorepo containing a Next.js dashboard, a Fastify API, a standalone Redis-backed worker, shared packages for UI, database access, authentication, messaging, AI classification, cross-cutting utilities, and a Baileys-based WhatsApp adapter.
+The repository is a pnpm and Turborepo monorepo containing a Next.js dashboard, a Fastify API, a standalone Redis-backed worker, shared packages for UI, database access, authentication, messaging, AI classification, photo intelligence, cross-cutting utilities, and a Baileys-based WhatsApp adapter.
 
 ## Architecture
 
-FieldOS starts as a modular monolith with clear package boundaries. The current product slice supports JWT-cookie authentication, organization workspaces, organization memberships, projects, a channel-agnostic messaging foundation, a WhatsApp Web connector that feeds messages into the unified inbox, and a human-reviewed AI classification layer for active project messages.
+FieldOS starts as a modular monolith with clear package boundaries. The current product slice supports JWT-cookie authentication, organization workspaces, organization memberships, projects, a channel-agnostic messaging foundation, a WhatsApp Web connector that feeds messages into the unified inbox, human-reviewed AI classification for active project messages, and worker-owned photo intelligence for image attachments.
 
 ```mermaid
 flowchart TD
@@ -45,7 +46,7 @@ flowchart TD
   Shared["packages/shared\nEnv, Logger, Utilities"]
   Auth["packages/auth\nJWT, Passwords, Auth Schemas"]
   Messaging["packages/messaging\nConversations, Messages, Attachments"]
-  AI["packages/ai\nClassification, Search Answers"]
+  AI["packages/ai\nClassification, Search Answers, Vision"]
   Evidence["UnifiedEvidenceContext\nRuntime Evidence Package"]
   Search["SearchDocument\nGrounded Retrieval Index"]
   Jobs["ProcessingJob\nBackground Queue"]
@@ -112,7 +113,7 @@ pnpm db:migrate
 pnpm db:seed
 ```
 
-Configure AI classification by setting `OPENROUTER_API_KEY`. `AI_BASE_URL` defaults to `https://openrouter.ai/api/v1` and `AI_MODEL` defaults to `openrouter/free`. `OPENAI_API_KEY` remains supported as a fallback for OpenAI-compatible providers and is used for voice transcription when available.
+Configure AI classification and photo intelligence by setting `OPENROUTER_API_KEY`. `AI_BASE_URL` defaults to `https://openrouter.ai/api/v1`, `AI_MODEL` defaults to `openrouter/free`, and `VISION_MODEL` defaults to `openrouter/free`. `OPENAI_API_KEY` remains supported as a fallback for OpenAI-compatible providers and is used for voice transcription when available.
 
 Test the auth flow:
 
@@ -288,12 +289,12 @@ FieldOS treats a WhatsApp update as one operational evidence package. `UnifiedEv
 Supported MVP evidence:
 
 - Text message body.
-- Photo metadata only.
+- Photo metadata and optional AI-generated visual analysis.
 - Voice note transcript when transcription succeeds.
 - PDF/document metadata only.
 - Video metadata only.
 
-OCR, image recognition, vision models, and document extraction are intentionally deferred. Photos and PDFs are described to AI as attached evidence with filenames, MIME types, counts, and sizes only.
+PDF OCR, document extraction, and video analysis are intentionally deferred. Photo image analysis runs asynchronously in the worker, stores concise visual summaries, detected objects, possible issues, confidence, and tags, and indexes the result for search.
 
 The API exposes:
 
@@ -302,15 +303,28 @@ The API exposes:
 
 The inbox shows an Evidence Summary for each message with attachments, an expandable media section, and voice transcripts beneath voice evidence when available. The command center's Recent Evidence groups updates by message rather than listing each file separately.
 
+## Photo Intelligence
+
+Image attachments from active WhatsApp conversations are queued for `PHOTO_ANALYSIS` after media download. The worker reads the stored image, calls an OpenAI-compatible vision endpoint, validates compact JSON output, and persists a `PhotoAnalysis` record linked to the attachment, message, conversation, organization, and optional project.
+
+Photo Intelligence is advisory only. It can summarize visible site evidence and suggest possible issues, but it must not be treated as inspection certification. The dashboard shows visual summaries in the inbox, project detail pages, command-center recent evidence, admin operations health, and search results.
+
+The API exposes:
+
+- `GET /projects/:projectId/photo-analysis`
+- `GET /photo-analysis/:id`
+- `GET /evidence/:id/photo-analysis`
+
 ## Current Roadmap
 
-1. Validate unified evidence processing with a live WhatsApp text, photo, voice note, and PDF update.
-2. Validate grounded AI search with production tenant data.
-3. Validate WhatsApp QR pairing and explicit chat activation with dedicated business test numbers.
-4. Add invite and membership management.
-5. Verify operations health against sustained WhatsApp and AI traffic.
-6. Add deployment automation.
-7. Expand AI-assisted triage into human-approved operational tasks, reports, event timeline views, OCR, vision, document extraction, and official Meta WhatsApp Cloud API support after core workflow boundaries are stable.
+1. Validate photo intelligence with a live WhatsApp image attachment from an active chat.
+2. Validate unified evidence processing with a live WhatsApp text, photo, voice note, and PDF update.
+3. Validate grounded AI search with production tenant data, including photo analysis results.
+4. Validate WhatsApp QR pairing and explicit chat activation with dedicated business test numbers.
+5. Add invite and membership management.
+6. Verify operations health against sustained WhatsApp and AI traffic.
+7. Add deployment automation.
+8. Expand AI-assisted triage into human-approved operational tasks, reports, event timeline views, OCR, document extraction, video analysis, and official Meta WhatsApp Cloud API support after core workflow boundaries are stable.
 
 ## Contributing Guidelines
 

@@ -105,6 +105,17 @@ export async function queueVoiceTranscriptionJob(
   });
 }
 
+export async function queuePhotoAnalysisJob(
+  prisma: PrismaClient | Prisma.TransactionClient,
+  input: Omit<QueueProcessingJobInput, "sourceType" | "type">
+): Promise<ProcessingJob> {
+  return queueProcessingJob(prisma, {
+    ...input,
+    sourceType: "ATTACHMENT",
+    type: "PHOTO_ANALYSIS"
+  });
+}
+
 export async function claimNextProcessingJob(
   prisma: PrismaClient,
   type: ProcessingJobType
@@ -371,6 +382,7 @@ export async function getJobMetrics(
     "SEARCH_INDEX",
     "AI_CLASSIFICATION",
     "VOICE_TRANSCRIPTION",
+    "PHOTO_ANALYSIS",
     "MEDIA_DOWNLOAD"
   ] as const) {
     ensure(type);
@@ -421,6 +433,8 @@ async function buildSearchDocument(
       return buildActionItemDocument(prisma, job.sourceId);
     case "AI_CLASSIFICATION":
       return buildAIClassificationDocument(prisma, job.sourceId);
+    case "PHOTO_ANALYSIS":
+      return buildPhotoAnalysisDocument(prisma, job.sourceId);
     default:
       return null;
   }
@@ -618,6 +632,73 @@ async function buildAIClassificationDocument(
       ? `AI classification: ${classification.category}`
       : "AI classification"
   };
+}
+
+async function buildPhotoAnalysisDocument(
+  prisma: PrismaClient,
+  photoAnalysisId: string
+): Promise<SearchDocumentInput | null> {
+  const analysis = await prisma.photoAnalysis.findUnique({
+    include: {
+      evidence: {
+        select: {
+          filename: true,
+          mimeType: true
+        }
+      },
+      project: {
+        select: {
+          code: true,
+          name: true
+        }
+      }
+    },
+    where: {
+      id: photoAnalysisId
+    }
+  });
+
+  if (!analysis) {
+    return null;
+  }
+
+  const detectedObjects = jsonStringArray(analysis.detectedObjects);
+  const possibleIssues = jsonStringArray(analysis.possibleIssues);
+  const tags = jsonStringArray(analysis.tags);
+
+  return {
+    content: [
+      analysis.summary,
+      detectedObjects.length > 0 ? `Detected objects: ${detectedObjects.join(", ")}` : "",
+      possibleIssues.length > 0 ? `Possible issues: ${possibleIssues.join(", ")}` : "",
+      tags.length > 0 ? `Tags: ${tags.join(", ")}` : "",
+      `Filename: ${analysis.evidence.filename}`,
+      `MIME type: ${analysis.evidence.mimeType}`,
+      analysis.project ? `Project: ${analysis.project.name} ${analysis.project.code}` : ""
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    metadata: {
+      confidence: analysis.confidence,
+      detectedObjects,
+      evidenceId: analysis.evidenceId,
+      possibleIssues,
+      provider: analysis.provider,
+      tags
+    },
+    occurredAt: analysis.createdAt,
+    organizationId: analysis.organizationId,
+    projectId: analysis.projectId,
+    sourceId: analysis.id,
+    sourceType: "PHOTO_ANALYSIS",
+    title: `Photo analysis: ${analysis.evidence.filename}`
+  };
+}
+
+function jsonStringArray(value: Prisma.JsonValue): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : [];
 }
 
 export function getWorkerEffectiveStatus(input: {

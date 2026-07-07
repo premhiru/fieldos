@@ -10,7 +10,38 @@
 ## Table of Contents
 
 - [Task 011: Unified Evidence Processing](#task-011-unified-evidence-processing)
+- [Task 012: Photo Intelligence](#task-012-photo-intelligence)
 - [Task 010B: Operations Health](#task-010b-operations-health)
+
+## Task 012: Photo Intelligence
+
+What changed:
+
+- Image attachments from active WhatsApp conversations queue `PHOTO_ANALYSIS` jobs.
+- The worker sends stored photos to the configured OpenAI-compatible vision provider.
+- FieldOS stores concise summaries, detected objects, possible issues, confidence, and tags.
+- Inbox image attachments show visual summaries when analysis completes.
+- Project detail pages show recent photo intelligence for the project.
+- Command center Recent Evidence can surface visual summary snippets.
+- AI Search can retrieve photo analysis results by summary, objects, issues, and tags.
+- Admin Operations shows pending Photo Analysis jobs.
+
+How to test:
+
+1. Confirm `OPENROUTER_API_KEY` is configured and `VISION_MODEL` points to a multimodal model.
+2. Pair a WhatsApp test line.
+3. Activate a chat or group and map it to a project.
+4. Send a site photo into the active chat.
+5. Open `/admin/operations` and confirm a Photo Analysis job is queued and completes.
+6. Open the inbox conversation and expand the image attachment.
+7. Confirm the visual summary, confidence state, tags, and possible issues appear.
+8. Open the project detail page and confirm the photo appears under Photo Intelligence.
+9. Search for a visible object or tag and confirm a Photo Analysis result appears.
+
+Current limitation:
+
+- Original image preview uses the stored attachment metadata and placeholder UI until production object storage and media-serving are added.
+- Vision results are advisory and require human review before operational decisions.
 
 ## Task 011: Unified Evidence Processing
 
@@ -36,7 +67,7 @@ How to test:
 
 Current limitation:
 
-- Photos, PDFs, and videos are metadata-only. OCR, image recognition, document extraction, and video analysis are deferred.
+- PDFs and videos remain metadata-only. OCR, document extraction, and video analysis are deferred.
 
 ## Task 010B: Operations Health
 

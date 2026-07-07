@@ -13,6 +13,7 @@
 - [Domain Model](#domain-model)
 - [Messaging Model](#messaging-model)
 - [Unified Evidence Processing](#unified-evidence-processing)
+- [Photo Intelligence Model](#photo-intelligence-model)
 - [WhatsApp Connector Model](#whatsapp-connector-model)
 - [AI Classification Model](#ai-classification-model)
 - [Event Model](#event-model)
@@ -40,6 +41,7 @@ Current MVP models:
 - `Participant`: Sender or actor inside a conversation.
 - `Message`: Inbound, outbound, or system event inside a conversation.
 - `Attachment`: File metadata attached to a message.
+- `PhotoAnalysis`: Advisory visual analysis linked one-to-one with an image attachment.
 - `AIMessageClassification`: AI-derived classification, summary, extracted fields, and processing status for one message.
 - `ActionItem`: Human-reviewable recommendation derived from an AI classification or deterministic project suggestion.
 - `Event`: Generic organization-scoped activity record prepared for timeline features.
@@ -126,18 +128,49 @@ Key attachment indexes:
 
 ## Unified Evidence Processing
 
-`UnifiedEvidenceContext` is not persisted as a database table. It is built dynamically from `Message`, `Conversation`, `Participant`, `Project`, and `Attachment` records.
+`UnifiedEvidenceContext` is not persisted as a database table. It is built dynamically from `Message`, `Conversation`, `Participant`, `Project`, `Attachment`, and linked `PhotoAnalysis` records when available.
 
 The database keeps media metadata independent:
 
 - Photos use `Attachment` filename, MIME type, storage key, size, and timestamps.
+- Photo visual summaries use `PhotoAnalysis` when the worker has processed the image.
 - PDFs/documents use the same `Attachment` metadata.
 - Voice notes use `Attachment` metadata plus transcript status and transcript text when available.
 - Videos remain metadata-only for the MVP.
 
 This avoids duplicating media metadata while allowing AI classification, search indexing, inbox display, and command-center recent evidence to consume the same runtime context.
 
-Message search documents include message text, voice transcripts, document filenames, photo filenames, and evidence summary labels. Binary files are not indexed.
+Message search documents include message text, voice transcripts, document filenames, photo filenames, and evidence summary labels. Photo analysis search documents index visual summaries, detected objects, possible issues, tags, and confidence metadata. Binary files are not indexed.
+
+## Photo Intelligence Model
+
+`PhotoAnalysis` stores worker-generated, advisory visual analysis for an image attachment.
+
+Fields:
+
+- `id`: Primary key.
+- `evidenceId`: Unique attachment reference.
+- `organizationId`: Owning organization for authorization and indexing.
+- `projectId`: Optional project scope copied from the source conversation.
+- `conversationId`: Source conversation.
+- `messageId`: Source message.
+- `provider`: Vision provider identifier.
+- `summary`: Concise user-facing visual summary.
+- `detectedObjects`: JSON string array of visible objects or field elements.
+- `possibleIssues`: JSON string array of possible issues that require human review.
+- `confidence`: Numeric provider confidence used to derive user-facing confidence states.
+- `tags`: JSON string array for filtering and search.
+- `createdAt`: Analysis creation timestamp.
+
+Key constraints and indexes:
+
+- `evidenceId` is unique so one attachment has at most one current analysis.
+- `PhotoAnalysis` cascades when its attachment is deleted.
+- `organizationId, createdAt` supports organization-scoped recent evidence queries.
+- `projectId, createdAt` supports project detail pages.
+- `messageId` and `conversationId` support inbox and evidence lookups.
+
+Vision analysis is not a source of truth. It is an advisory enrichment for operators and must not automatically certify completion, safety, compliance, or defect presence.
 
 ## WhatsApp Connector Model
 
@@ -295,7 +328,7 @@ Key indexes:
 
 Search documents are written only by background `SEARCH_INDEX` jobs. API search routes read the index and do not rebuild it synchronously.
 
-Message search content includes message text, available voice transcripts, attachment filenames, and evidence summary labels. OCR, image recognition, document extraction, and video analysis are not part of the MVP search index.
+Message search content includes message text, available voice transcripts, attachment filenames, and evidence summary labels. Photo analysis content is indexed separately after vision processing. OCR, document extraction, and video analysis are not part of the MVP search index.
 
 Supported source types:
 
@@ -304,6 +337,7 @@ Supported source types:
 - `TIMELINE_EVENT`
 - `ACTION_ITEM`
 - `AI_CLASSIFICATION`
+- `PHOTO_ANALYSIS`
 
 Fields:
 
@@ -336,6 +370,7 @@ Job types:
 - `AI_CLASSIFICATION`
 - `VOICE_TRANSCRIPTION`
 - `MEDIA_DOWNLOAD`
+- `PHOTO_ANALYSIS`
 
 Job statuses:
 

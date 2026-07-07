@@ -250,6 +250,7 @@ export interface DashboardActionItemGroupsRecord {
 
 export interface DashboardRecentActivityRecord {
   conversationId: string | null;
+  description: string | null;
   id: string;
   projectId: string;
   projectName: string;
@@ -296,6 +297,46 @@ export interface SearchDocumentRecord {
 
 export interface SearchDocumentsResult {
   results: SearchDocumentRecord[];
+  nextCursor: string | null;
+}
+
+export interface PhotoAnalysisRecord {
+  id: string;
+  evidenceId: string;
+  organizationId: string;
+  projectId: string | null;
+  conversationId: string;
+  messageId: string;
+  provider: string;
+  summary: string;
+  detectedObjects: string[];
+  possibleIssues: string[];
+  confidence: number;
+  tags: string[];
+  createdAt: Date;
+  evidence: {
+    filename: string;
+    mimeType: string;
+    storageKey: string;
+  };
+  message: {
+    id: string;
+    body: string | null;
+    occurredAt: Date;
+    conversation: {
+      id: string;
+      title: string;
+    };
+  };
+  project: {
+    code: string;
+    id: string;
+    name: string;
+  } | null;
+}
+
+export interface PhotoAnalysisPageRecord {
+  analyses: PhotoAnalysisRecord[];
   nextCursor: string | null;
 }
 
@@ -346,6 +387,7 @@ export interface AdminOperationsRecord {
   media: {
     failedDownloads: number;
     pendingDownloads: number;
+    pendingPhotoAnalyses: number;
     pendingTranscriptions: number;
   };
   search: {
@@ -406,6 +448,8 @@ export interface AppRepository extends MessagingRepository {
   getMessageClassification(messageId: string): Promise<AIMessageClassificationRecord | null>;
   getMessageEvidenceContext(messageId: string): Promise<UnifiedEvidenceContext | null>;
   getMessageEvidenceSummary(messageId: string): Promise<EvidenceSummary | null>;
+  getPhotoAnalysis(photoAnalysisId: string): Promise<PhotoAnalysisRecord | null>;
+  getPhotoAnalysisByEvidenceId(evidenceId: string): Promise<PhotoAnalysisRecord | null>;
   getActionItem(actionItemId: string): Promise<ActionItemRecord | null>;
   getOperationsDashboard(input: {
     organizationId: string;
@@ -428,6 +472,11 @@ export interface AppRepository extends MessagingRepository {
     sourceType?: SearchSourceType | null;
   }): Promise<SearchDocumentsResult>;
   listProjectAIClassifications(projectId: string): Promise<AIMessageClassificationRecord[]>;
+  listProjectPhotoAnalyses(input: {
+    cursor?: string | null;
+    limit: number;
+    projectId: string;
+  }): Promise<PhotoAnalysisPageRecord>;
   listProjectActionItems(projectId: string): Promise<ActionItemRecord[]>;
   ignoreActionItem(input: { actionItemId: string; userId: string }): Promise<ActionItemRecord>;
   rotateWhatsAppAccountSession(accountId: string): Promise<WhatsAppAccountRecord>;
@@ -778,6 +827,30 @@ export function createPrismaRepository(): AppRepository {
       return context?.evidenceSummary ?? null;
     },
 
+    async getPhotoAnalysis(photoAnalysisId) {
+      const prisma = await getPrisma();
+      const analysis = await prisma.photoAnalysis.findUnique({
+        include: photoAnalysisInclude(),
+        where: {
+          id: photoAnalysisId
+        }
+      });
+
+      return analysis ? toPhotoAnalysisRecord(analysis) : null;
+    },
+
+    async getPhotoAnalysisByEvidenceId(evidenceId) {
+      const prisma = await getPrisma();
+      const analysis = await prisma.photoAnalysis.findUnique({
+        include: photoAnalysisInclude(),
+        where: {
+          evidenceId
+        }
+      });
+
+      return analysis ? toPhotoAnalysisRecord(analysis) : null;
+    },
+
     async getActionItem(actionItemId) {
       const prisma = await getPrisma();
       return prisma.actionItem.findUnique({
@@ -943,6 +1016,7 @@ export function createPrismaRepository(): AppRepository {
             event.sourceType === "MESSAGE"
               ? (conversationByMessageId.get(event.sourceId) ?? null)
               : null,
+          description: event.description,
           eventType: event.eventType,
           icon: getActivityIcon(event.sourceType),
           id: event.id,
@@ -956,7 +1030,7 @@ export function createPrismaRepository(): AppRepository {
 
       return {
         actionItems: groupActionItems(myActionItems),
-        brief: buildFallbackBrief(summary, dashboardProjects, milestones),
+        brief: buildFallbackBrief(summary, dashboardProjects, milestones, events),
         milestones,
         projects: dashboardProjects,
         recentActivity,
@@ -1043,6 +1117,7 @@ export function createPrismaRepository(): AppRepository {
         media: {
           failedDownloads: byJobType.get("MEDIA_DOWNLOAD")?.failed ?? 0,
           pendingDownloads: byJobType.get("MEDIA_DOWNLOAD")?.pending ?? 0,
+          pendingPhotoAnalyses: byJobType.get("PHOTO_ANALYSIS")?.pending ?? 0,
           pendingTranscriptions: byJobType.get("VOICE_TRANSCRIPTION")?.pending ?? 0
         },
         search: {
@@ -1217,6 +1292,35 @@ export function createPrismaRepository(): AppRepository {
           projectId
         }
       });
+    },
+
+    async listProjectPhotoAnalyses(input) {
+      const prisma = await getPrisma();
+      const cursorDate = input.cursor ? new Date(input.cursor) : null;
+      const rows = await prisma.photoAnalysis.findMany({
+        include: photoAnalysisInclude(),
+        orderBy: {
+          createdAt: "desc"
+        },
+        take: input.limit + 1,
+        where: {
+          projectId: input.projectId,
+          ...(cursorDate && !Number.isNaN(cursorDate.getTime())
+            ? {
+                createdAt: {
+                  lt: cursorDate
+                }
+              }
+            : {})
+        }
+      });
+      const page = rows.slice(0, input.limit);
+
+      return {
+        analyses: page.map(toPhotoAnalysisRecord),
+        nextCursor:
+          rows.length > input.limit ? (page.at(-1)?.createdAt.toISOString() ?? null) : null
+      };
     },
 
     async listProjectActionItems(projectId) {
@@ -1767,7 +1871,21 @@ function conversationInclude() {
 
 function messageInclude() {
   return {
-    attachments: true,
+    attachments: {
+      include: {
+        photoAnalysis: {
+          select: {
+            confidence: true,
+            createdAt: true,
+            detectedObjects: true,
+            id: true,
+            possibleIssues: true,
+            summary: true,
+            tags: true
+          }
+        }
+      }
+    },
     senderParticipant: true
   };
 }
@@ -1843,6 +1961,38 @@ function actionItemInclude() {
 
 function searchDocumentInclude() {
   return {
+    project: {
+      select: {
+        code: true,
+        id: true,
+        name: true
+      }
+    }
+  };
+}
+
+function photoAnalysisInclude() {
+  return {
+    evidence: {
+      select: {
+        filename: true,
+        mimeType: true,
+        storageKey: true
+      }
+    },
+    message: {
+      select: {
+        body: true,
+        conversation: {
+          select: {
+            id: true,
+            title: true
+          }
+        },
+        id: true,
+        occurredAt: true
+      }
+    },
     project: {
       select: {
         code: true,
@@ -2083,7 +2233,8 @@ function getActivityIcon(sourceType: EventSourceType): string {
 function buildFallbackBrief(
   summary: DashboardSummaryRecord,
   projects: DashboardProjectRecord[],
-  milestones: MilestoneRecord[]
+  milestones: MilestoneRecord[],
+  events: Array<{ description: string | null; eventType: string }>
 ): DashboardBriefRecord {
   const bullets = [
     `${summary.activeProjects} active projects are being tracked.`,
@@ -2096,6 +2247,13 @@ function buildFallbackBrief(
 
   if (attentionProject) {
     bullets[1] = `${attentionProject.name} is the highest-ranked project needing review.`;
+  }
+  const photoEvent = events.find(
+    (event) => event.eventType === "PHOTO_ANALYSIS_COMPLETE" && event.description
+  );
+
+  if (photoEvent?.description) {
+    bullets[4] = createSnippet(photoEvent.description);
   }
 
   return {
@@ -2132,12 +2290,24 @@ function toConversationRecord(
 
 function toMessageRecord(
   message: Omit<MessageRecord, "attachments" | "senderParticipant"> & {
-    attachments: AttachmentRecord[];
+    attachments: Array<
+      Omit<AttachmentRecord, "photoAnalysis"> & {
+        photoAnalysis?: {
+          confidence: number;
+          createdAt: Date;
+          detectedObjects: Prisma.JsonValue;
+          id: string;
+          possibleIssues: Prisma.JsonValue;
+          summary: string;
+          tags: Prisma.JsonValue;
+        } | null;
+      }
+    >;
     senderParticipant: ParticipantRecord;
   }
 ): MessageRecord {
   return {
-    attachments: message.attachments,
+    attachments: message.attachments.map(toAttachmentRecord),
     body: message.body,
     conversationId: message.conversationId,
     createdAt: message.createdAt,
@@ -2150,4 +2320,77 @@ function toMessageRecord(
     senderParticipantId: message.senderParticipantId,
     type: message.type
   };
+}
+
+function toAttachmentRecord(
+  attachment: Omit<AttachmentRecord, "photoAnalysis"> & {
+    photoAnalysis?: {
+      confidence: number;
+      createdAt: Date;
+      detectedObjects: Prisma.JsonValue;
+      id: string;
+      possibleIssues: Prisma.JsonValue;
+      summary: string;
+      tags: Prisma.JsonValue;
+    } | null;
+  }
+): AttachmentRecord {
+  return {
+    ...attachment,
+    photoAnalysis: attachment.photoAnalysis
+      ? {
+          confidence: attachment.photoAnalysis.confidence,
+          createdAt: attachment.photoAnalysis.createdAt,
+          detectedObjects: jsonStringArray(attachment.photoAnalysis.detectedObjects),
+          id: attachment.photoAnalysis.id,
+          possibleIssues: jsonStringArray(attachment.photoAnalysis.possibleIssues),
+          summary: attachment.photoAnalysis.summary,
+          tags: jsonStringArray(attachment.photoAnalysis.tags)
+        }
+      : null
+  };
+}
+
+function toPhotoAnalysisRecord(analysis: {
+  confidence: number;
+  conversationId: string;
+  createdAt: Date;
+  detectedObjects: Prisma.JsonValue;
+  evidence: PhotoAnalysisRecord["evidence"];
+  evidenceId: string;
+  id: string;
+  message: PhotoAnalysisRecord["message"];
+  messageId: string;
+  organizationId: string;
+  possibleIssues: Prisma.JsonValue;
+  project: PhotoAnalysisRecord["project"];
+  projectId: string | null;
+  provider: string;
+  summary: string;
+  tags: Prisma.JsonValue;
+}): PhotoAnalysisRecord {
+  return {
+    confidence: analysis.confidence,
+    conversationId: analysis.conversationId,
+    createdAt: analysis.createdAt,
+    detectedObjects: jsonStringArray(analysis.detectedObjects),
+    evidence: analysis.evidence,
+    evidenceId: analysis.evidenceId,
+    id: analysis.id,
+    message: analysis.message,
+    messageId: analysis.messageId,
+    organizationId: analysis.organizationId,
+    possibleIssues: jsonStringArray(analysis.possibleIssues),
+    project: analysis.project,
+    projectId: analysis.projectId,
+    provider: analysis.provider,
+    summary: analysis.summary,
+    tags: jsonStringArray(analysis.tags)
+  };
+}
+
+function jsonStringArray(value: Prisma.JsonValue): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : [];
 }

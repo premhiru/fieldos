@@ -33,8 +33,22 @@ export const searchSourceTypeSchema = z.enum([
   "MESSAGE",
   "TIMELINE_EVENT",
   "ACTION_ITEM",
-  "AI_CLASSIFICATION"
+  "AI_CLASSIFICATION",
+  "PHOTO_ANALYSIS"
 ]);
+
+export const photoAnalysisParamsSchema = z.object({
+  id: z.string().min(1)
+});
+
+export const evidenceParamsSchema = z.object({
+  id: z.string().min(1)
+});
+
+export const paginationQuerySchema = z.object({
+  cursor: z.string().trim().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(20)
+});
 
 export const searchQuerySchema = z.object({
   cursor: z.string().trim().min(1).optional(),

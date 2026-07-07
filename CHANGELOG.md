@@ -15,6 +15,8 @@
 
 ### Changed
 
+- Photo attachments are now asynchronously enriched with advisory vision summaries when image media is available.
+- AI Search now includes photo analysis summaries, detected objects, possible issues, and tags.
 - AI classification now receives a `UnifiedEvidenceContext` containing message text, project/conversation/sender metadata, attachment metadata, and available voice transcripts.
 - Inbox and command-center evidence displays now group media by operational update instead of individual files.
 - Message search indexing now includes available voice transcripts and attachment filenames.
@@ -25,6 +27,10 @@
 
 ### Added
 
+- Added `PhotoAnalysis` persistence, `PHOTO_ANALYSIS` jobs, and worker-owned vision processing.
+- Added photo analysis API endpoints for project, analysis, and evidence lookups.
+- Added photo intelligence UI in the inbox, project detail pages, command-center recent evidence, and admin operations health.
+- Added ADR 0012 for Photo Intelligence.
 - Added runtime unified evidence context builder and evidence summary API endpoints for messages.
 - Added attachment-level voice transcription status, transcript, and error fields.
 - Added worker-owned voice transcription processing with non-blocking failure handling.

@@ -27,7 +27,8 @@ const sourceTypes: Array<{ label: string; value: SearchSourceType | "" }> = [
   { label: "Messages", value: "MESSAGE" },
   { label: "Timeline Events", value: "TIMELINE_EVENT" },
   { label: "Action Items", value: "ACTION_ITEM" },
-  { label: "AI Classifications", value: "AI_CLASSIFICATION" }
+  { label: "AI Classifications", value: "AI_CLASSIFICATION" },
+  { label: "Photo Analysis", value: "PHOTO_ANALYSIS" }
 ];
 
 export default function SearchPage() {
@@ -273,6 +274,10 @@ function getSourceHref(result: SearchResult): string {
   if (result.sourceType === "MESSAGE") {
     const metadata = result.metadata as { conversationId?: string } | null;
     return metadata?.conversationId ? `/inbox/${metadata.conversationId}` : "/inbox";
+  }
+
+  if (result.sourceType === "PHOTO_ANALYSIS") {
+    return result.projectId ? `/projects/${result.projectId}` : "/search";
   }
 
   return result.projectId ? `/projects/${result.projectId}` : "/search";

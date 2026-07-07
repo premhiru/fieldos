@@ -319,12 +319,57 @@ function MediaPlaceholder({ type }: { type: Message["type"] }) {
 }
 
 function AttachmentRow({ attachment }: { attachment: Attachment }) {
+  const [analysisOpen, setAnalysisOpen] = React.useState(false);
+  const analysis = attachment.photoAnalysis;
+
   return (
     <div className="rounded-md border border-slate-200 p-3">
+      {attachment.mimeType.toLowerCase().startsWith("image/") ? (
+        <div className="mb-3 flex h-24 items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 text-xs font-medium text-slate-500">
+          Photo
+        </div>
+      ) : null}
       <div className="font-medium text-slate-950">{attachment.filename}</div>
       <div className="mt-1 text-xs text-slate-500">
         {attachment.mimeType} - {formatBytes(attachment.size)}
       </div>
+      {analysis ? (
+        <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-xs font-semibold uppercase text-slate-500">Visual Summary</div>
+              <p className="mt-1 text-sm text-slate-700">{analysis.summary}</p>
+            </div>
+            <Badge variant="muted">{getVisionConfidenceLabel(analysis.confidence)}</Badge>
+          </div>
+          {analysis.tags.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {analysis.tags.slice(0, 6).map((tag) => (
+                <span
+                  className="rounded border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600"
+                  key={tag}
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          ) : null}
+          {analysis.possibleIssues.length > 0 ? (
+            <div className="mt-2 text-xs text-slate-600">
+              Possible Issues: {analysis.possibleIssues.join(", ")}
+            </div>
+          ) : null}
+          <button
+            className="mt-3 rounded border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-white"
+            onClick={() => setAnalysisOpen(true)}
+            type="button"
+          >
+            Open Full Analysis
+          </button>
+        </div>
+      ) : attachment.mimeType.toLowerCase().startsWith("image/") ? (
+        <p className="mt-2 text-xs text-slate-500">Visual analysis pending.</p>
+      ) : null}
       {attachment.transcript ? (
         <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-600">
           {attachment.transcript}
@@ -335,6 +380,96 @@ function AttachmentRow({ attachment }: { attachment: Attachment }) {
           {attachment.transcriptionError ? `: ${attachment.transcriptionError}` : ""}.
         </p>
       ) : null}
+      {analysisOpen && analysis ? (
+        <PhotoAnalysisPanel attachment={attachment} onClose={() => setAnalysisOpen(false)} />
+      ) : null}
+    </div>
+  );
+}
+
+function PhotoAnalysisPanel({
+  attachment,
+  onClose
+}: {
+  attachment: Attachment;
+  onClose: () => void;
+}) {
+  const analysis = attachment.photoAnalysis;
+
+  if (!analysis) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/30">
+      <div className="h-full w-full max-w-xl overflow-y-auto bg-white p-6 shadow-xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="text-xs font-semibold uppercase text-slate-500">Photo Intelligence</div>
+            <h2 className="mt-1 text-xl font-semibold text-slate-950">{attachment.filename}</h2>
+          </div>
+          <button
+            className="rounded border border-slate-300 px-3 py-1 text-sm font-medium text-slate-700"
+            onClick={onClose}
+            type="button"
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="mt-6 flex h-56 items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 text-sm font-medium text-slate-500">
+          Original Photo
+        </div>
+
+        <div className="mt-6 space-y-5">
+          <AnalysisSection title="Summary">
+            <p>{analysis.summary}</p>
+          </AnalysisSection>
+          <AnalysisSection title="Detected Objects">
+            <TagList emptyLabel="Unable to determine." values={analysis.detectedObjects} />
+          </AnalysisSection>
+          <AnalysisSection title="Possible Issues">
+            <TagList
+              emptyLabel="No obvious issue visible. Needs Review."
+              values={analysis.possibleIssues}
+            />
+          </AnalysisSection>
+          <AnalysisSection title="Confidence">
+            <Badge variant="muted">{getVisionConfidenceLabel(analysis.confidence)}</Badge>
+          </AnalysisSection>
+          <AnalysisSection title="Source Message">
+            <p>{attachment.messageId}</p>
+          </AnalysisSection>
+          <AnalysisSection title="Linked Action Items">
+            <p>None linked.</p>
+          </AnalysisSection>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AnalysisSection({ children, title }: { children: React.ReactNode; title: string }) {
+  return (
+    <section className="text-sm text-slate-700">
+      <h3 className="text-xs font-semibold uppercase text-slate-500">{title}</h3>
+      <div className="mt-2">{children}</div>
+    </section>
+  );
+}
+
+function TagList({ emptyLabel, values }: { emptyLabel: string; values: string[] }) {
+  if (values.length === 0) {
+    return <p>{emptyLabel}</p>;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {values.map((value) => (
+        <span className="rounded border border-slate-200 px-2 py-1 text-xs" key={value}>
+          {value}
+        </span>
+      ))}
     </div>
   );
 }
@@ -414,6 +549,18 @@ function getConfidenceLabel(confidence: number | null): string {
   }
 
   return "Low Confidence";
+}
+
+function getVisionConfidenceLabel(confidence: number): string {
+  if (confidence >= 0.75) {
+    return "High";
+  }
+
+  if (confidence >= 0.45) {
+    return "Needs Review";
+  }
+
+  return "Low";
 }
 
 function formatBytes(size: number) {

@@ -18,6 +18,7 @@
 - [WhatsApp Connector](#whatsapp-connector)
 - [AI Classification](#ai-classification)
 - [Unified Evidence Processing](#unified-evidence-processing)
+- [Photo Intelligence](#photo-intelligence)
 - [Operations Command Center](#operations-command-center)
 - [Background Processing and Operations Health](#background-processing-and-operations-health)
 - [AI Search](#ai-search)
@@ -56,7 +57,7 @@ Current application boundaries:
 - `apps/api`: Fastify API that owns authentication, tenant authorization, organization membership checks, and project endpoints.
 - `apps/worker`: Redis-connected worker that reconciles Baileys WhatsApp sessions, updates worker heartbeat, and processes database-backed background jobs.
 - `packages/auth`: Password hashing, JWT signing/verification, auth schemas, and session constants.
-- `packages/ai`: AI message classification, extraction, prompt versioning, and action item processing.
+- `packages/ai`: AI message classification, vision analysis, extraction, prompt versioning, and action item processing.
 - `packages/db`: Prisma schema, migrations, Prisma client, and database types.
 - `packages/integrations/whatsapp/baileys`: WhatsApp Web adapter, QR store, session storage, message normalization, and ingestion.
 - `packages/ui`: Reusable shadcn-style UI primitives.
@@ -66,7 +67,7 @@ Current application boundaries:
 
 - `packages/messaging` owns channel-agnostic conversation and message business rules.
 - `packages/integrations/whatsapp/baileys` owns WhatsApp-specific session state, QR pairing, history discovery, and provider payload normalization.
-- `packages/ai` owns AI prompt construction, provider calls, output validation, classification persistence, and action item creation.
+- `packages/ai` owns AI prompt construction, provider calls, output validation, classification persistence, photo analysis provider calls, and action item creation.
 - `apps/api` owns authentication, tenant authorization, and external HTTP contracts.
 - `apps/worker` owns asynchronous processing loops, worker heartbeat, and background job execution. It must keep provider failures and search indexing out of request and ingestion paths.
 
@@ -129,11 +130,11 @@ Project suggestions are represented as `ActionItem` records with type `PROJECT_S
 - Message text.
 - Conversation and sender metadata.
 - Project metadata when mapped.
-- Attachment metadata.
+- Attachment metadata and linked photo analysis when available.
 - Voice transcript when available.
 - Evidence summary counts for photos, voice notes, PDFs, documents, and videos.
 
-The context is the single input to AI classification. AI is told that the transcript belongs to the same WhatsApp update as the text and attachments. Photos, PDFs, documents, and videos are provided as metadata only; the system does not ask AI to infer image or document contents.
+The context is the single input to AI classification. AI is told that the transcript belongs to the same WhatsApp update as the text and attachments. Photos are initially represented as metadata, then asynchronously enriched by Photo Intelligence when the image file is available. PDFs, documents, and videos remain metadata-only for the MVP.
 
 The worker processing order for inbound WhatsApp evidence is:
 
@@ -141,16 +142,33 @@ The worker processing order for inbound WhatsApp evidence is:
 2. Store/download media metadata and file when possible.
 3. Queue voice transcription for voice attachments.
 4. Build `UnifiedEvidenceContext`.
-5. Run AI classification.
-6. Create a grouped message timeline event.
-7. Create Action Items when required.
-8. Queue search indexing.
+5. Queue photo analysis for image attachments.
+6. Run AI classification.
+7. Create a grouped message timeline event.
+8. Create Action Items when required.
+9. Queue search indexing.
 
 Media and transcription failures are non-blocking. Attachment rows record transcription status and error text, failed jobs remain retryable, and AI classification continues with the evidence that is available.
 
-Search indexing for messages includes message text, voice transcript text, evidence summary, and attachment filenames. Binary content is not indexed.
+Search indexing for messages includes message text, voice transcript text, evidence summary, and attachment filenames. Photo analysis summaries are indexed separately after vision processing. Binary content is not indexed.
 
 The API exposes `GET /messages/:id/context` and `GET /messages/:id/evidence-summary` so UI surfaces can display the full evidence package or a compact summary without rebuilding logic locally.
+
+## Photo Intelligence
+
+Photo Intelligence is worker-owned asynchronous enrichment for image attachments. The WhatsApp adapter stores the attachment and queues a `PHOTO_ANALYSIS` job; the worker reads the stored file, calls the configured OpenAI-compatible vision provider, validates compact JSON, and upserts a `PhotoAnalysis` row.
+
+The persisted output is intentionally small:
+
+- `summary`
+- `detectedObjects`
+- `possibleIssues`
+- `confidence`
+- `tags`
+
+Vision output is advisory. It can help field teams notice possible issues, but it never certifies completion, safety, compliance, or defect presence without human review.
+
+Photo analysis results are visible in the inbox, project detail page, command-center recent evidence snippets, admin operations health, and AI Search. The API exposes project-scoped and evidence-scoped read routes while keeping authorization organization-scoped.
 
 ## Operations Command Center
 
@@ -187,6 +205,7 @@ Supported job types are:
 - `AI_CLASSIFICATION`
 - `VOICE_TRANSCRIPTION`
 - `MEDIA_DOWNLOAD`
+- `PHOTO_ANALYSIS`
 
 The worker claims pending jobs, marks them running, logs job ID, organization ID, optional project ID, duration, result, and correlation ID, then marks jobs completed or failed. Failed jobs can be retried individually or in bulk through admin routes.
 
@@ -206,9 +225,9 @@ Admin operations endpoints are restricted to organization `OWNER` and `ADMIN` ro
 
 AI search is grounded retrieval, not an open-ended assistant. The API owns search authorization, record retrieval, answer generation, and fallback behavior.
 
-Search records are normalized into `SearchDocument` rows with an organization scope, optional project scope, source type, source id, title, content, metadata, and occurrence timestamp. The first implementation indexes projects, messages, timeline events, Action Items, and AI classifications.
+Search records are normalized into `SearchDocument` rows with an organization scope, optional project scope, source type, source id, title, content, metadata, and occurrence timestamp. The first implementation indexes projects, messages, timeline events, Action Items, AI classifications, and photo analyses.
 
-Search indexing is asynchronous. Project, message, timeline event, Action Item, and AI classification writes enqueue `SEARCH_INDEX` jobs. The worker owns all `SearchDocument` writes. Search request handlers only read the index.
+Search indexing is asynchronous. Project, message, timeline event, Action Item, AI classification, and photo analysis writes enqueue `SEARCH_INDEX` jobs. The worker owns all `SearchDocument` writes. Search request handlers only read the index.
 
 Search API endpoints:
 

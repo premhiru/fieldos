@@ -17,6 +17,7 @@ export type {
   Milestone,
   MilestoneStatus,
   Organization,
+  PhotoAnalysis,
   ProcessingJob,
   ProcessingJobStatus,
   ProcessingJobType,

@@ -18,6 +18,16 @@ export type MessageProcessingStatus =
 
 export type VoiceTranscriptionStatus = "NOT_REQUIRED" | "PENDING" | "COMPLETED" | "FAILED";
 
+export interface PhotoAnalysisSummaryRecord {
+  id: string;
+  summary: string;
+  detectedObjects: string[];
+  possibleIssues: string[];
+  confidence: number;
+  tags: string[];
+  createdAt: Date;
+}
+
 export interface ProjectReference {
   id: string;
   code: string;
@@ -59,6 +69,7 @@ export interface AttachmentRecord {
   transcript: string | null;
   transcriptionStatus: VoiceTranscriptionStatus;
   transcriptionError: string | null;
+  photoAnalysis?: PhotoAnalysisSummaryRecord | null;
   createdAt: Date;
 }
 

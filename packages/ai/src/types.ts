@@ -134,9 +134,37 @@ export type SearchAnswerSource = z.infer<typeof searchAnswerSourceSchema>;
 export type SearchAnswerInput = z.infer<typeof searchAnswerInputSchema>;
 export type SearchAnswerResult = z.infer<typeof searchAnswerResultSchema>;
 
+export const visionRequestSchema = z.object({
+  context: z.object({
+    conversationTitle: z.string().trim().min(1).nullable(),
+    messageText: z.string().trim().min(1).nullable(),
+    projectName: z.string().trim().min(1).nullable()
+  }),
+  image: z.object({
+    base64: z.string().trim().min(1),
+    filename: z.string().trim().min(1),
+    mimeType: z.string().trim().min(1)
+  })
+});
+
+export const visionResultSchema = z.object({
+  confidence: z.number().min(0).max(1),
+  detectedObjects: z.array(z.string().trim().min(1).max(80)).max(20),
+  possibleIssues: z.array(z.string().trim().min(1).max(160)).max(10),
+  summary: z.string().trim().min(1).max(800),
+  tags: z.array(z.string().trim().min(1).max(80)).max(20)
+});
+
+export type VisionRequest = z.infer<typeof visionRequestSchema>;
+export type VisionResult = z.infer<typeof visionResultSchema>;
+
 export interface AIProvider {
   completeJson(input: {
     model: string;
     messages: Array<{ role: "system" | "user"; content: string }>;
   }): Promise<unknown>;
+}
+
+export interface VisionProvider {
+  analyze(input: VisionRequest): Promise<VisionResult>;
 }

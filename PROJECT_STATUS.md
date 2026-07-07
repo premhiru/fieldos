@@ -19,7 +19,7 @@
 
 ## Current Milestone
 
-Task 011 Unified Evidence Processing is deployed to production. Live WhatsApp mixed-evidence verification is pending QR pairing and an audio transcription key.
+Task 012 Photo Intelligence is code-complete and validated locally. Production deployment and live WhatsApp photo verification are in progress.
 
 ## Completed Tasks
 
@@ -143,6 +143,18 @@ Task 011 Unified Evidence Processing is deployed to production. Live WhatsApp mi
   - API endpoints added for message context and evidence summary.
   - ADR 0011 documents the unified evidence processing decision.
   - Production migration, API, worker, and dashboard deployment completed.
+- Task 012: Photo Intelligence.
+  - `PhotoAnalysis` model and migration added for advisory visual analysis linked to image attachments.
+  - `PHOTO_ANALYSIS` background jobs added to the worker-owned processing pipeline.
+  - OpenAI-compatible vision provider added under `packages/ai`.
+  - WhatsApp image ingestion now queues photo analysis after media is available.
+  - API endpoints added for project photo analyses, analysis detail, and evidence-scoped analysis lookup.
+  - Inbox image attachments now display visual summary, confidence state, tags, and possible issues when analysis completes.
+  - Project detail pages now show recent Photo Intelligence.
+  - Command center recent evidence and AI Search now include photo analysis summaries.
+  - Admin Operations now shows pending Photo Analysis jobs.
+  - ADR 0012 documents the advisory Photo Intelligence decision.
+  - Local validation passed for format, lint, typecheck, tests, and build.
 
 ## In-Progress Tasks
 
@@ -166,14 +178,14 @@ Task 011 Unified Evidence Processing is deployed to production. Live WhatsApp mi
 - AI provider failures are recorded on the classification row; worker retries now use bounded exponential backoff, but provider-specific retry policy remains intentionally minimal.
 - Pagination is still limited to the highest-volume AI and ActionItem project views; conversation and message pagination should be formalized before large customer imports.
 - API route response envelopes are improved but not yet generated from a shared OpenAPI contract.
-- Production environments must set `OPENROUTER_API_KEY` and confirm the intended `AI_MODEL` before AI classification can run. `OPENAI_API_KEY` remains a fallback for OpenAI-compatible providers.
+- Production environments must set `OPENROUTER_API_KEY` and confirm the intended `AI_MODEL` before AI classification can run. `VISION_MODEL` must point to a multimodal model before production photo analysis can be considered fully verified. `OPENAI_API_KEY` remains a fallback for OpenAI-compatible providers.
 - Voice transcription uses OpenAI audio transcription when `OPENAI_API_KEY` is configured; OpenRouter chat keys do not provide audio transcription.
 - WhatsApp media is still filesystem-backed, so Railway worker redeploys may lose local media unless object storage is added.
 - Search uses PostgreSQL keyword search for the MVP; semantic/vector search is intentionally deferred until search telemetry proves the need.
 
 ## Upcoming Milestones
 
-- Pair the WhatsApp line again and validate live mixed-evidence ingestion, voice transcription, AI classification, and search indexing.
+- Pair the WhatsApp line again and validate live photo analysis, mixed-evidence ingestion, voice transcription, AI classification, and search indexing.
 - Configure `OPENAI_API_KEY` for production voice transcription if voice transcript generation is required.
 - Configure branch protection for `main` and `develop`.
 - Create `develop` branch after remote setup.
@@ -200,6 +212,7 @@ Task 011 Unified Evidence Processing is deployed to production. Live WhatsApp mi
 - ADR 0010: Use PostgreSQL-backed grounded retrieval with cited sources for AI search.
 - ADR 0010B: Use lightweight database-backed background jobs and worker heartbeat for operations observability.
 - ADR 0011: Use runtime unified evidence context for grouped operational updates.
+- ADR 0012: Analyze image attachments asynchronously as advisory Photo Intelligence.
 
 ## Deployment Status
 

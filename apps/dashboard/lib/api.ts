@@ -25,9 +25,13 @@ export type ActionItemPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 export type MilestoneStatus = "UPCOMING" | "DUE_SOON" | "OVERDUE" | "COMPLETED";
 export type DashboardHealth = "HEALTHY" | "NEEDS_ATTENTION" | "CRITICAL";
 export type SearchSourceType =
-  "PROJECT" | "MESSAGE" | "TIMELINE_EVENT" | "ACTION_ITEM" | "AI_CLASSIFICATION";
+  "PROJECT" | "MESSAGE" | "TIMELINE_EVENT" | "ACTION_ITEM" | "AI_CLASSIFICATION" | "PHOTO_ANALYSIS";
 export type ProcessingJobType =
-  "SEARCH_INDEX" | "AI_CLASSIFICATION" | "VOICE_TRANSCRIPTION" | "MEDIA_DOWNLOAD";
+  | "SEARCH_INDEX"
+  | "AI_CLASSIFICATION"
+  | "VOICE_TRANSCRIPTION"
+  | "PHOTO_ANALYSIS"
+  | "MEDIA_DOWNLOAD";
 export type ProcessingJobStatus = "PENDING" | "RUNNING" | "FAILED" | "COMPLETED";
 export type WorkerStatus = "ONLINE" | "OFFLINE" | "STARTING" | "STOPPING";
 export type MessageProcessingStatus =
@@ -105,7 +109,47 @@ export interface Attachment {
   transcript: string | null;
   transcriptionStatus: VoiceTranscriptionStatus;
   transcriptionError: string | null;
+  photoAnalysis?: PhotoAnalysisSummary | null;
   createdAt: string;
+}
+
+export interface PhotoAnalysisSummary {
+  id: string;
+  summary: string;
+  detectedObjects: string[];
+  possibleIssues: string[];
+  confidence: number;
+  tags: string[];
+  createdAt: string;
+}
+
+export interface PhotoAnalysis extends PhotoAnalysisSummary {
+  evidenceId: string;
+  organizationId: string;
+  projectId: string | null;
+  conversationId: string;
+  messageId: string;
+  provider: string;
+  evidence: {
+    filename: string;
+    mimeType: string;
+    storageKey: string;
+  };
+  message: {
+    id: string;
+    body: string | null;
+    occurredAt: string;
+    conversation: {
+      id: string;
+      title: string;
+    };
+  };
+  project: ProjectReference | null;
+}
+
+export interface PhotoAnalysisPage {
+  analyses: PhotoAnalysis[];
+  nextCursor: string | null;
 }
 
 export interface Message {
@@ -274,6 +318,7 @@ export interface DashboardActionItemGroups {
 
 export interface DashboardRecentActivity {
   conversationId: string | null;
+  description: string | null;
   id: string;
   projectId: string;
   projectName: string;
@@ -393,6 +438,7 @@ export interface AdminOperations {
   media: {
     failedDownloads: number;
     pendingDownloads: number;
+    pendingPhotoAnalyses: number;
     pendingTranscriptions: number;
   };
   search: {
@@ -555,6 +601,10 @@ export const api = {
     apiRequest<{ evidenceSummary: EvidenceSummary | null }>(
       `/messages/${messageId}/evidence-summary`
     ),
+  getPhotoAnalysis: (photoAnalysisId: string) =>
+    apiRequest<{ analysis: PhotoAnalysis }>(`/photo-analysis/${photoAnalysisId}`),
+  getEvidencePhotoAnalysis: (evidenceId: string) =>
+    apiRequest<{ analysis: PhotoAnalysis }>(`/evidence/${evidenceId}/photo-analysis`),
   getWhatsAppQr: (accountId: string) =>
     apiRequest<{ qr: string | null; status: WhatsAppAccountStatus }>(
       `/whatsapp/accounts/${accountId}/qr`
@@ -625,6 +675,22 @@ export const api = {
     apiRequest<{ classifications: AIMessageClassification[] }>(
       `/projects/${projectId}/ai-classifications`
     ),
+  listProjectPhotoAnalysis: (
+    projectId: string,
+    input: { cursor?: string | null; limit?: number } = {}
+  ) => {
+    const params = new URLSearchParams({
+      limit: String(input.limit ?? 20)
+    });
+
+    if (input.cursor) {
+      params.set("cursor", input.cursor);
+    }
+
+    return apiRequest<PhotoAnalysisPage>(
+      `/projects/${projectId}/photo-analysis?${params.toString()}`
+    );
+  },
   listProjectActionItems: (projectId: string) =>
     apiRequest<{ actionItems: ActionItem[] }>(`/projects/${projectId}/action-items`),
   listWhatsAppAccounts: (organizationId: string) => {

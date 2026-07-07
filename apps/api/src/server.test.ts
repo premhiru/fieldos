@@ -29,6 +29,7 @@ import type {
   DashboardHealth,
   MilestoneRecord,
   OperationsDashboardRecord,
+  PhotoAnalysisRecord,
   ProcessingJobRecord,
   SearchDocumentsResult,
   SearchSourceType,
@@ -772,6 +773,130 @@ describe("FieldOS API auth and tenancy", () => {
     expect(contextResponse.json().context.attachedDocuments).toHaveLength(1);
     expect(summaryResponse.statusCode).toBe(200);
     expect(summaryResponse.json().evidenceSummary.labels).toEqual(["1 Voice Note", "1 PDF"]);
+  });
+
+  it("returns photo analysis by project, analysis id, and evidence id", async () => {
+    const cookie = await signup(server);
+    const organization = await createOrganization(server, cookie);
+    const project = await repository.createProject({
+      code: "PHOTO-001",
+      name: "Photo project",
+      organizationId: organization.id,
+      status: "ACTIVE"
+    });
+    const message = await createProjectMessage(repository, organization.id, project.id);
+    const conversation = repository.conversations.find(
+      (candidate) => candidate.id === message.conversationId
+    );
+
+    if (!conversation) {
+      throw new Error("conversation missing");
+    }
+
+    const attachment = await repository.createAttachment({
+      conversationId: conversation.id,
+      filename: "site-photo.jpg",
+      messageId: message.id,
+      mimeType: "image/jpeg",
+      size: 4096,
+      storageKey: "whatsapp-media/site-photo.jpg"
+    });
+    const analysis = repository.addPhotoAnalysis({
+      attachment,
+      confidence: 0.84,
+      conversation,
+      detectedObjects: ["Runway light", "Electrical cabinet"],
+      message,
+      organizationId: organization.id,
+      possibleIssues: ["Possible loose cable near the cabinet."],
+      project,
+      summary: "Runway lighting work appears mostly complete.",
+      tags: ["runway", "lighting", "needs review"]
+    });
+
+    const projectResponse = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "GET",
+      url: `/projects/${project.id}/photo-analysis`
+    });
+    const analysisResponse = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "GET",
+      url: `/photo-analysis/${analysis.id}`
+    });
+    const evidenceResponse = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "GET",
+      url: `/evidence/${attachment.id}/photo-analysis`
+    });
+
+    expect(projectResponse.statusCode).toBe(200);
+    expect(projectResponse.json().analyses).toHaveLength(1);
+    expect(analysisResponse.statusCode).toBe(200);
+    expect(analysisResponse.json().analysis.summary).toContain("Runway lighting");
+    expect(evidenceResponse.statusCode).toBe(200);
+    expect(evidenceResponse.json().analysis.evidence.filename).toBe("site-photo.jpg");
+  });
+
+  it("prevents cross-organization photo analysis access", async () => {
+    const ownerCookie = await signup(server, "owner@example.com");
+    const organization = await createOrganization(server, ownerCookie);
+    const project = await repository.createProject({
+      code: "PHOTO-002",
+      name: "Private photo project",
+      organizationId: organization.id,
+      status: "ACTIVE"
+    });
+    const message = await createProjectMessage(repository, organization.id, project.id);
+    const conversation = repository.conversations.find(
+      (candidate) => candidate.id === message.conversationId
+    );
+
+    if (!conversation) {
+      throw new Error("conversation missing");
+    }
+
+    const attachment = await repository.createAttachment({
+      conversationId: conversation.id,
+      filename: "private-photo.jpg",
+      messageId: message.id,
+      mimeType: "image/jpeg",
+      size: 1024,
+      storageKey: "whatsapp-media/private-photo.jpg"
+    });
+    const analysis = repository.addPhotoAnalysis({
+      attachment,
+      conversation,
+      message,
+      organizationId: organization.id,
+      project,
+      summary: "Private site photo summary."
+    });
+    const outsiderCookie = await signup(server, "outsider@example.com");
+
+    const analysisResponse = await server.inject({
+      headers: {
+        cookie: outsiderCookie
+      },
+      method: "GET",
+      url: `/photo-analysis/${analysis.id}`
+    });
+    const projectResponse = await server.inject({
+      headers: {
+        cookie: outsiderCookie
+      },
+      method: "GET",
+      url: `/projects/${project.id}/photo-analysis`
+    });
+
+    expect(analysisResponse.statusCode).toBe(404);
+    expect(projectResponse.statusCode).toBe(404);
   });
 
   it("lists project AI classifications and Action Items", async () => {
@@ -1520,6 +1645,7 @@ class InMemoryRepository implements AppRepository {
   milestones: MilestoneRecord[] = [];
   organizations: Omit<OrganizationRecord, "role">[] = [];
   participants: ParticipantRecord[] = [];
+  photoAnalyses: PhotoAnalysisRecord[] = [];
   projects: ProjectRecord[] = [];
   classifications: AIMessageClassificationRecord[] = [];
   actionItems: ActionItemRecord[] = [];
@@ -2191,6 +2317,33 @@ class InMemoryRepository implements AppRepository {
     );
   }
 
+  async getPhotoAnalysis(photoAnalysisId: string): Promise<PhotoAnalysisRecord | null> {
+    return this.photoAnalyses.find((analysis) => analysis.id === photoAnalysisId) ?? null;
+  }
+
+  async getPhotoAnalysisByEvidenceId(evidenceId: string): Promise<PhotoAnalysisRecord | null> {
+    return this.photoAnalyses.find((analysis) => analysis.evidenceId === evidenceId) ?? null;
+  }
+
+  async listProjectPhotoAnalyses(input: {
+    projectId: string;
+    cursor?: string | null;
+    limit: number;
+  }) {
+    const cursorDate = input.cursor ? new Date(input.cursor) : null;
+    const analyses = this.photoAnalyses
+      .filter((analysis) => analysis.projectId === input.projectId)
+      .filter((analysis) => !cursorDate || analysis.createdAt < cursorDate)
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+    const page = analyses.slice(0, input.limit);
+
+    return {
+      analyses: page,
+      nextCursor:
+        analyses.length > input.limit ? (page.at(-1)?.createdAt.toISOString() ?? null) : null
+    };
+  }
+
   async ignoreActionItem(input: {
     actionItemId: string;
     userId: string;
@@ -2305,6 +2458,7 @@ class InMemoryRepository implements AppRepository {
     const recentActivity = events.map((event) => {
       const project = this.projects.find((candidate) => candidate.id === event.projectId);
       return {
+        description: event.description,
         eventType: event.eventType,
         icon: event.sourceType === "MESSAGE" ? "message-circle" : "check-circle",
         id: event.id,
@@ -2371,6 +2525,7 @@ class InMemoryRepository implements AppRepository {
       media: {
         failedDownloads: byType.get("MEDIA_DOWNLOAD")?.failed ?? 0,
         pendingDownloads: byType.get("MEDIA_DOWNLOAD")?.pending ?? 0,
+        pendingPhotoAnalyses: byType.get("PHOTO_ANALYSIS")?.pending ?? 0,
         pendingTranscriptions: byType.get("VOICE_TRANSCRIPTION")?.pending ?? 0
       },
       search: {
@@ -2578,6 +2733,67 @@ class InMemoryRepository implements AppRepository {
     return task;
   }
 
+  addPhotoAnalysis(input: {
+    attachment: AttachmentRecord;
+    conversation: ConversationRecord;
+    message: MessageRecord;
+    organizationId: string;
+    project: ProjectRecord | null;
+    confidence?: number;
+    detectedObjects?: string[];
+    possibleIssues?: string[];
+    summary?: string;
+    tags?: string[];
+  }): PhotoAnalysisRecord {
+    const now = new Date();
+    const analysis: PhotoAnalysisRecord = {
+      confidence: input.confidence ?? 0.77,
+      conversationId: input.conversation.id,
+      createdAt: now,
+      detectedObjects: input.detectedObjects ?? ["Site photo"],
+      evidence: {
+        filename: input.attachment.filename,
+        mimeType: input.attachment.mimeType,
+        storageKey: input.attachment.storageKey
+      },
+      evidenceId: input.attachment.id,
+      id: nextId("photo_analysis"),
+      message: {
+        body: input.message.body,
+        conversation: {
+          id: input.conversation.id,
+          title: input.conversation.title
+        },
+        id: input.message.id,
+        occurredAt: input.message.occurredAt
+      },
+      messageId: input.message.id,
+      organizationId: input.organizationId,
+      possibleIssues: input.possibleIssues ?? [],
+      project: input.project
+        ? {
+            code: input.project.code,
+            id: input.project.id,
+            name: input.project.name
+          }
+        : null,
+      projectId: input.project?.id ?? null,
+      provider: "vision-test",
+      summary: input.summary ?? "Photo analysis completed.",
+      tags: input.tags ?? ["photo"]
+    };
+
+    input.attachment.photoAnalysis = {
+      confidence: analysis.confidence,
+      id: analysis.id,
+      possibleIssues: analysis.possibleIssues,
+      summary: analysis.summary,
+      tags: analysis.tags
+    };
+    this.photoAnalyses.push(analysis);
+    return analysis;
+  }
+
   addEvent(input: {
     organizationId: string;
     projectId: string | null;
@@ -2747,13 +2963,36 @@ class InMemoryRepository implements AppRepository {
         : "AI classification",
       updatedAt: classification.updatedAt
     }));
+    const photoAnalysisDocuments = this.photoAnalyses.map((analysis) => ({
+      createdAt: analysis.createdAt,
+      id: `search_photo_analysis_${analysis.id}`,
+      metadata: {
+        confidence: analysis.confidence,
+        evidenceId: analysis.evidenceId
+      },
+      occurredAt: analysis.createdAt,
+      organizationId: analysis.organizationId,
+      project: this.projectReference(analysis.projectId),
+      projectId: analysis.projectId,
+      snippet: [
+        analysis.summary,
+        ...analysis.detectedObjects,
+        ...analysis.possibleIssues,
+        ...analysis.tags
+      ].join(" "),
+      sourceId: analysis.id,
+      sourceType: "PHOTO_ANALYSIS" as const,
+      title: `Photo analysis: ${analysis.evidence.filename}`,
+      updatedAt: analysis.createdAt
+    }));
 
     return [
       ...projectDocuments,
       ...messageDocuments,
       ...eventDocuments,
       ...actionItemDocuments,
-      ...classificationDocuments
+      ...classificationDocuments,
+      ...photoAnalysisDocuments
     ];
   }
 
@@ -2762,7 +3001,13 @@ class InMemoryRepository implements AppRepository {
     today.setHours(0, 0, 0, 0);
 
     return (
-      ["SEARCH_INDEX", "AI_CLASSIFICATION", "VOICE_TRANSCRIPTION", "MEDIA_DOWNLOAD"] as const
+      [
+        "SEARCH_INDEX",
+        "AI_CLASSIFICATION",
+        "VOICE_TRANSCRIPTION",
+        "MEDIA_DOWNLOAD",
+        "PHOTO_ANALYSIS"
+      ] as const
     ).map((type) => {
       const jobs = this.processingJobs.filter(
         (job) => job.organizationId === organizationId && job.type === type

@@ -239,6 +239,11 @@ function DashboardContent() {
                             <div className="text-sm font-medium text-slate-950">
                               {activity.title}
                             </div>
+                            {activity.description ? (
+                              <div className="mt-1 line-clamp-2 text-xs text-slate-600">
+                                {extractVisualSummary(activity.description)}
+                              </div>
+                            ) : null}
                             <div className="text-xs text-slate-500">
                               {activity.projectName} - {formatTime(activity.occurredAt)}
                             </div>
@@ -428,4 +433,14 @@ function formatStatus(value: string): string {
     .split("_")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
+}
+
+function extractVisualSummary(description: string): string {
+  return (
+    description
+      .split("\n")
+      .find((line) => line.startsWith("Visual Summary:"))
+      ?.replace("Visual Summary:", "")
+      .trim() ?? description
+  );
 }

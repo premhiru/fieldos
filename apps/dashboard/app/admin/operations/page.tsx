@@ -257,6 +257,7 @@ function SystemCards({ operations }: { operations: AdminOperations }) {
       rows: [
         ["Pending Downloads", operations.media.pendingDownloads],
         ["Pending Transcriptions", operations.media.pendingTranscriptions],
+        ["Pending Photo Analysis", operations.media.pendingPhotoAnalyses],
         ["Failed Downloads", operations.media.failedDownloads]
       ]
     }

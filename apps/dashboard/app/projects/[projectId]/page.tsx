@@ -8,7 +8,12 @@ import * as React from "react";
 
 import { AppShell } from "../../../components/app-shell";
 import { AuthGuard } from "../../../components/auth-guard";
-import { api, type AIMessageClassification, type ActionItem } from "../../../lib/api";
+import {
+  api,
+  type AIMessageClassification,
+  type ActionItem,
+  type PhotoAnalysis
+} from "../../../lib/api";
 
 export default function ProjectDetailPage() {
   return (
@@ -40,6 +45,12 @@ function ProjectDetailContent() {
     queryKey: ["project-action-items", params.projectId],
     retry: false
   });
+  const photoAnalysisQuery = useQuery({
+    enabled: Boolean(projectQuery.data?.project),
+    queryFn: () => api.listProjectPhotoAnalysis(params.projectId, { limit: 8 }),
+    queryKey: ["project-photo-analysis", params.projectId],
+    retry: false
+  });
   const acceptMutation = useMutation({
     mutationFn: (actionItemId: string) => api.acceptActionItem(actionItemId),
     onSuccess: async () => {
@@ -66,6 +77,7 @@ function ProjectDetailContent() {
   const project = projectQuery.data?.project;
   const classifications = classificationsQuery.data?.classifications ?? [];
   const actionItems = actionItemsQuery.data?.actionItems ?? [];
+  const photoAnalyses = photoAnalysisQuery.data?.analyses ?? [];
 
   if (projectQuery.isLoading) {
     return <p className="text-sm text-slate-600">Loading project...</p>;
@@ -163,6 +175,25 @@ function ProjectDetailContent() {
 
       <Card>
         <CardHeader>
+          <CardTitle>Photo Intelligence</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {photoAnalysisQuery.isLoading ? (
+            <p className="text-sm text-slate-600">Loading photo intelligence...</p>
+          ) : photoAnalyses.length === 0 ? (
+            <p className="text-sm text-slate-600">No photo analysis yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {photoAnalyses.map((analysis) => (
+                <PhotoAnalysisRow analysis={analysis} key={analysis.id} />
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Action Items</CardTitle>
         </CardHeader>
         <CardContent>
@@ -201,6 +232,38 @@ function AIInsightRow({ classification }: { classification: AIMessageClassificat
       <p className="mt-1 text-xs text-slate-500">
         Location: {classification.location ?? "Unknown"}
       </p>
+    </div>
+  );
+}
+
+function PhotoAnalysisRow({ analysis }: { analysis: PhotoAnalysis }) {
+  return (
+    <div className="rounded-md border border-slate-200 p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="muted">{getVisionConfidenceLabel(analysis.confidence)}</Badge>
+        {analysis.tags.slice(0, 4).map((tag) => (
+          <Badge key={tag} variant="muted">
+            {tag}
+          </Badge>
+        ))}
+      </div>
+      <p className="mt-2 text-sm text-slate-950">{analysis.summary}</p>
+      {analysis.detectedObjects.length > 0 ? (
+        <p className="mt-1 text-xs text-slate-500">
+          Detected: {analysis.detectedObjects.join(", ")}
+        </p>
+      ) : null}
+      {analysis.possibleIssues.length > 0 ? (
+        <p className="mt-1 text-xs text-slate-500">
+          Possible Issues: {analysis.possibleIssues.join(", ")}
+        </p>
+      ) : null}
+      <Link
+        className="mt-2 inline-flex text-xs font-medium text-slate-600 hover:text-slate-950"
+        href={`/inbox/${analysis.message.conversation.id}`}
+      >
+        Source message: {analysis.evidence.filename}
+      </Link>
     </div>
   );
 }
@@ -284,6 +347,18 @@ function getConfidenceLabel(confidence: number | null): string {
   }
 
   return "Low Confidence";
+}
+
+function getVisionConfidenceLabel(confidence: number): string {
+  if (confidence >= 0.75) {
+    return "High";
+  }
+
+  if (confidence >= 0.45) {
+    return "Needs Review";
+  }
+
+  return "Low";
 }
 
 function PlaceholderCard({ title }: { title: string }) {

@@ -1,5 +1,10 @@
 import { Redis } from "ioredis";
-import { AIClassificationProcessor, MessageClassifier } from "@fieldos/ai";
+import {
+  AIClassificationProcessor,
+  MessageClassifier,
+  OpenAICompatibleVisionProvider,
+  type VisionResult
+} from "@fieldos/ai";
 import { BaileysWhatsAppSessionManager, RedisWhatsAppQrStore } from "@fieldos/baileys-whatsapp";
 import {
   claimNextProcessingJob,
@@ -15,6 +20,7 @@ import {
 import { createLogger } from "@fieldos/shared";
 
 import { workerEnv } from "./env.js";
+import { PhotoAnalysisService } from "./photo-analysis.js";
 import { VoiceTranscriptionService } from "./voice-transcription.js";
 
 const logger = createLogger("fieldos-worker");
@@ -40,6 +46,14 @@ const aiClassificationProcessor = new AIClassificationProcessor(prisma, {
 const voiceTranscriptionService = new VoiceTranscriptionService({
   apiKey: workerEnv.OPENAI_API_KEY,
   model: workerEnv.VOICE_TRANSCRIPTION_MODEL,
+  storageRootPath: workerEnv.WHATSAPP_STORAGE_PATH
+});
+const photoAnalysisService = new PhotoAnalysisService({
+  provider: new OpenAICompatibleVisionProvider({
+    apiKey: workerEnv.OPENROUTER_API_KEY ?? workerEnv.OPENAI_API_KEY,
+    baseUrl: workerEnv.AI_BASE_URL,
+    model: workerEnv.VISION_MODEL
+  }),
   storageRootPath: workerEnv.WHATSAPP_STORAGE_PATH
 });
 const workerName = process.env.WORKER_NAME ?? "fieldos-worker";
@@ -89,13 +103,14 @@ async function start() {
 
 async function processBackgroundJobs(): Promise<void> {
   const voiceProcessed = await processJobsOfType("VOICE_TRANSCRIPTION", processVoiceJob);
+  const photoProcessed = await processJobsOfType("PHOTO_ANALYSIS", processPhotoJob);
   const searchProcessed = await processJobsOfType("SEARCH_INDEX", processSearchJob);
   const aiProcessed = await processJobsOfType("AI_CLASSIFICATION", processAIJob);
-  const processed = searchProcessed + aiProcessed + voiceProcessed;
+  const processed = searchProcessed + aiProcessed + voiceProcessed + photoProcessed;
 
   if (processed > 0) {
     logger.info(
-      { aiProcessed, processed, searchProcessed, voiceProcessed },
+      { aiProcessed, photoProcessed, processed, searchProcessed, voiceProcessed },
       "background jobs processed"
     );
   }
@@ -127,7 +142,7 @@ function scheduleBackgroundProcessing(delayMs = workerEnv.AI_CLASSIFICATION_POLL
 }
 
 async function processJobsOfType(
-  type: "AI_CLASSIFICATION" | "SEARCH_INDEX" | "VOICE_TRANSCRIPTION",
+  type: "AI_CLASSIFICATION" | "PHOTO_ANALYSIS" | "SEARCH_INDEX" | "VOICE_TRANSCRIPTION",
   processor: (job: ProcessingJob) => Promise<void>
 ): Promise<number> {
   let processed = 0;
@@ -284,6 +299,125 @@ async function processVoiceJob(job: ProcessingJob): Promise<void> {
   await aiClassificationProcessor.enqueueMessage(attachment.messageId);
 }
 
+async function processPhotoJob(job: ProcessingJob): Promise<void> {
+  const attachment = await prisma.attachment.findUnique({
+    include: {
+      message: {
+        select: {
+          body: true,
+          conversation: {
+            select: {
+              id: true,
+              organizationId: true,
+              project: {
+                select: {
+                  name: true
+                }
+              },
+              projectId: true,
+              title: true
+            }
+          },
+          id: true,
+          occurredAt: true
+        }
+      }
+    },
+    where: {
+      id: job.sourceId
+    }
+  });
+
+  if (!attachment || !attachment.mimeType.toLowerCase().startsWith("image/")) {
+    return;
+  }
+
+  const result = await photoAnalysisService.analyze({
+    conversationTitle: attachment.message.conversation.title,
+    filename: attachment.filename,
+    messageText: attachment.message.body,
+    mimeType: attachment.mimeType,
+    projectName: attachment.message.conversation.project?.name ?? null,
+    storageKey: attachment.storageKey
+  });
+
+  await prisma.$transaction(async (tx) => {
+    const analysis = await tx.photoAnalysis.upsert({
+      create: {
+        confidence: result.confidence,
+        conversationId: attachment.conversationId,
+        detectedObjects: result.detectedObjects,
+        evidenceId: attachment.id,
+        messageId: attachment.messageId,
+        organizationId: attachment.message.conversation.organizationId,
+        possibleIssues: result.possibleIssues,
+        projectId: attachment.message.conversation.projectId,
+        provider: workerEnv.VISION_MODEL,
+        summary: result.summary,
+        tags: result.tags
+      },
+      update: {
+        confidence: result.confidence,
+        detectedObjects: result.detectedObjects,
+        possibleIssues: result.possibleIssues,
+        projectId: attachment.message.conversation.projectId,
+        provider: workerEnv.VISION_MODEL,
+        summary: result.summary,
+        tags: result.tags
+      },
+      where: {
+        evidenceId: attachment.id
+      }
+    });
+    const existingEvent = await tx.event.findFirst({
+      where: {
+        eventType: "PHOTO_ANALYSIS_COMPLETE",
+        sourceId: attachment.messageId,
+        sourceType: "MESSAGE"
+      }
+    });
+    const eventPayload = {
+      description: buildPhotoAnalysisEventDescription(result),
+      eventType: "PHOTO_ANALYSIS_COMPLETE",
+      organizationId: attachment.message.conversation.organizationId,
+      projectId: attachment.message.conversation.projectId,
+      sourceId: attachment.messageId,
+      sourceType: "MESSAGE" as const,
+      title: "Site Photos",
+      occurredAt: attachment.message.occurredAt
+    };
+    const event = existingEvent
+      ? await tx.event.update({
+          data: eventPayload,
+          where: {
+            id: existingEvent.id
+          }
+        })
+      : await tx.event.create({
+          data: eventPayload
+        });
+
+    await queueSearchIndexJob(tx, {
+      organizationId: analysis.organizationId,
+      projectId: analysis.projectId,
+      sourceId: analysis.id,
+      sourceType: "PHOTO_ANALYSIS"
+    });
+    await queueSearchIndexJob(tx, {
+      organizationId: event.organizationId,
+      projectId: event.projectId,
+      sourceId: event.id,
+      sourceType: "TIMELINE_EVENT"
+    });
+    await queueSearchIndexJob(tx, {
+      organizationId: attachment.message.conversation.organizationId,
+      projectId: attachment.message.conversation.projectId,
+      sourceId: attachment.messageId,
+      sourceType: "MESSAGE"
+    });
+  });
+}
+
 async function processAIJob(job: ProcessingJob): Promise<void> {
   await aiClassificationProcessor.processClassification(job.sourceId);
   const classification = await prisma.aIMessageClassification.findUnique({
@@ -299,6 +433,31 @@ async function processAIJob(job: ProcessingJob): Promise<void> {
   if (classification?.status === "FAILED") {
     throw new Error(classification.errorMessage ?? "AI classification failed.");
   }
+}
+
+function buildPhotoAnalysisEventDescription(result: VisionResult): string {
+  return [
+    `Visual Summary: ${result.summary}`,
+    result.detectedObjects.length > 0
+      ? `Detected: ${result.detectedObjects.join(", ")}`
+      : "Detected: Unable to determine.",
+    result.possibleIssues.length > 0
+      ? `Possible Issue: ${result.possibleIssues.join(", ")}`
+      : "Possible Issue: None obvious. Needs Review.",
+    `Confidence: ${formatVisionConfidence(result.confidence)}`
+  ].join("\n");
+}
+
+function formatVisionConfidence(confidence: number): string {
+  if (confidence >= 0.75) {
+    return "High";
+  }
+
+  if (confidence >= 0.45) {
+    return "Needs Review";
+  }
+
+  return "Low";
 }
 
 async function shutdown(signal: NodeJS.Signals) {
