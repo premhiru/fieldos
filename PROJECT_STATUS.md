@@ -5,7 +5,7 @@
 | Purpose      | Track FieldOS milestone progress, task completion, technical debt, architecture decisions, and deployment readiness. |
 | Owner        | Founding Engineering                                                                                                 |
 | Status       | Active                                                                                                               |
-| Last Updated | 2026-07-06                                                                                                           |
+| Last Updated | 2026-07-07                                                                                                           |
 
 ## Table of Contents
 
@@ -19,7 +19,7 @@
 
 ## Current Milestone
 
-Task 010B Operations Health and Background Job Monitoring is implemented locally and awaiting production deployment verification.
+Task 010B Operations Health and Background Job Monitoring is deployed and verified in production.
 
 ## Completed Tasks
 
@@ -135,7 +135,7 @@ Task 010B Operations Health and Background Job Monitoring is implemented locally
 
 ## In-Progress Tasks
 
-- Task 010B production deployment verification.
+- None.
 
 ## Known Technical Debt
 
@@ -161,8 +161,7 @@ Task 010B Operations Health and Background Job Monitoring is implemented locally
 
 ## Upcoming Milestones
 
-- Deploy Task 010B to Railway and verify the background processing migration.
-- Validate worker heartbeat, async search indexing, and AI job execution with production tenant data.
+- Validate live WhatsApp message ingestion and AI job execution after the WhatsApp line is reconnected.
 - Configure branch protection for `main` and `develop`.
 - Create `develop` branch after remote setup.
 - Add invite and membership management after the basic auth/org/project slice is verified.
@@ -191,7 +190,7 @@ Task 010B Operations Health and Background Job Monitoring is implemented locally
 ## Deployment Status
 
 - Dashboard deployed to Vercel production: `https://fieldos-sand.vercel.app`.
-- Latest Vercel deployment URL: `https://fieldos-i9chkg25a-premhirus-projects.vercel.app`.
+- Latest Vercel deployment URL: `https://fieldos-izz7unwme-premhirus-projects.vercel.app`.
 - Backend deployed to Railway.
   - API deployed at `https://fieldos-api-production.up.railway.app`.
   - API health verified at `https://fieldos-api-production.up.railway.app/health`.
@@ -235,5 +234,13 @@ Task 010B Operations Health and Background Job Monitoring is implemented locally
 - Sprint 1.5 code has passed local validation; production deployment requires environment variable review and a deployment trigger.
 - Task 007 code is validated locally; the Railway worker now has OpenRouter environment variables configured for provider-backed classification.
 - Task 009 code is deployed to Railway and migrations are applied.
-- Task 010B code is validated locally; production deployment requires migration application and API/worker/dashboard deployment.
-- Live WhatsApp QR scanning and activation were not performed because no dedicated business test number was provided in this environment.
+- Task 010B is deployed.
+  - Background processing migration `20260706020000_background_processing_observability` applied to Railway PostgreSQL.
+  - API deployment `39ee02a5-fb29-4136-9975-e0f4b18c4998` succeeded.
+  - Worker deployment `3dce9681-8f45-4d63-8ee1-f7c86bbd3404` succeeded.
+  - Dashboard deployed to Vercel and aliased to `https://fieldos-sand.vercel.app`.
+  - API health verified at `https://fieldos-api-production.up.railway.app/health`.
+  - Worker heartbeat verified in `WorkerHeartbeat` with status `ONLINE`.
+  - A production `SEARCH_INDEX` job was queued and completed by the worker.
+  - Live WhatsApp sample-message verification is pending because the connected line is currently waiting for QR pairing.
+- Live WhatsApp message verification is pending until the WhatsApp line is paired again from the QR flow.
