@@ -5,7 +5,7 @@
 | Purpose      | Introduce the FieldOS engineering foundation, repository layout, and development workflow. |
 | Owner        | Founding Engineering                                                                       |
 | Status       | Active                                                                                     |
-| Last Updated | 2026-07-06                                                                                 |
+| Last Updated | 2026-07-07                                                                                 |
 
 ## Table of Contents
 
@@ -17,6 +17,7 @@
 - [Operations Command Center](#operations-command-center)
 - [Operations Health](#operations-health)
 - [AI Search](#ai-search)
+- [Unified Evidence Processing](#unified-evidence-processing)
 - [Repository Layout](#repository-layout)
 - [Development Philosophy](#development-philosophy)
 - [Tech Stack](#tech-stack)
@@ -45,6 +46,7 @@ flowchart TD
   Auth["packages/auth\nJWT, Passwords, Auth Schemas"]
   Messaging["packages/messaging\nConversations, Messages, Attachments"]
   AI["packages/ai\nClassification, Search Answers"]
+  Evidence["UnifiedEvidenceContext\nRuntime Evidence Package"]
   Search["SearchDocument\nGrounded Retrieval Index"]
   Jobs["ProcessingJob\nBackground Queue"]
   Heartbeat["WorkerHeartbeat\nWorker Status"]
@@ -66,9 +68,12 @@ flowchart TD
   Worker --> Jobs
   Worker --> Search
   Worker --> Heartbeat
+  Worker --> Evidence
   WhatsApp --> DB
   WhatsApp --> Messaging
   WhatsApp --> Jobs
+  Evidence --> AI
+  Evidence --> Search
   AI --> Provider
   AI --> DB
   Search --> DB
@@ -107,7 +112,7 @@ pnpm db:migrate
 pnpm db:seed
 ```
 
-Configure AI classification by setting `OPENROUTER_API_KEY`. `AI_BASE_URL` defaults to `https://openrouter.ai/api/v1` and `AI_MODEL` defaults to `openrouter/free`. `OPENAI_API_KEY` remains supported as a fallback for OpenAI-compatible providers.
+Configure AI classification by setting `OPENROUTER_API_KEY`. `AI_BASE_URL` defaults to `https://openrouter.ai/api/v1` and `AI_MODEL` defaults to `openrouter/free`. `OPENAI_API_KEY` remains supported as a fallback for OpenAI-compatible providers and is used for voice transcription when available.
 
 Test the auth flow:
 
@@ -235,7 +240,7 @@ Use dedicated business numbers only. Do not connect personal WhatsApp accounts. 
 
 FieldOS classifies only messages that already passed the WhatsApp activation gate. Classification runs asynchronously in the worker so message ingestion is never blocked by the AI provider.
 
-The AI layer classifies a message, writes a concise summary, extracts a location when present, decides whether human action is required, and creates Action Items when review is useful. Action Items remain `PENDING` until a user accepts or ignores them; FieldOS does not automatically create operational work or reassign projects from AI output.
+The AI layer builds a `UnifiedEvidenceContext` for each message, classifies the full operational update, writes a concise summary, extracts a location when present, decides whether human action is required, and creates Action Items when review is useful. Action Items remain `PENDING` until a user accepts or ignores them; FieldOS does not automatically create operational work or reassign projects from AI output.
 
 ## Operations Health
 
@@ -276,15 +281,36 @@ Answers are grounded in retrieved FieldOS records and return cited source record
 
 The dashboard includes a Search page with project, source type, and date filters. Project detail pages include a scoped `Ask about this project` panel.
 
+## Unified Evidence Processing
+
+FieldOS treats a WhatsApp update as one operational evidence package. `UnifiedEvidenceContext` is a runtime object, not a database table. It is built dynamically from the message, conversation, project, sender, attachments, and any available voice transcript before AI classification and search indexing.
+
+Supported MVP evidence:
+
+- Text message body.
+- Photo metadata only.
+- Voice note transcript when transcription succeeds.
+- PDF/document metadata only.
+- Video metadata only.
+
+OCR, image recognition, vision models, and document extraction are intentionally deferred. Photos and PDFs are described to AI as attached evidence with filenames, MIME types, counts, and sizes only.
+
+The API exposes:
+
+- `GET /messages/:id/context`
+- `GET /messages/:id/evidence-summary`
+
+The inbox shows an Evidence Summary for each message with attachments, an expandable media section, and voice transcripts beneath voice evidence when available. The command center's Recent Evidence groups updates by message rather than listing each file separately.
+
 ## Current Roadmap
 
-1. Validate grounded AI search with production tenant data.
-2. Validate WhatsApp QR pairing and explicit chat activation with dedicated business test numbers.
-3. Build Task 011 on top of the stabilized command center, messaging, and search foundation.
+1. Validate unified evidence processing with a live WhatsApp text, photo, voice note, and PDF update.
+2. Validate grounded AI search with production tenant data.
+3. Validate WhatsApp QR pairing and explicit chat activation with dedicated business test numbers.
 4. Add invite and membership management.
 5. Verify operations health against sustained WhatsApp and AI traffic.
 6. Add deployment automation.
-7. Expand AI-assisted triage into human-approved operational tasks, reports, event timeline views, and official Meta WhatsApp Cloud API support after core workflow boundaries are stable.
+7. Expand AI-assisted triage into human-approved operational tasks, reports, event timeline views, OCR, vision, document extraction, and official Meta WhatsApp Cloud API support after core workflow boundaries are stable.
 
 ## Contributing Guidelines
 

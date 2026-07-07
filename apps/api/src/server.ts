@@ -555,6 +555,42 @@ export function buildServer(options: BuildServerOptions = {}) {
     };
   });
 
+  server.get("/messages/:id/context", { preHandler: requireAuth }, async (request) => {
+    const params = messageParamsSchema.parse(request.params);
+    const messageContext = await repository.findMessageContext(params.id);
+
+    if (!messageContext) {
+      throw notFound("Message not found.");
+    }
+
+    await requireOrganizationMembership(
+      requireCurrentUser(request).id,
+      messageContext.organizationId
+    );
+
+    return {
+      context: await repository.getMessageEvidenceContext(params.id)
+    };
+  });
+
+  server.get("/messages/:id/evidence-summary", { preHandler: requireAuth }, async (request) => {
+    const params = messageParamsSchema.parse(request.params);
+    const messageContext = await repository.findMessageContext(params.id);
+
+    if (!messageContext) {
+      throw notFound("Message not found.");
+    }
+
+    await requireOrganizationMembership(
+      requireCurrentUser(request).id,
+      messageContext.organizationId
+    );
+
+    return {
+      evidenceSummary: await repository.getMessageEvidenceSummary(params.id)
+    };
+  });
+
   server.post("/messages/:id/classify", { preHandler: requireAuth }, async (request) => {
     const params = messageParamsSchema.parse(request.params);
     const context = await repository.findMessageContext(params.id);

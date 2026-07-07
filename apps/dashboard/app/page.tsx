@@ -223,11 +223,11 @@ function DashboardContent() {
             <div className="space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Recent Activity</CardTitle>
+                  <CardTitle>Recent Evidence</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {dashboard.recentActivity.length === 0 ? (
-                    <p className="text-sm text-slate-600">No recent business activity.</p>
+                    <p className="text-sm text-slate-600">No recent evidence updates.</p>
                   ) : (
                     <div className="space-y-3">
                       {dashboard.recentActivity.map((activity) => (
@@ -245,9 +245,13 @@ function DashboardContent() {
                           </div>
                           <Link
                             className="inline-flex h-9 shrink-0 items-center justify-center rounded-md bg-slate-100 px-3 text-xs font-medium text-slate-950 hover:bg-slate-200"
-                            href={`/projects/${activity.projectId}`}
+                            href={
+                              activity.conversationId
+                                ? `/inbox/${activity.conversationId}`
+                                : `/projects/${activity.projectId}`
+                            }
                           >
-                            View Project
+                            {activity.conversationId ? "Open Update" : "View Project"}
                           </Link>
                         </div>
                       ))}

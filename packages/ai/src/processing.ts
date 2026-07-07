@@ -1,9 +1,14 @@
-import type { PrismaClient } from "@fieldos/db";
-import { queueAIClassificationJob, queueSearchIndexJob } from "@fieldos/db";
+import type { PrismaClient, UnifiedEvidenceContext } from "@fieldos/db";
+import {
+  buildUnifiedEvidenceContext,
+  formatEvidenceSummary,
+  queueAIClassificationJob,
+  queueSearchIndexJob
+} from "@fieldos/db";
 import { createLogger } from "@fieldos/shared";
 
 import { AIConfigurationError, MessageClassifier } from "./message-classifier.js";
-import type { ClassifyMessageInput, ClassifyMessageResult } from "./types.js";
+import type { ClassifyMessageResult } from "./types.js";
 
 interface ProjectCandidate {
   code: string;
@@ -93,14 +98,6 @@ export class AIClassificationProcessor {
 
   async processClassification(classificationId: string): Promise<void> {
     const classification = await this.prisma.aIMessageClassification.findUnique({
-      include: {
-        message: {
-          include: {
-            conversation: true,
-            senderParticipant: true
-          }
-        }
-      },
       where: {
         id: classificationId
       }
@@ -110,17 +107,12 @@ export class AIClassificationProcessor {
       return;
     }
 
-    const message = classification.message;
-    const input: ClassifyMessageInput = {
-      conversationTitle: message.conversation.title,
-      messageBody: message.body,
-      messageId: message.id,
-      messageType: message.type,
-      occurredAt: message.occurredAt,
-      organizationId: message.conversation.organizationId,
-      projectId: message.conversation.projectId,
-      senderName: message.senderParticipant.displayName
-    };
+    const input = await buildUnifiedEvidenceContext(this.prisma, classification.messageId);
+
+    if (!input) {
+      await this.markFailed(classification.id, "Message evidence context could not be built.");
+      return;
+    }
 
     try {
       const result = await this.classifier.classifyMessage(input);
@@ -131,16 +123,17 @@ export class AIClassificationProcessor {
           name: true
         },
         where: {
-          organizationId: message.conversation.organizationId,
+          organizationId: input.organizationId,
           status: {
             not: "ARCHIVED"
           }
         }
       });
       await this.saveResult(classification.id, {
-        currentProjectId: message.conversation.projectId,
-        messageBody: message.body,
-        organizationId: message.conversation.organizationId,
+        currentProjectId: input.project?.id ?? null,
+        evidenceContext: input,
+        messageBody: input.messageText,
+        organizationId: input.organizationId,
         projects,
         result
       });
@@ -162,6 +155,7 @@ export class AIClassificationProcessor {
     input: {
       organizationId: string;
       currentProjectId: string | null;
+      evidenceContext: UnifiedEvidenceContext;
       messageBody: string | null;
       projects: ProjectCandidate[];
       result: ClassifyMessageResult;
@@ -198,6 +192,53 @@ export class AIClassificationProcessor {
         where: {
           id: classification.messageId
         }
+      });
+
+      const existingMessageEvent = await tx.event.findFirst({
+        where: {
+          sourceId: classification.messageId,
+          sourceType: "MESSAGE"
+        }
+      });
+      const messageEvent = existingMessageEvent
+        ? await tx.event.update({
+            data: {
+              description: buildEvidenceEventDescription(input.evidenceContext, input.result),
+              eventType: "MESSAGE_EVIDENCE_RECEIVED",
+              occurredAt: input.evidenceContext.timestamp,
+              organizationId: input.organizationId,
+              projectId: input.currentProjectId,
+              title: buildEvidenceEventTitle(input.evidenceContext)
+            },
+            where: {
+              id: existingMessageEvent.id
+            }
+          })
+        : await tx.event.create({
+            data: {
+              description: buildEvidenceEventDescription(input.evidenceContext, input.result),
+              eventType: "MESSAGE_EVIDENCE_RECEIVED",
+              occurredAt: input.evidenceContext.timestamp,
+              organizationId: input.organizationId,
+              projectId: input.currentProjectId,
+              sourceId: classification.messageId,
+              sourceType: "MESSAGE",
+              title: buildEvidenceEventTitle(input.evidenceContext)
+            }
+          });
+
+      await queueSearchIndexJob(tx, {
+        organizationId: messageEvent.organizationId,
+        projectId: messageEvent.projectId,
+        sourceId: messageEvent.id,
+        sourceType: "TIMELINE_EVENT"
+      });
+
+      await queueSearchIndexJob(tx, {
+        organizationId: input.organizationId,
+        projectId: input.currentProjectId,
+        sourceId: classification.messageId,
+        sourceType: "MESSAGE"
       });
 
       await queueSearchIndexJob(tx, {
@@ -346,6 +387,29 @@ function buildFollowUpTitle(result: ClassifyMessageResult): string {
   }
 
   return `${summary.slice(0, 117).trimEnd()}...`;
+}
+
+function buildEvidenceEventTitle(context: UnifiedEvidenceContext): string {
+  const summary = formatEvidenceSummary(context.evidenceSummary);
+  return context.evidenceSummary.attachmentCount > 0
+    ? `${context.sender.displayName}: ${summary}`
+    : `${context.sender.displayName}: Message update`;
+}
+
+function buildEvidenceEventDescription(
+  context: UnifiedEvidenceContext,
+  result: ClassifyMessageResult
+): string {
+  return [
+    context.messageText ?? "",
+    context.voiceTranscript ? `Voice transcript: ${context.voiceTranscript}` : "",
+    context.evidenceSummary.attachmentCount > 0
+      ? `Evidence Summary: ${formatEvidenceSummary(context.evidenceSummary)}`
+      : "",
+    `AI Summary: ${result.summary}`
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function findProjectSuggestion(input: {

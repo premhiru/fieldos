@@ -8,12 +8,14 @@ import {
   markProcessingJobFailed,
   prisma,
   processSearchIndexJob,
+  queueSearchIndexJob,
   type ProcessingJob
 } from "@fieldos/db";
 
 import { createLogger } from "@fieldos/shared";
 
 import { workerEnv } from "./env.js";
+import { VoiceTranscriptionService } from "./voice-transcription.js";
 
 const logger = createLogger("fieldos-worker");
 const redis = new Redis(workerEnv.REDIS_URL, {
@@ -34,6 +36,11 @@ const aiClassificationProcessor = new AIClassificationProcessor(prisma, {
     baseUrl: workerEnv.AI_BASE_URL,
     model: workerEnv.AI_MODEL
   })
+});
+const voiceTranscriptionService = new VoiceTranscriptionService({
+  apiKey: workerEnv.OPENAI_API_KEY,
+  model: workerEnv.VOICE_TRANSCRIPTION_MODEL,
+  storageRootPath: workerEnv.WHATSAPP_STORAGE_PATH
 });
 const workerName = process.env.WORKER_NAME ?? "fieldos-worker";
 const workerVersion =
@@ -81,12 +88,16 @@ async function start() {
 }
 
 async function processBackgroundJobs(): Promise<void> {
+  const voiceProcessed = await processJobsOfType("VOICE_TRANSCRIPTION", processVoiceJob);
   const searchProcessed = await processJobsOfType("SEARCH_INDEX", processSearchJob);
   const aiProcessed = await processJobsOfType("AI_CLASSIFICATION", processAIJob);
-  const processed = searchProcessed + aiProcessed;
+  const processed = searchProcessed + aiProcessed + voiceProcessed;
 
   if (processed > 0) {
-    logger.info({ aiProcessed, processed, searchProcessed }, "background jobs processed");
+    logger.info(
+      { aiProcessed, processed, searchProcessed, voiceProcessed },
+      "background jobs processed"
+    );
   }
 }
 
@@ -116,7 +127,7 @@ function scheduleBackgroundProcessing(delayMs = workerEnv.AI_CLASSIFICATION_POLL
 }
 
 async function processJobsOfType(
-  type: "AI_CLASSIFICATION" | "SEARCH_INDEX",
+  type: "AI_CLASSIFICATION" | "SEARCH_INDEX" | "VOICE_TRANSCRIPTION",
   processor: (job: ProcessingJob) => Promise<void>
 ): Promise<number> {
   let processed = 0;
@@ -192,6 +203,85 @@ async function processSearchJob(job: ProcessingJob): Promise<void> {
       }
     });
   }
+}
+
+async function processVoiceJob(job: ProcessingJob): Promise<void> {
+  const attachment = await prisma.attachment.findUnique({
+    include: {
+      message: {
+        select: {
+          conversation: {
+            select: {
+              organizationId: true,
+              projectId: true
+            }
+          },
+          id: true
+        }
+      }
+    },
+    where: {
+      id: job.sourceId
+    }
+  });
+
+  if (!attachment) {
+    return;
+  }
+
+  try {
+    const transcript = await voiceTranscriptionService.transcribe({
+      filename: attachment.filename,
+      mimeType: attachment.mimeType,
+      storageKey: attachment.storageKey
+    });
+
+    await prisma.$transaction(async (tx) => {
+      await tx.attachment.update({
+        data: {
+          transcript,
+          transcriptionError: null,
+          transcriptionStatus: "COMPLETED"
+        },
+        where: {
+          id: attachment.id
+        }
+      });
+
+      await tx.message.update({
+        data: {
+          processingStatus: "TRANSCRIPTION_COMPLETE"
+        },
+        where: {
+          id: attachment.messageId
+        }
+      });
+
+      await queueSearchIndexJob(tx, {
+        organizationId: attachment.message.conversation.organizationId,
+        projectId: attachment.message.conversation.projectId,
+        sourceId: attachment.messageId,
+        sourceType: "MESSAGE"
+      });
+    });
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Voice transcription failed.";
+
+    await prisma.attachment.update({
+      data: {
+        transcriptionError: errorMessage,
+        transcriptionStatus: "FAILED"
+      },
+      where: {
+        id: attachment.id
+      }
+    });
+
+    await aiClassificationProcessor.enqueueMessage(attachment.messageId);
+    throw error;
+  }
+
+  await aiClassificationProcessor.enqueueMessage(attachment.messageId);
 }
 
 async function processAIJob(job: ProcessingJob): Promise<void> {

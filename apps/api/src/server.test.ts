@@ -12,6 +12,7 @@ import type {
   ParticipantRecord
 } from "@fieldos/messaging";
 import type { WhatsAppQrStore } from "@fieldos/baileys-whatsapp/qr-store";
+import type { EvidenceSummary, UnifiedEvidenceContext } from "@fieldos/db";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
@@ -704,6 +705,73 @@ describe("FieldOS API auth and tenancy", () => {
 
     expect(getResponse.statusCode).toBe(200);
     expect(getResponse.json().classification.messageId).toBe(message.id);
+  });
+
+  it("returns unified evidence context and summary for a message", async () => {
+    const cookie = await signup(server);
+    const organization = await createOrganization(server, cookie);
+    const project = await repository.createProject({
+      code: "EV-001",
+      name: "Evidence project",
+      organizationId: organization.id,
+      status: "ACTIVE"
+    });
+    const message = await createProjectMessage(repository, organization.id, project.id);
+    const conversation = repository.conversations.find(
+      (candidate) => candidate.id === message.conversationId
+    );
+
+    if (!conversation) {
+      throw new Error("conversation missing");
+    }
+
+    await repository.createAttachment({
+      conversationId: conversation.id,
+      filename: "handover.pdf",
+      messageId: message.id,
+      mimeType: "application/pdf",
+      size: 2048,
+      storageKey: "attachments/handover.pdf"
+    });
+    await repository.createAttachment({
+      conversationId: conversation.id,
+      filename: "voice.ogg",
+      messageId: message.id,
+      mimeType: "audio/ogg",
+      size: 1024,
+      storageKey: "attachments/voice.ogg"
+    });
+    const voiceAttachment = repository.attachments.find(
+      (attachment) => attachment.filename === "voice.ogg"
+    );
+
+    if (voiceAttachment) {
+      voiceAttachment.transcript = "The handover PDF was reviewed on site.";
+      voiceAttachment.transcriptionStatus = "COMPLETED";
+    }
+
+    const contextResponse = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "GET",
+      url: `/messages/${message.id}/context`
+    });
+    const summaryResponse = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "GET",
+      url: `/messages/${message.id}/evidence-summary`
+    });
+
+    expect(contextResponse.statusCode).toBe(200);
+    expect(contextResponse.json().context.voiceTranscript).toBe(
+      "The handover PDF was reviewed on site."
+    );
+    expect(contextResponse.json().context.attachedDocuments).toHaveLength(1);
+    expect(summaryResponse.statusCode).toBe(200);
+    expect(summaryResponse.json().evidenceSummary.labels).toEqual(["1 Voice Note", "1 PDF"]);
   });
 
   it("lists project AI classifications and Action Items", async () => {
@@ -1655,7 +1723,12 @@ class InMemoryRepository implements AppRepository {
     const attachment = {
       ...input,
       createdAt: new Date(),
-      id: nextId("attachment")
+      id: nextId("attachment"),
+      transcript: null,
+      transcriptionError: null,
+      transcriptionStatus: input.mimeType.startsWith("audio/")
+        ? ("PENDING" as const)
+        : ("NOT_REQUIRED" as const)
     };
     this.attachments.push(attachment);
 
@@ -2001,6 +2074,94 @@ class InMemoryRepository implements AppRepository {
     return (
       this.classifications.find((classification) => classification.messageId === messageId) ?? null
     );
+  }
+
+  async getMessageEvidenceContext(messageId: string): Promise<UnifiedEvidenceContext | null> {
+    const message = this.messages.find((candidate) => candidate.id === messageId);
+    const conversation = message
+      ? this.conversations.find((candidate) => candidate.id === message.conversationId)
+      : null;
+
+    if (!message || !conversation) {
+      return null;
+    }
+
+    const participant = message.senderParticipant;
+    const project = conversation.projectId
+      ? this.projects.find((candidate) => candidate.id === conversation.projectId)
+      : null;
+    const attachedPhotos = message.attachments.filter((attachment) =>
+      attachment.mimeType.startsWith("image/")
+    );
+    const attachedDocuments = message.attachments.filter(
+      (attachment) =>
+        attachment.mimeType === "application/pdf" || attachment.mimeType.startsWith("application/")
+    );
+    const attachedVoiceNotes = message.attachments.filter((attachment) =>
+      attachment.mimeType.startsWith("audio/")
+    );
+    const attachedVideos = message.attachments.filter((attachment) =>
+      attachment.mimeType.startsWith("video/")
+    );
+    const evidenceSummary = buildTestEvidenceSummary({
+      attachedDocuments,
+      attachedPhotos,
+      attachedVideos,
+      attachedVoiceNotes
+    });
+    const transcripts = attachedVoiceNotes
+      .map((attachment) => attachment.transcript?.trim())
+      .filter((transcript): transcript is string => Boolean(transcript));
+
+    return {
+      attachedDocuments,
+      attachedPhotos,
+      attachedVideos,
+      attachedVoiceNotes,
+      conversation: {
+        channel: conversation.channel,
+        id: conversation.id,
+        isGroup: conversation.isGroup,
+        title: conversation.title
+      },
+      evidenceSummary,
+      externalMessageId: message.externalMessageId,
+      messageId: message.id,
+      messageMetadata: {
+        attachmentCount: message.attachments.length,
+        hasTranscript: transcripts.length > 0,
+        transcriptionFailed: attachedVoiceNotes.some(
+          (attachment) => attachment.transcriptionStatus === "FAILED"
+        ),
+        transcriptionPending: attachedVoiceNotes.some(
+          (attachment) => attachment.transcriptionStatus === "PENDING"
+        )
+      },
+      messageText: message.body,
+      messageType: message.type,
+      organizationId: conversation.organizationId,
+      processingStatus: message.processingStatus,
+      project: project
+        ? {
+            code: project.code,
+            id: project.id,
+            name: project.name,
+            status: project.status
+          }
+        : null,
+      sender: {
+        displayName: participant.displayName,
+        externalIdentifier: participant.externalIdentifier,
+        id: participant.id
+      },
+      timestamp: message.occurredAt,
+      voiceTranscript: transcripts.length > 0 ? transcripts.join("\n\n") : null
+    };
+  }
+
+  async getMessageEvidenceSummary(messageId: string): Promise<EvidenceSummary | null> {
+    const context = await this.getMessageEvidenceContext(messageId);
+    return context?.evidenceSummary ?? null;
   }
 
   async getActionItem(actionItemId: string): Promise<ActionItemRecord | null> {
@@ -2704,6 +2865,47 @@ function toSafeUser(user: StoredUser): SafeUser {
     name: user.name,
     updatedAt: user.updatedAt
   };
+}
+
+function buildTestEvidenceSummary(input: {
+  attachedDocuments: AttachmentRecord[];
+  attachedPhotos: AttachmentRecord[];
+  attachedVideos: AttachmentRecord[];
+  attachedVoiceNotes: AttachmentRecord[];
+}): EvidenceSummary {
+  const pdfCount = input.attachedDocuments.filter(
+    (attachment) =>
+      attachment.mimeType === "application/pdf" || attachment.filename.endsWith(".pdf")
+  ).length;
+  const labels = [
+    formatTestEvidenceCount(input.attachedPhotos.length, "Photo", "Photos"),
+    formatTestEvidenceCount(input.attachedVoiceNotes.length, "Voice Note", "Voice Notes"),
+    formatTestEvidenceCount(pdfCount, "PDF", "PDFs"),
+    formatTestEvidenceCount(input.attachedDocuments.length - pdfCount, "Document", "Documents"),
+    formatTestEvidenceCount(input.attachedVideos.length, "Video", "Videos")
+  ].filter((label): label is string => Boolean(label));
+
+  return {
+    attachmentCount:
+      input.attachedDocuments.length +
+      input.attachedPhotos.length +
+      input.attachedVideos.length +
+      input.attachedVoiceNotes.length,
+    documentCount: input.attachedDocuments.length,
+    labels,
+    pdfCount,
+    photoCount: input.attachedPhotos.length,
+    videoCount: input.attachedVideos.length,
+    voiceNoteCount: input.attachedVoiceNotes.length
+  };
+}
+
+function formatTestEvidenceCount(count: number, singular: string, plural: string): string | null {
+  if (count <= 0) {
+    return null;
+  }
+
+  return `${count} ${count === 1 ? singular : plural}`;
 }
 
 class InMemoryQrStore implements WhatsAppQrStore {

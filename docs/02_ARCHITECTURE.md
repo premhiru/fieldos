@@ -5,7 +5,7 @@
 | Purpose      | Describe the FieldOS system architecture, boundaries, integration points, and evolution plan. |
 | Owner        | Engineering                                                                                   |
 | Status       | Draft                                                                                         |
-| Last Updated | 2026-07-06                                                                                    |
+| Last Updated | 2026-07-07                                                                                    |
 
 ## Table of Contents
 
@@ -17,6 +17,7 @@
 - [Integration Strategy](#integration-strategy)
 - [WhatsApp Connector](#whatsapp-connector)
 - [AI Classification](#ai-classification)
+- [Unified Evidence Processing](#unified-evidence-processing)
 - [Operations Command Center](#operations-command-center)
 - [Background Processing and Operations Health](#background-processing-and-operations-health)
 - [AI Search](#ai-search)
@@ -115,11 +116,41 @@ Session files and downloaded media are currently stored under `.storage`. This i
 
 AI classification runs after message persistence, never before it. WhatsApp ingestion creates or updates a pending classification row only for messages that belong to active conversations.
 
-The worker polls pending `AIMessageClassification` rows, sends normalized message context to the OpenAI-compatible provider, validates strict JSON output, stores a concise user-facing summary and reasoning statement, and optionally creates an `ActionItem`.
+The worker polls pending `AIMessageClassification` rows, builds a `UnifiedEvidenceContext`, sends that context to the OpenAI-compatible provider, validates strict JSON output, stores a concise user-facing summary and reasoning statement, and optionally creates an `ActionItem`.
 
 Action Items are not operational tasks. They are human-review records that can be accepted or ignored through the API and dashboard. Future task-domain work can convert accepted follow-up Action Items into first-class task records.
 
 Project suggestions are represented as `ActionItem` records with type `PROJECT_SUGGESTION`. Accepting one updates the conversation and WhatsApp chat mapping to the suggested project. Ignoring one records the human decision without changing project assignment.
+
+## Unified Evidence Processing
+
+`UnifiedEvidenceContext` is the runtime package that represents one operational update. It is not a table. It is built from:
+
+- Message text.
+- Conversation and sender metadata.
+- Project metadata when mapped.
+- Attachment metadata.
+- Voice transcript when available.
+- Evidence summary counts for photos, voice notes, PDFs, documents, and videos.
+
+The context is the single input to AI classification. AI is told that the transcript belongs to the same WhatsApp update as the text and attachments. Photos, PDFs, documents, and videos are provided as metadata only; the system does not ask AI to infer image or document contents.
+
+The worker processing order for inbound WhatsApp evidence is:
+
+1. Store message.
+2. Store/download media metadata and file when possible.
+3. Queue voice transcription for voice attachments.
+4. Build `UnifiedEvidenceContext`.
+5. Run AI classification.
+6. Create a grouped message timeline event.
+7. Create Action Items when required.
+8. Queue search indexing.
+
+Media and transcription failures are non-blocking. Attachment rows record transcription status and error text, failed jobs remain retryable, and AI classification continues with the evidence that is available.
+
+Search indexing for messages includes message text, voice transcript text, evidence summary, and attachment filenames. Binary content is not indexed.
+
+The API exposes `GET /messages/:id/context` and `GET /messages/:id/evidence-summary` so UI surfaces can display the full evidence package or a compact summary without rebuilding logic locally.
 
 ## Operations Command Center
 

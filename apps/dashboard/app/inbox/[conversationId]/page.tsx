@@ -4,6 +4,7 @@ import { Badge, Card, CardContent, CardHeader, CardTitle } from "@fieldos/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import * as React from "react";
 
 import { AppShell } from "../../../components/app-shell";
 import { AuthGuard } from "../../../components/auth-guard";
@@ -117,6 +118,7 @@ function ConversationDetailContent() {
 
 function MessageBubble({ message }: { message: Message }) {
   const outbound = message.direction === "OUTBOUND";
+  const evidenceSummary = getEvidenceSummary(message.attachments);
 
   return (
     <div className={outbound ? "flex justify-end" : "flex justify-start"}>
@@ -130,27 +132,106 @@ function MessageBubble({ message }: { message: Message }) {
         <div className={outbound ? "text-xs text-slate-300" : "text-xs text-slate-500"}>
           {message.senderParticipant.displayName} - {formatDate(message.occurredAt)}
         </div>
-        <div className="mt-2 text-sm">
-          {message.type === "TEXT" || message.type === "SYSTEM" ? (
-            message.body
-          ) : (
+        <div className="mt-2 space-y-2 text-sm">
+          {message.body ? <p>{message.body}</p> : null}
+          {message.type !== "TEXT" && message.type !== "SYSTEM" ? (
             <MediaPlaceholder type={message.type} />
-          )}
+          ) : null}
         </div>
-        {message.attachments.length > 0 ? (
-          <div className="mt-3 space-y-2">
-            {message.attachments.map((attachment) => (
-              <div
-                key={attachment.id}
-                className="rounded border border-slate-300 px-2 py-1 text-xs"
-              >
-                {attachment.filename}
-              </div>
-            ))}
-          </div>
+        {evidenceSummary.labels.length > 0 ? (
+          <MessageEvidencePanel
+            attachments={message.attachments}
+            outbound={outbound}
+            summary={evidenceSummary}
+          />
         ) : null}
         <AIMessagePanel messageId={message.id} outbound={outbound} />
       </div>
+    </div>
+  );
+}
+
+function MessageEvidencePanel({
+  attachments,
+  outbound,
+  summary
+}: {
+  attachments: Attachment[];
+  outbound: boolean;
+  summary: EvidenceSummaryView;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const transcript = attachments
+    .map((attachment) => attachment.transcript?.trim())
+    .filter((value): value is string => Boolean(value))
+    .join("\n\n");
+  const failedTranscript = attachments.find(
+    (attachment) => attachment.transcriptionStatus === "FAILED"
+  );
+  const pendingTranscript = attachments.some(
+    (attachment) => attachment.transcriptionStatus === "PENDING"
+  );
+
+  return (
+    <div
+      className={
+        outbound
+          ? "mt-3 rounded-md border border-slate-700 bg-slate-900 p-3 text-xs text-slate-200"
+          : "mt-3 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700"
+      }
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div className="font-medium">Evidence Summary</div>
+          <div className="mt-1 flex flex-wrap gap-2">
+            {summary.labels.map((label) => (
+              <span
+                className={
+                  outbound
+                    ? "rounded border border-slate-700 px-2 py-1"
+                    : "rounded border border-slate-200 bg-white px-2 py-1"
+                }
+                key={label}
+              >
+                {label}
+              </span>
+            ))}
+          </div>
+        </div>
+        <button
+          className={
+            outbound
+              ? "rounded border border-slate-600 px-2 py-1 text-xs"
+              : "rounded border border-slate-300 px-2 py-1 text-xs"
+          }
+          onClick={() => setOpen((value) => !value)}
+          type="button"
+        >
+          {open ? "Hide media" : "Show media"}
+        </button>
+      </div>
+
+      {transcript ? (
+        <div className="mt-3 rounded border border-slate-300 p-2">
+          <div className="font-medium">Voice transcript</div>
+          <p className="mt-1 whitespace-pre-wrap leading-5">{transcript}</p>
+        </div>
+      ) : pendingTranscript ? (
+        <p className="mt-3">Voice transcript pending.</p>
+      ) : failedTranscript ? (
+        <p className="mt-3">
+          Voice transcript unavailable
+          {failedTranscript.transcriptionError ? `: ${failedTranscript.transcriptionError}` : ""}.
+        </p>
+      ) : null}
+
+      {open ? (
+        <div className="mt-3 space-y-2">
+          {attachments.map((attachment) => (
+            <AttachmentRow attachment={attachment} key={attachment.id} />
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -244,8 +325,72 @@ function AttachmentRow({ attachment }: { attachment: Attachment }) {
       <div className="mt-1 text-xs text-slate-500">
         {attachment.mimeType} - {formatBytes(attachment.size)}
       </div>
+      {attachment.transcript ? (
+        <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-600">
+          {attachment.transcript}
+        </p>
+      ) : attachment.transcriptionStatus === "FAILED" ? (
+        <p className="mt-2 text-xs text-slate-500">
+          Transcript unavailable
+          {attachment.transcriptionError ? `: ${attachment.transcriptionError}` : ""}.
+        </p>
+      ) : null}
     </div>
   );
+}
+
+interface EvidenceSummaryView {
+  documentCount: number;
+  labels: string[];
+  pdfCount: number;
+  photoCount: number;
+  videoCount: number;
+  voiceNoteCount: number;
+}
+
+function getEvidenceSummary(attachments: Attachment[]): EvidenceSummaryView {
+  const photoCount = attachments.filter((attachment) =>
+    attachment.mimeType.toLowerCase().startsWith("image/")
+  ).length;
+  const voiceNoteCount = attachments.filter((attachment) =>
+    attachment.mimeType.toLowerCase().startsWith("audio/")
+  ).length;
+  const videoCount = attachments.filter((attachment) =>
+    attachment.mimeType.toLowerCase().startsWith("video/")
+  ).length;
+  const documents = attachments.filter((attachment) => {
+    const mimeType = attachment.mimeType.toLowerCase();
+    return mimeType === "application/pdf" || mimeType.startsWith("application/");
+  });
+  const pdfCount = documents.filter(
+    (attachment) =>
+      attachment.mimeType.toLowerCase() === "application/pdf" ||
+      attachment.filename.toLowerCase().endsWith(".pdf")
+  ).length;
+  const labels = [
+    formatCount(photoCount, "Photo", "Photos"),
+    formatCount(voiceNoteCount, "Voice Note", "Voice Notes"),
+    formatCount(pdfCount, "PDF", "PDFs"),
+    formatCount(documents.length - pdfCount, "Document", "Documents"),
+    formatCount(videoCount, "Video", "Videos")
+  ].filter((label): label is string => Boolean(label));
+
+  return {
+    documentCount: documents.length,
+    labels,
+    pdfCount,
+    photoCount,
+    videoCount,
+    voiceNoteCount
+  };
+}
+
+function formatCount(count: number, singular: string, plural: string): string | null {
+  if (count <= 0) {
+    return null;
+  }
+
+  return `${count} ${count === 1 ? singular : plural}`;
 }
 
 function formatDate(value: string) {

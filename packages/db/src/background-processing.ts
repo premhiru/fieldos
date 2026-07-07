@@ -9,6 +9,12 @@ import type {
   WorkerStatus
 } from "@prisma/client";
 
+import {
+  buildUnifiedEvidenceContext,
+  formatEvidenceSummary,
+  type UnifiedEvidenceContext
+} from "./evidence-context.js";
+
 export interface QueueProcessingJobInput {
   correlationId?: string;
   maxAttempts?: number;
@@ -85,6 +91,17 @@ export async function queueAIClassificationJob(
     ...input,
     sourceType: "AI_MESSAGE_CLASSIFICATION",
     type: "AI_CLASSIFICATION"
+  });
+}
+
+export async function queueVoiceTranscriptionJob(
+  prisma: PrismaClient | Prisma.TransactionClient,
+  input: Omit<QueueProcessingJobInput, "sourceType" | "type">
+): Promise<ProcessingJob> {
+  return queueProcessingJob(prisma, {
+    ...input,
+    sourceType: "ATTACHMENT",
+    type: "VOICE_TRANSCRIPTION"
   });
 }
 
@@ -442,57 +459,61 @@ async function buildMessageDocument(
   prisma: PrismaClient,
   messageId: string
 ): Promise<SearchDocumentInput | null> {
-  const message = await prisma.message.findUnique({
-    include: {
-      conversation: {
-        select: {
-          organizationId: true,
-          project: {
-            select: {
-              name: true
-            }
-          },
-          projectId: true,
-          title: true
-        }
-      },
-      senderParticipant: {
-        select: {
-          displayName: true
-        }
-      }
-    },
-    where: {
-      id: messageId
-    }
-  });
+  const context = await buildUnifiedEvidenceContext(prisma, messageId);
 
-  if (!message) {
+  if (!context) {
     return null;
   }
 
   return {
-    content: [
-      message.body ?? "",
-      `Sender: ${message.senderParticipant.displayName}`,
-      `Conversation: ${message.conversation.title}`,
-      message.conversation.project ? `Project: ${message.conversation.project.name}` : ""
-    ]
-      .filter(Boolean)
-      .join("\n"),
+    content: buildMessageSearchContent(context),
     metadata: {
-      conversationId: message.conversationId,
-      conversationTitle: message.conversation.title,
-      messageType: message.type,
-      sender: message.senderParticipant.displayName
+      conversationId: context.conversation.id,
+      conversationTitle: context.conversation.title,
+      evidenceSummary: {
+        attachmentCount: context.evidenceSummary.attachmentCount,
+        documentCount: context.evidenceSummary.documentCount,
+        labels: context.evidenceSummary.labels,
+        pdfCount: context.evidenceSummary.pdfCount,
+        photoCount: context.evidenceSummary.photoCount,
+        videoCount: context.evidenceSummary.videoCount,
+        voiceNoteCount: context.evidenceSummary.voiceNoteCount
+      },
+      messageType: context.messageType,
+      sender: context.sender.displayName
     },
-    occurredAt: message.occurredAt,
-    organizationId: message.conversation.organizationId,
-    projectId: message.conversation.projectId,
-    sourceId: message.id,
+    occurredAt: context.timestamp,
+    organizationId: context.organizationId,
+    projectId: context.project?.id ?? null,
+    sourceId: context.messageId,
     sourceType: "MESSAGE",
-    title: message.conversation.title
+    title: context.conversation.title
   };
+}
+
+function buildMessageSearchContent(context: UnifiedEvidenceContext): string {
+  return [
+    context.messageText ?? "",
+    context.voiceTranscript ? `Voice transcript: ${context.voiceTranscript}` : "",
+    context.attachedDocuments.length > 0
+      ? `Document filenames: ${context.attachedDocuments
+          .map((attachment) => attachment.filename)
+          .join(", ")}`
+      : "",
+    context.attachedPhotos.length > 0
+      ? `Photo filenames: ${context.attachedPhotos
+          .map((attachment) => attachment.filename)
+          .join(", ")}`
+      : "",
+    context.evidenceSummary.attachmentCount > 0
+      ? `Evidence summary: ${formatEvidenceSummary(context.evidenceSummary)}`
+      : "",
+    `Sender: ${context.sender.displayName}`,
+    `Conversation: ${context.conversation.title}`,
+    context.project ? `Project: ${context.project.name}` : ""
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 async function buildEventDocument(

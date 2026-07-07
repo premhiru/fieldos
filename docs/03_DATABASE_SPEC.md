@@ -5,13 +5,14 @@
 | Purpose      | Define the data model, ownership boundaries, migration policy, and database standards. |
 | Owner        | Engineering                                                                            |
 | Status       | Draft                                                                                  |
-| Last Updated | 2026-07-06                                                                             |
+| Last Updated | 2026-07-07                                                                             |
 
 ## Table of Contents
 
 - [Data Principles](#data-principles)
 - [Domain Model](#domain-model)
 - [Messaging Model](#messaging-model)
+- [Unified Evidence Processing](#unified-evidence-processing)
 - [WhatsApp Connector Model](#whatsapp-connector-model)
 - [AI Classification Model](#ai-classification-model)
 - [Event Model](#event-model)
@@ -110,6 +111,33 @@ Key constraints:
 - `Participant.externalIdentifier` is unique per conversation.
 - `Message.externalMessageId` is unique per conversation when present.
 - Attachments cascade with their messages.
+
+Attachment transcription fields:
+
+- `transcript`: Nullable text transcript for voice notes.
+- `transcriptionStatus`: `NOT_REQUIRED`, `PENDING`, `COMPLETED`, or `FAILED`.
+- `transcriptionError`: Nullable last transcription failure reason.
+
+Key attachment indexes:
+
+- `conversationId`
+- `messageId`
+- `transcriptionStatus, createdAt`
+
+## Unified Evidence Processing
+
+`UnifiedEvidenceContext` is not persisted as a database table. It is built dynamically from `Message`, `Conversation`, `Participant`, `Project`, and `Attachment` records.
+
+The database keeps media metadata independent:
+
+- Photos use `Attachment` filename, MIME type, storage key, size, and timestamps.
+- PDFs/documents use the same `Attachment` metadata.
+- Voice notes use `Attachment` metadata plus transcript status and transcript text when available.
+- Videos remain metadata-only for the MVP.
+
+This avoids duplicating media metadata while allowing AI classification, search indexing, inbox display, and command-center recent evidence to consume the same runtime context.
+
+Message search documents include message text, voice transcripts, document filenames, photo filenames, and evidence summary labels. Binary files are not indexed.
 
 ## WhatsApp Connector Model
 
@@ -266,6 +294,8 @@ Key indexes:
 `SearchDocument` is a generic retrieval index used by keyword search and grounded AI answers.
 
 Search documents are written only by background `SEARCH_INDEX` jobs. API search routes read the index and do not rebuild it synchronously.
+
+Message search content includes message text, available voice transcripts, attachment filenames, and evidence summary labels. OCR, image recognition, document extraction, and video analysis are not part of the MVP search index.
 
 Supported source types:
 

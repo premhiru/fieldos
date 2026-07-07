@@ -19,7 +19,7 @@
 
 ## Current Milestone
 
-Task 010B Operations Health and Background Job Monitoring is deployed and verified in production.
+Task 011 Unified Evidence Processing is implemented locally and awaiting production deployment verification.
 
 ## Completed Tasks
 
@@ -132,6 +132,16 @@ Task 010B Operations Health and Background Job Monitoring is deployed and verifi
   - Admin API endpoints added for operations health, jobs, worker heartbeat, individual retry, and bulk retry.
   - Dashboard `/admin/operations` page added for organization owners and admins.
   - ADR 0010B documents the lightweight observability approach.
+- Task 011: Unified Evidence Processing.
+  - `UnifiedEvidenceContext` added as a runtime context package for message text, project metadata, conversation metadata, sender, attachments, voice transcripts, and evidence summary.
+  - Attachment-level transcript, transcription status, and transcription error fields added for voice notes.
+  - AI classification now receives the unified evidence context instead of message text alone.
+  - Worker now processes voice transcription jobs and continues AI classification when transcription fails.
+  - Message search indexing now includes message text, voice transcripts, evidence summary labels, and attachment filenames.
+  - Inbox messages now show Evidence Summary, expandable media details, and visible voice transcript status.
+  - Command center Recent Evidence now opens grouped message updates when available.
+  - API endpoints added for message context and evidence summary.
+  - ADR 0011 documents the unified evidence processing decision.
 
 ## In-Progress Tasks
 
@@ -156,12 +166,14 @@ Task 010B Operations Health and Background Job Monitoring is deployed and verifi
 - Pagination is still limited to the highest-volume AI and ActionItem project views; conversation and message pagination should be formalized before large customer imports.
 - API route response envelopes are improved but not yet generated from a shared OpenAPI contract.
 - Production environments must set `OPENROUTER_API_KEY` and confirm the intended `AI_MODEL` before AI classification can run. `OPENAI_API_KEY` remains a fallback for OpenAI-compatible providers.
-- Voice transcription and media download are represented in job metrics but the full transcription/download workers remain intentionally deferred.
+- Voice transcription uses OpenAI audio transcription when `OPENAI_API_KEY` is configured; OpenRouter chat keys do not provide audio transcription.
+- WhatsApp media is still filesystem-backed, so Railway worker redeploys may lose local media unless object storage is added.
 - Search uses PostgreSQL keyword search for the MVP; semantic/vector search is intentionally deferred until search telemetry proves the need.
 
 ## Upcoming Milestones
 
-- Validate live WhatsApp message ingestion and AI job execution after the WhatsApp line is reconnected.
+- Deploy Task 011 and verify unified evidence processing with production services.
+- Validate live WhatsApp message ingestion, voice transcription, AI classification, and search indexing after the WhatsApp line is reconnected.
 - Configure branch protection for `main` and `develop`.
 - Create `develop` branch after remote setup.
 - Add invite and membership management after the basic auth/org/project slice is verified.
@@ -186,6 +198,7 @@ Task 010B Operations Health and Background Job Monitoring is deployed and verifi
 - ADR 0009: Use an API-owned Operations Command Center with deterministic health rules and lightweight milestones.
 - ADR 0010: Use PostgreSQL-backed grounded retrieval with cited sources for AI search.
 - ADR 0010B: Use lightweight database-backed background jobs and worker heartbeat for operations observability.
+- ADR 0011: Use runtime unified evidence context for grouped operational updates.
 
 ## Deployment Status
 
@@ -243,4 +256,5 @@ Task 010B Operations Health and Background Job Monitoring is deployed and verifi
   - Worker heartbeat verified in `WorkerHeartbeat` with status `ONLINE`.
   - A production `SEARCH_INDEX` job was queued and completed by the worker.
   - Live WhatsApp sample-message verification is pending because the connected line is currently waiting for QR pairing.
+- Task 011 code is validated locally; production deployment requires migration application and API/worker/dashboard deployment.
 - Live WhatsApp message verification is pending until the WhatsApp line is paired again from the QR flow.

@@ -41,6 +41,7 @@ export type MessageProcessingStatus =
   | "AI_PENDING"
   | "AI_COMPLETE"
   | "FAILED";
+export type VoiceTranscriptionStatus = "NOT_REQUIRED" | "PENDING" | "COMPLETED" | "FAILED";
 
 export interface User {
   id: string;
@@ -101,6 +102,9 @@ export interface Attachment {
   mimeType: string;
   storageKey: string;
   size: number;
+  transcript: string | null;
+  transcriptionStatus: VoiceTranscriptionStatus;
+  transcriptionError: string | null;
   createdAt: string;
 }
 
@@ -117,6 +121,65 @@ export interface Message {
   occurredAt: string;
   createdAt: string;
   attachments: Attachment[];
+}
+
+export interface EvidenceAttachmentMetadata {
+  id: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  storageKey: string;
+  createdAt: string;
+}
+
+export interface EvidenceVoiceNoteMetadata extends EvidenceAttachmentMetadata {
+  transcript: string | null;
+  transcriptionStatus: VoiceTranscriptionStatus;
+  transcriptionError: string | null;
+}
+
+export interface EvidenceSummary {
+  attachmentCount: number;
+  documentCount: number;
+  labels: string[];
+  pdfCount: number;
+  photoCount: number;
+  videoCount: number;
+  voiceNoteCount: number;
+}
+
+export interface UnifiedEvidenceContext {
+  project: ProjectReference | null;
+  conversation: {
+    channel: Channel;
+    id: string;
+    isGroup: boolean;
+    title: string;
+  };
+  sender: {
+    displayName: string;
+    externalIdentifier: string;
+    id: string;
+  };
+  timestamp: string;
+  organizationId: string;
+  messageId: string;
+  messageText: string | null;
+  messageType: MessageType;
+  processingStatus: MessageProcessingStatus;
+  externalMessageId: string | null;
+  voiceTranscript: string | null;
+  attachedPhotos: EvidenceAttachmentMetadata[];
+  attachedDocuments: EvidenceAttachmentMetadata[];
+  attachedVoiceNotes: EvidenceVoiceNoteMetadata[];
+  attachedVideos: EvidenceAttachmentMetadata[];
+  evidenceSummary: EvidenceSummary;
+  messageMetadata: {
+    attachmentCount: number;
+    hasTranscript: boolean;
+    transcriptionFailed: boolean;
+    transcriptionPending: boolean;
+  };
 }
 
 export interface AIMessageClassification {
@@ -210,9 +273,11 @@ export interface DashboardActionItemGroups {
 }
 
 export interface DashboardRecentActivity {
+  conversationId: string | null;
   id: string;
   projectId: string;
   projectName: string;
+  sourceId: string;
   sourceType: "MESSAGE" | "ACTION_ITEM" | "REPORT" | "SYSTEM";
   eventType: string;
   icon: string;
@@ -483,6 +548,12 @@ export const api = {
   getMessageClassification: (messageId: string) =>
     apiRequest<{ classification: AIMessageClassification | null }>(
       `/messages/${messageId}/classification`
+    ),
+  getMessageContext: (messageId: string) =>
+    apiRequest<{ context: UnifiedEvidenceContext | null }>(`/messages/${messageId}/context`),
+  getMessageEvidenceSummary: (messageId: string) =>
+    apiRequest<{ evidenceSummary: EvidenceSummary | null }>(
+      `/messages/${messageId}/evidence-summary`
     ),
   getWhatsAppQr: (accountId: string) =>
     apiRequest<{ qr: string | null; status: WhatsAppAccountStatus }>(

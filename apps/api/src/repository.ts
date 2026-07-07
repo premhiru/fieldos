@@ -18,11 +18,14 @@ import type {
 import {
   getJobMetrics,
   getWorkerEffectiveStatus,
+  buildUnifiedEvidenceContext,
   Prisma,
   retryFailedProcessingJobs,
   retryProcessingJob,
   queueAIClassificationJob,
-  queueSearchIndexJob
+  queueSearchIndexJob,
+  type EvidenceSummary,
+  type UnifiedEvidenceContext
 } from "@fieldos/db";
 import type {
   AttachmentRecord,
@@ -246,9 +249,11 @@ export interface DashboardActionItemGroupsRecord {
 }
 
 export interface DashboardRecentActivityRecord {
+  conversationId: string | null;
   id: string;
   projectId: string;
   projectName: string;
+  sourceId: string;
   sourceType: EventSourceType;
   eventType: string;
   icon: string;
@@ -399,6 +404,8 @@ export interface AppRepository extends MessagingRepository {
   completeActionItem(input: { actionItemId: string; userId: string }): Promise<ActionItemRecord>;
   enqueueMessageClassification(messageId: string): Promise<AIMessageClassificationRecord | null>;
   getMessageClassification(messageId: string): Promise<AIMessageClassificationRecord | null>;
+  getMessageEvidenceContext(messageId: string): Promise<UnifiedEvidenceContext | null>;
+  getMessageEvidenceSummary(messageId: string): Promise<EvidenceSummary | null>;
   getActionItem(actionItemId: string): Promise<ActionItemRecord | null>;
   getOperationsDashboard(input: {
     organizationId: string;
@@ -761,6 +768,16 @@ export function createPrismaRepository(): AppRepository {
       });
     },
 
+    async getMessageEvidenceContext(messageId) {
+      const prisma = await getPrisma();
+      return buildUnifiedEvidenceContext(prisma, messageId);
+    },
+
+    async getMessageEvidenceSummary(messageId) {
+      const context = await this.getMessageEvidenceContext(messageId);
+      return context?.evidenceSummary ?? null;
+    },
+
     async getActionItem(actionItemId) {
       const prisma = await getPrisma();
       return prisma.actionItem.findUnique({
@@ -899,15 +916,40 @@ export function createPrismaRepository(): AppRepository {
         todaysActivityCount
       };
 
+      const messageSourceIds = events
+        .filter((event) => event.sourceType === "MESSAGE")
+        .map((event) => event.sourceId);
+      const messageContexts =
+        messageSourceIds.length > 0
+          ? await prisma.message.findMany({
+              select: {
+                conversationId: true,
+                id: true
+              },
+              where: {
+                id: {
+                  in: messageSourceIds
+                }
+              }
+            })
+          : [];
+      const conversationByMessageId = new Map(
+        messageContexts.map((message) => [message.id, message.conversationId])
+      );
       const recentActivity = events
         .filter((event) => event.project)
         .map((event) => ({
+          conversationId:
+            event.sourceType === "MESSAGE"
+              ? (conversationByMessageId.get(event.sourceId) ?? null)
+              : null,
           eventType: event.eventType,
           icon: getActivityIcon(event.sourceType),
           id: event.id,
           occurredAt: event.occurredAt,
           projectId: event.project?.id ?? "",
           projectName: event.project?.name ?? "Unknown project",
+          sourceId: event.sourceId,
           sourceType: event.sourceType,
           title: event.title
         }));

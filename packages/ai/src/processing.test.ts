@@ -27,6 +27,7 @@ describe("AIClassificationProcessor", () => {
 
   it("classifies messages without a project so project suggestions can be created", async () => {
     prisma.messages[0]!.conversation.projectId = null;
+    prisma.messages[0]!.conversation.project = null;
     const processor = new AIClassificationProcessor(prisma.client, {
       classifier: new FakeClassifier(validResult())
     });
@@ -48,6 +49,10 @@ describe("AIClassificationProcessor", () => {
     expect(prisma.classifications[0]?.category).toBe("DEFECT");
     expect(prisma.messages[0]?.processingStatus).toBe("AI_COMPLETE");
     expect(prisma.actionItems).toHaveLength(1);
+    expect(prisma.events.some((event) => event.eventType === "MESSAGE_EVIDENCE_RECEIVED")).toBe(
+      true
+    );
+    expect(prisma.events.some((event) => event.title.includes("1 Voice Note"))).toBe(true);
     expect(prisma.processingJobs.some((job) => job.type === "SEARCH_INDEX")).toBe(true);
   });
 
@@ -104,10 +109,31 @@ class FailingClassifier implements Pick<MessageClassifier, "classifyMessage"> {
 }
 
 interface FakeMessage {
+  attachments: Array<{
+    conversationId: string;
+    createdAt: Date;
+    filename: string;
+    id: string;
+    messageId: string;
+    mimeType: string;
+    size: number;
+    storageKey: string;
+    transcript: string | null;
+    transcriptionError: string | null;
+    transcriptionStatus: "NOT_REQUIRED" | "PENDING" | "COMPLETED" | "FAILED";
+  }>;
   body: string;
   conversation: {
+    channel: "WHATSAPP";
     id: string;
+    isGroup: boolean;
     organizationId: string;
+    project: {
+      code: string;
+      id: string;
+      name: string;
+      status: "ACTIVE";
+    } | null;
     projectId: string | null;
     title: string;
   };
@@ -117,6 +143,8 @@ interface FakeMessage {
   processingStatus?: string;
   senderParticipant: {
     displayName: string;
+    externalIdentifier: string;
+    id: string;
   };
   type: "TEXT";
 }
@@ -124,10 +152,33 @@ interface FakeMessage {
 class FakePrisma {
   messages: FakeMessage[] = [
     {
+      attachments: [
+        {
+          conversationId: "conversation_1",
+          createdAt: new Date("2026-07-03T00:00:00.000Z"),
+          filename: "voice.ogg",
+          id: "attachment_1",
+          messageId: "message_1",
+          mimeType: "audio/ogg",
+          size: 100,
+          storageKey: "voice.ogg",
+          transcript: "Please rectify the lobby light.",
+          transcriptionError: null,
+          transcriptionStatus: "COMPLETED"
+        }
+      ],
       body: "Lobby light failed, please rectify.",
       conversation: {
+        channel: "WHATSAPP",
         id: "conversation_1",
+        isGroup: true,
         organizationId: "organization_1",
+        project: {
+          code: "P1",
+          id: "project_1",
+          name: "Project 1",
+          status: "ACTIVE"
+        },
         projectId: "project_1",
         title: "Site team"
       },
@@ -135,7 +186,9 @@ class FakePrisma {
       id: "message_1",
       occurredAt: new Date("2026-07-03T00:00:00.000Z"),
       senderParticipant: {
-        displayName: "Supervisor"
+        displayName: "Supervisor",
+        externalIdentifier: "supervisor@example.com",
+        id: "participant_1"
       },
       type: "TEXT" as const
     }
@@ -163,10 +216,12 @@ class FakePrisma {
     type?: "FOLLOW_UP" | "PROJECT_SUGGESTION";
   }> = [];
   events: Array<{
+    eventType?: string;
     id: string;
     organizationId?: string;
     projectId?: string | null;
     sourceId: string;
+    sourceType?: string;
     title: string;
   }> = [];
   processingJobs: Array<{
@@ -285,12 +340,33 @@ class FakePrisma {
       deleteMany: async () => ({ count: 0 })
     },
     event: {
+      findFirst: async ({
+        where
+      }: {
+        where: {
+          sourceId: string;
+          sourceType: string;
+        };
+      }) =>
+        this.events.find(
+          (event) => event.sourceId === where.sourceId && event.sourceType === where.sourceType
+        ) ?? null,
       create: async ({ data }: { data: { sourceId: string; title: string } }) => {
         const event = {
           ...data,
           id: `event_${this.events.length + 1}`
         };
         this.events.push(event);
+        return event;
+      },
+      update: async ({ data, where }: { data: Record<string, unknown>; where: { id: string } }) => {
+        const event = this.events.find((item) => item.id === where.id);
+
+        if (!event) {
+          throw new Error("event missing");
+        }
+
+        Object.assign(event, data);
         return event;
       }
     },

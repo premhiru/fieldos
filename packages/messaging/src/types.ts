@@ -16,6 +16,8 @@ export type MessageProcessingStatus =
   | "AI_COMPLETE"
   | "FAILED";
 
+export type VoiceTranscriptionStatus = "NOT_REQUIRED" | "PENDING" | "COMPLETED" | "FAILED";
+
 export interface ProjectReference {
   id: string;
   code: string;
@@ -54,6 +56,9 @@ export interface AttachmentRecord {
   mimeType: string;
   storageKey: string;
   size: number;
+  transcript: string | null;
+  transcriptionStatus: VoiceTranscriptionStatus;
+  transcriptionError: string | null;
   createdAt: Date;
 }
 

@@ -9,7 +9,13 @@ import {
   type WAMessage,
   type WASocket
 } from "@whiskeysockets/baileys";
-import { queueAIClassificationJob, queueSearchIndexJob, type PrismaClient } from "@fieldos/db";
+import {
+  queueAIClassificationJob,
+  queueSearchIndexJob,
+  queueVoiceTranscriptionJob,
+  type Attachment,
+  type PrismaClient
+} from "@fieldos/db";
 import { createLogger } from "@fieldos/shared";
 import { randomUUID } from "node:crypto";
 import pino from "pino";
@@ -564,16 +570,16 @@ export class BaileysWhatsAppSessionManager {
       throw error;
     }
 
-    if (normalized.media) {
-      await this.createAttachment(
-        account,
-        socket,
-        rawMessage,
-        normalized,
-        message.id,
-        conversation.id
-      );
-    }
+    const attachment = normalized.media
+      ? await this.createAttachment(
+          account,
+          socket,
+          rawMessage,
+          normalized,
+          message.id,
+          conversation.id
+        )
+      : null;
 
     await this.prisma.$transaction(async (tx) => {
       await tx.conversation.update({
@@ -600,11 +606,20 @@ export class BaileysWhatsAppSessionManager {
       });
     });
 
-    await this.enqueueClassification({
-      messageId: message.id,
-      organizationId: account.organizationId,
-      projectId: activeMapping.projectId
-    });
+    if (attachment?.transcriptionStatus === "PENDING") {
+      await this.enqueueVoiceTranscription({
+        attachmentId: attachment.id,
+        messageId: message.id,
+        organizationId: account.organizationId,
+        projectId: activeMapping.projectId
+      });
+    } else {
+      await this.enqueueClassification({
+        messageId: message.id,
+        organizationId: account.organizationId,
+        projectId: activeMapping.projectId
+      });
+    }
   }
 
   private async createAttachment(
@@ -617,9 +632,9 @@ export class BaileysWhatsAppSessionManager {
     normalized: NormalizedWhatsAppMessage,
     messageId: string,
     conversationId: string
-  ): Promise<void> {
+  ): Promise<Attachment | null> {
     if (!normalized.media) {
-      return;
+      return null;
     }
 
     let storageKey = `whatsapp-media/${account.organizationId}/${account.id}/${messageId}-${normalized.media.filename}`;
@@ -651,16 +666,60 @@ export class BaileysWhatsAppSessionManager {
       );
     }
 
-    await this.prisma.attachment.create({
+    return this.prisma.attachment.create({
       data: {
         conversationId,
         filename: normalized.media.filename,
         messageId,
         mimeType: normalized.media.mimeType,
         size,
-        storageKey
+        storageKey,
+        transcriptionStatus: normalized.type === "VOICE" ? "PENDING" : "NOT_REQUIRED"
       }
     });
+  }
+
+  private async enqueueVoiceTranscription(input: {
+    attachmentId: string;
+    messageId: string;
+    organizationId: string;
+    projectId: string | null;
+  }): Promise<void> {
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.message.update({
+          data: {
+            processingStatus: "TRANSCRIPTION_PENDING"
+          },
+          where: {
+            id: input.messageId
+          }
+        });
+
+        await queueVoiceTranscriptionJob(tx, {
+          organizationId: input.organizationId,
+          projectId: input.projectId,
+          sourceId: input.attachmentId
+        });
+      });
+    } catch (error: unknown) {
+      this.logger.error(
+        {
+          attachmentId: input.attachmentId,
+          error,
+          messageId: input.messageId,
+          organizationId: input.organizationId,
+          projectId: input.projectId
+        },
+        "voice transcription enqueue failed"
+      );
+
+      await this.enqueueClassification({
+        messageId: input.messageId,
+        organizationId: input.organizationId,
+        projectId: input.projectId
+      });
+    }
   }
 
   private async discoverChatMapping(

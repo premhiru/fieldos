@@ -32,15 +32,68 @@ export const classifiableMessageTypeSchema = z.enum([
   "SYSTEM"
 ]);
 
+const evidenceAttachmentMetadataSchema = z.object({
+  createdAt: z.coerce.date(),
+  filename: z.string().trim().min(1),
+  id: z.string().trim().min(1),
+  mimeType: z.string().trim().min(1),
+  size: z.number().int().min(0),
+  storageKey: z.string().trim().min(1)
+});
+
+const evidenceVoiceNoteMetadataSchema = evidenceAttachmentMetadataSchema.extend({
+  transcript: z.string().nullable(),
+  transcriptionError: z.string().nullable(),
+  transcriptionStatus: z.enum(["NOT_REQUIRED", "PENDING", "COMPLETED", "FAILED"])
+});
+
 export const classifyMessageInputSchema = z.object({
-  conversationTitle: z.string().trim().min(1),
-  messageBody: z.string().nullable(),
+  attachedDocuments: z.array(evidenceAttachmentMetadataSchema),
+  attachedPhotos: z.array(evidenceAttachmentMetadataSchema),
+  attachedVideos: z.array(evidenceAttachmentMetadataSchema),
+  attachedVoiceNotes: z.array(evidenceVoiceNoteMetadataSchema),
+  conversation: z.object({
+    channel: z.enum(["WHATSAPP", "EMAIL", "SLACK", "TEAMS", "SMS"]),
+    id: z.string().trim().min(1),
+    isGroup: z.boolean(),
+    title: z.string().trim().min(1)
+  }),
+  evidenceSummary: z.object({
+    attachmentCount: z.number().int().min(0),
+    documentCount: z.number().int().min(0),
+    labels: z.array(z.string()),
+    pdfCount: z.number().int().min(0),
+    photoCount: z.number().int().min(0),
+    videoCount: z.number().int().min(0),
+    voiceNoteCount: z.number().int().min(0)
+  }),
+  externalMessageId: z.string().nullable(),
   messageId: z.string().trim().min(1),
+  messageMetadata: z.object({
+    attachmentCount: z.number().int().min(0),
+    hasTranscript: z.boolean(),
+    transcriptionFailed: z.boolean(),
+    transcriptionPending: z.boolean()
+  }),
+  messageText: z.string().nullable(),
   messageType: classifiableMessageTypeSchema,
-  occurredAt: z.coerce.date(),
   organizationId: z.string().trim().min(1),
-  projectId: z.string().trim().min(1).nullable(),
-  senderName: z.string().trim().min(1)
+  processingStatus: z.string(),
+  project: z
+    .object({
+      code: z.string(),
+      id: z.string().trim().min(1),
+      name: z.string().trim().min(1),
+      status: z.enum(["ACTIVE", "PAUSED", "COMPLETED", "ARCHIVED"])
+    })
+    .nullable(),
+  sender: z.object({
+    displayName: z.string().trim().min(1),
+    externalIdentifier: z.string().trim().min(1),
+    id: z.string().trim().min(1)
+  }),
+  timestamp: z.coerce.date(),
+  voiceTranscript: z.string().nullable()
 });
 
 export const classifyMessageResultSchema = z.object({

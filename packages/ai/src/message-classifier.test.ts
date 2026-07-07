@@ -8,26 +8,21 @@ describe("MessageClassifier", () => {
     const provider = new CapturingProvider();
     const classifier = new MessageClassifier({ provider });
 
-    await classifier.classifyMessage({
-      conversationTitle: "Site team",
-      messageBody: "Terminal 2 runway lighting completed.",
-      messageId: "message_1",
-      messageType: "TEXT",
-      occurredAt: new Date("2026-07-03T00:00:00.000Z"),
-      organizationId: "organization_1",
-      projectId: null,
-      senderName: "Supervisor"
-    });
+    await classifier.classifyMessage(classificationContext());
 
     expect(provider.model).toBe("openrouter/free");
+    expect(provider.userPrompt).toContain("Voice transcript");
+    expect(provider.userPrompt).toContain("No image analysis performed.");
   });
 });
 
 class CapturingProvider implements AIProvider {
   model: string | null = null;
+  userPrompt = "";
 
   async completeJson(input: Parameters<AIProvider["completeJson"]>[0]): Promise<unknown> {
     this.model = input.model;
+    this.userPrompt = input.messages.find((message) => message.role === "user")?.content ?? "";
 
     return {
       actionRequired: false,
@@ -38,4 +33,80 @@ class CapturingProvider implements AIProvider {
       summary: "Terminal 2 runway lighting was completed."
     };
   }
+}
+
+function classificationContext() {
+  const occurredAt = new Date("2026-07-03T00:00:00.000Z");
+
+  return {
+    attachedDocuments: [
+      {
+        createdAt: occurredAt,
+        filename: "handover.pdf",
+        id: "attachment_2",
+        mimeType: "application/pdf",
+        size: 1200,
+        storageKey: "handover.pdf"
+      }
+    ],
+    attachedPhotos: [
+      {
+        createdAt: occurredAt,
+        filename: "site.jpg",
+        id: "attachment_1",
+        mimeType: "image/jpeg",
+        size: 1000,
+        storageKey: "site.jpg"
+      }
+    ],
+    attachedVideos: [],
+    attachedVoiceNotes: [
+      {
+        createdAt: occurredAt,
+        filename: "voice.ogg",
+        id: "attachment_3",
+        mimeType: "audio/ogg",
+        size: 800,
+        storageKey: "voice.ogg",
+        transcript: "Voice transcript",
+        transcriptionError: null,
+        transcriptionStatus: "COMPLETED" as const
+      }
+    ],
+    conversation: {
+      channel: "WHATSAPP" as const,
+      id: "conversation_1",
+      isGroup: true,
+      title: "Site team"
+    },
+    evidenceSummary: {
+      attachmentCount: 3,
+      documentCount: 1,
+      labels: ["1 Photo", "1 Voice Note", "1 PDF"],
+      pdfCount: 1,
+      photoCount: 1,
+      videoCount: 0,
+      voiceNoteCount: 1
+    },
+    externalMessageId: "external_1",
+    messageId: "message_1",
+    messageMetadata: {
+      attachmentCount: 3,
+      hasTranscript: true,
+      transcriptionFailed: false,
+      transcriptionPending: false
+    },
+    messageText: "Terminal 2 runway lighting completed.",
+    messageType: "TEXT" as const,
+    organizationId: "organization_1",
+    processingStatus: "RECEIVED",
+    project: null,
+    sender: {
+      displayName: "Supervisor",
+      externalIdentifier: "supervisor@example.com",
+      id: "participant_1"
+    },
+    timestamp: occurredAt,
+    voiceTranscript: "Voice transcript"
+  };
 }

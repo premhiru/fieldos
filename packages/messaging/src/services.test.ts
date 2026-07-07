@@ -184,7 +184,10 @@ class InMemoryMessagingRepository implements MessagingRepository {
     const attachment = {
       ...input,
       createdAt: new Date(),
-      id: nextId("attachment")
+      id: nextId("attachment"),
+      transcript: null,
+      transcriptionError: null,
+      transcriptionStatus: "NOT_REQUIRED" as const
     };
     this.attachments.push(attachment);
     const message = this.messages.find((candidate) => candidate.id === input.messageId);
