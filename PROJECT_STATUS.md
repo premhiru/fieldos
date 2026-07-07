@@ -19,7 +19,7 @@
 
 ## Current Milestone
 
-Task 012 Photo Intelligence is code-complete and validated locally. Production deployment and live WhatsApp photo verification are in progress.
+Task 012 Photo Intelligence is deployed to production. Live WhatsApp photo verification is pending a paired WhatsApp line and a real image message from an active chat.
 
 ## Completed Tasks
 
@@ -281,3 +281,13 @@ Task 012 Photo Intelligence is code-complete and validated locally. Production d
   - Worker heartbeat verified in `WorkerHeartbeat` with status `ONLINE`.
   - Live mixed WhatsApp evidence verification is pending because the WhatsApp line must be paired again.
   - Production voice transcription requires `OPENAI_API_KEY`; OpenRouter is configured for chat classification, but not audio transcription.
+- Task 012 is deployed.
+  - Migration `20260707060000_photo_intelligence` applied to Railway PostgreSQL.
+  - API deployment `46fbf8f8-67c4-4a33-9a03-2a7d21f0d250` succeeded.
+  - Worker deployment `1f8c0248-c665-4b3e-94df-8211d6c48955` succeeded.
+  - Dashboard deployment `dpl_3xT8GLVUDfAUGGcwhXgtFB4beJkC` deployed and aliased to `https://fieldos-sand.vercel.app`.
+  - API health verified at `https://fieldos-api-production.up.railway.app/health`.
+  - Worker startup verified in Railway logs with `worker started and waiting for jobs`.
+  - Railway worker has `VISION_MODEL=openrouter/free` configured.
+  - Live WhatsApp photo analysis verification is pending because the WhatsApp line must be paired and sent a real image from an active chat.
+  - Production object storage/media serving is still pending; original image previews remain placeholder-based until storage is added.
