@@ -7,12 +7,23 @@ import type {
   EventSourceType,
   MembershipRole,
   MilestoneStatus,
+  ProcessingJobStatus,
+  ProcessingJobType,
   PrismaClient,
   ProjectStatus,
   SearchDocumentSourceType,
+  WorkerStatus,
   WhatsAppChatMappingStatus
 } from "@fieldos/db";
-import { Prisma } from "@fieldos/db";
+import {
+  getJobMetrics,
+  getWorkerEffectiveStatus,
+  Prisma,
+  retryFailedProcessingJobs,
+  retryProcessingJob,
+  queueAIClassificationJob,
+  queueSearchIndexJob
+} from "@fieldos/db";
 import type {
   AttachmentRecord,
   ConversationRecord,
@@ -37,6 +48,9 @@ export type ActionPriority = ActionItemPriority;
 export type DashboardHealth = "HEALTHY" | "NEEDS_ATTENTION" | "CRITICAL";
 export type DashboardBriefSource = "AI" | "FALLBACK";
 export type SearchSourceType = SearchDocumentSourceType;
+export type JobType = ProcessingJobType;
+export type JobStatus = ProcessingJobStatus;
+export type WorkerHealthStatus = WorkerStatus;
 
 export interface SafeUser {
   id: string;
@@ -280,6 +294,68 @@ export interface SearchDocumentsResult {
   nextCursor: string | null;
 }
 
+export interface ProcessingJobRecord {
+  id: string;
+  organizationId: string;
+  projectId: string | null;
+  type: JobType;
+  status: JobStatus;
+  sourceType: string;
+  sourceId: string;
+  attempts: number;
+  maxAttempts: number;
+  errorMessage: string | null;
+  correlationId: string;
+  startedAt: Date | null;
+  completedAt: Date | null;
+  failedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface WorkerHeartbeatRecord {
+  id: string;
+  workerName: string;
+  version: string;
+  status: WorkerHealthStatus;
+  lastHeartbeatAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface JobMetricsRecord {
+  completedToday: number;
+  failed: number;
+  pending: number;
+  running: number;
+  type: JobType;
+}
+
+export interface AdminOperationsRecord {
+  ai: {
+    averageProcessingTimeMs: number | null;
+    failuresToday: number;
+    jobsPending: number;
+  };
+  jobSummary: JobMetricsRecord[];
+  media: {
+    failedDownloads: number;
+    pendingDownloads: number;
+    pendingTranscriptions: number;
+  };
+  search: {
+    completedToday: number;
+    pendingIndexJobs: number;
+  };
+  whatsApp: {
+    connectedAccounts: number;
+    disconnectedAccounts: number;
+    failedConnections: number;
+    qrPending: number;
+  };
+  workers: WorkerHeartbeatRecord[];
+}
+
 export interface AppRepository extends MessagingRepository {
   createOrganization(input: {
     name: string;
@@ -328,6 +404,12 @@ export interface AppRepository extends MessagingRepository {
     organizationId: string;
     userId: string;
   }): Promise<OperationsDashboardRecord>;
+  getAdminOperations(organizationId: string): Promise<AdminOperationsRecord>;
+  getProcessingJob(jobId: string): Promise<ProcessingJobRecord | null>;
+  listProcessingJobs(organizationId: string): Promise<ProcessingJobRecord[]>;
+  listWorkerHeartbeats(): Promise<WorkerHeartbeatRecord[]>;
+  retryProcessingJob(jobId: string): Promise<ProcessingJobRecord>;
+  retryFailedProcessingJobs(organizationId: string): Promise<number>;
   searchDocuments(input: {
     cursor?: string | null;
     dateFrom?: Date | null;
@@ -390,8 +472,19 @@ export function createPrismaRepository(): AppRepository {
 
     async createProject(input) {
       const prisma = await getPrisma();
-      return prisma.project.create({
-        data: input
+      return prisma.$transaction(async (tx) => {
+        const project = await tx.project.create({
+          data: input
+        });
+
+        await queueSearchIndexJob(tx, {
+          organizationId: project.organizationId,
+          projectId: project.id,
+          sourceId: project.id,
+          sourceType: "PROJECT"
+        });
+
+        return project;
       });
     },
 
@@ -622,21 +715,40 @@ export function createPrismaRepository(): AppRepository {
         return null;
       }
 
-      return prisma.aIMessageClassification.upsert({
-        create: {
-          messageId,
-          organizationId: message.conversation.organizationId,
-          projectId: message.conversation.projectId,
-          status: "PENDING"
-        },
-        update: {
-          errorMessage: null,
-          projectId: message.conversation.projectId,
-          status: "PENDING"
-        },
-        where: {
-          messageId
-        }
+      return prisma.$transaction(async (tx) => {
+        const classification = await tx.aIMessageClassification.upsert({
+          create: {
+            messageId,
+            organizationId: message.conversation.organizationId,
+            projectId: message.conversation.projectId,
+            status: "PENDING"
+          },
+          update: {
+            errorMessage: null,
+            projectId: message.conversation.projectId,
+            status: "PENDING"
+          },
+          where: {
+            messageId
+          }
+        });
+
+        await tx.message.update({
+          data: {
+            processingStatus: "AI_PENDING"
+          },
+          where: {
+            id: messageId
+          }
+        });
+
+        await queueAIClassificationJob(tx, {
+          organizationId: classification.organizationId,
+          projectId: classification.projectId,
+          sourceId: classification.id
+        });
+
+        return classification;
       });
     },
 
@@ -810,9 +922,152 @@ export function createPrismaRepository(): AppRepository {
       };
     },
 
+    async getAdminOperations(organizationId) {
+      const prisma = await getPrisma();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const [jobSummary, workers, whatsappCounts, aiPending, aiFailuresToday, aiCompletedToday] =
+        await Promise.all([
+          getJobMetrics(prisma, organizationId),
+          prisma.workerHeartbeat.findMany({
+            orderBy: {
+              workerName: "asc"
+            }
+          }),
+          prisma.whatsAppAccount.groupBy({
+            by: ["status"],
+            _count: true,
+            where: {
+              organizationId
+            }
+          }),
+          prisma.processingJob.count({
+            where: {
+              organizationId,
+              status: "PENDING",
+              type: "AI_CLASSIFICATION"
+            }
+          }),
+          prisma.processingJob.count({
+            where: {
+              failedAt: {
+                gte: today
+              },
+              organizationId,
+              status: "FAILED",
+              type: "AI_CLASSIFICATION"
+            }
+          }),
+          prisma.processingJob.findMany({
+            select: {
+              completedAt: true,
+              startedAt: true
+            },
+            where: {
+              completedAt: {
+                gte: today
+              },
+              organizationId,
+              status: "COMPLETED",
+              type: "AI_CLASSIFICATION"
+            }
+          })
+        ]);
+
+      const byJobType = new Map(jobSummary.map((row) => [row.type, row]));
+      const countWhatsApp = (status: WhatsAppAccountRecord["status"]) =>
+        whatsappCounts.find((row) => row.status === status)?._count ?? 0;
+      const completedAIWithDurations = aiCompletedToday.filter(
+        (job) => job.startedAt && job.completedAt
+      );
+      const averageProcessingTimeMs =
+        completedAIWithDurations.length > 0
+          ? Math.round(
+              completedAIWithDurations.reduce(
+                (total, job) =>
+                  total + (job.completedAt?.getTime() ?? 0) - (job.startedAt?.getTime() ?? 0),
+                0
+              ) / completedAIWithDurations.length
+            )
+          : null;
+
+      return {
+        ai: {
+          averageProcessingTimeMs,
+          failuresToday: aiFailuresToday,
+          jobsPending: aiPending
+        },
+        jobSummary,
+        media: {
+          failedDownloads: byJobType.get("MEDIA_DOWNLOAD")?.failed ?? 0,
+          pendingDownloads: byJobType.get("MEDIA_DOWNLOAD")?.pending ?? 0,
+          pendingTranscriptions: byJobType.get("VOICE_TRANSCRIPTION")?.pending ?? 0
+        },
+        search: {
+          completedToday: byJobType.get("SEARCH_INDEX")?.completedToday ?? 0,
+          pendingIndexJobs: byJobType.get("SEARCH_INDEX")?.pending ?? 0
+        },
+        whatsApp: {
+          connectedAccounts: countWhatsApp("CONNECTED"),
+          disconnectedAccounts: countWhatsApp("DISCONNECTED"),
+          failedConnections: countWhatsApp("ERROR"),
+          qrPending: countWhatsApp("PENDING_QR")
+        },
+        workers: workers.map((worker) => ({
+          ...worker,
+          status: getWorkerEffectiveStatus(worker)
+        }))
+      };
+    },
+
+    async listProcessingJobs(organizationId) {
+      const prisma = await getPrisma();
+      return prisma.processingJob.findMany({
+        orderBy: {
+          updatedAt: "desc"
+        },
+        take: 100,
+        where: {
+          organizationId
+        }
+      });
+    },
+
+    async getProcessingJob(jobId) {
+      const prisma = await getPrisma();
+      return prisma.processingJob.findUnique({
+        where: {
+          id: jobId
+        }
+      });
+    },
+
+    async listWorkerHeartbeats() {
+      const prisma = await getPrisma();
+      const workers = await prisma.workerHeartbeat.findMany({
+        orderBy: {
+          workerName: "asc"
+        }
+      });
+
+      return workers.map((worker) => ({
+        ...worker,
+        status: getWorkerEffectiveStatus(worker)
+      }));
+    },
+
+    async retryProcessingJob(jobId) {
+      const prisma = await getPrisma();
+      return retryProcessingJob(prisma, jobId);
+    },
+
+    async retryFailedProcessingJobs(organizationId) {
+      const prisma = await getPrisma();
+      return retryFailedProcessingJobs(prisma, organizationId);
+    },
+
     async searchDocuments(input) {
       const prisma = await getPrisma();
-      await syncSearchDocuments(prisma, input.organizationId);
 
       const limit = Math.min(Math.max(input.limit, 1), 25);
       const take = limit + 1;
@@ -1289,6 +1544,15 @@ export function createPrismaRepository(): AppRepository {
     async createMessage(input: CreateMessageInput) {
       const prisma = await getPrisma();
       const message = await prisma.$transaction(async (tx) => {
+        const conversation = await tx.conversation.findUniqueOrThrow({
+          select: {
+            organizationId: true,
+            projectId: true
+          },
+          where: {
+            id: input.conversationId
+          }
+        });
         const created = await tx.message.create({
           data: input,
           include: messageInclude()
@@ -1300,6 +1564,22 @@ export function createPrismaRepository(): AppRepository {
           },
           where: {
             id: input.conversationId
+          }
+        });
+
+        await queueSearchIndexJob(tx, {
+          organizationId: conversation.organizationId,
+          projectId: conversation.projectId,
+          sourceId: created.id,
+          sourceType: "MESSAGE"
+        });
+
+        await tx.message.update({
+          data: {
+            processingStatus: "SEARCH_PENDING"
+          },
+          where: {
+            id: created.id
           }
         });
 
@@ -1529,204 +1809,6 @@ function searchDocumentInclude() {
       }
     }
   };
-}
-
-async function syncSearchDocuments(prisma: PrismaClient, organizationId: string): Promise<void> {
-  const [projects, messages, events, actionItems, classifications] = await Promise.all([
-    prisma.project.findMany({
-      orderBy: {
-        updatedAt: "desc"
-      },
-      take: 500,
-      where: {
-        organizationId
-      }
-    }),
-    prisma.message.findMany({
-      include: {
-        conversation: {
-          select: {
-            organizationId: true,
-            project: {
-              select: {
-                code: true,
-                id: true,
-                name: true
-              }
-            },
-            projectId: true,
-            title: true
-          }
-        },
-        senderParticipant: {
-          select: {
-            displayName: true
-          }
-        }
-      },
-      orderBy: {
-        occurredAt: "desc"
-      },
-      take: 500,
-      where: {
-        conversation: {
-          organizationId
-        }
-      }
-    }),
-    prisma.event.findMany({
-      orderBy: {
-        occurredAt: "desc"
-      },
-      take: 500,
-      where: {
-        organizationId
-      }
-    }),
-    prisma.actionItem.findMany({
-      orderBy: {
-        updatedAt: "desc"
-      },
-      take: 500,
-      where: {
-        organizationId
-      }
-    }),
-    prisma.aIMessageClassification.findMany({
-      orderBy: {
-        updatedAt: "desc"
-      },
-      take: 500,
-      where: {
-        organizationId
-      }
-    })
-  ]);
-
-  const documents = [
-    ...projects.map((project) => ({
-      content: `Project ${project.name} ${project.code} status ${project.status}`,
-      metadata: {
-        code: project.code,
-        status: project.status
-      },
-      occurredAt: project.updatedAt,
-      organizationId: project.organizationId,
-      projectId: project.id,
-      sourceId: project.id,
-      sourceType: "PROJECT" as const,
-      title: `${project.code} ${project.name}`
-    })),
-    ...messages.map((message) => ({
-      content: [
-        message.body ?? "",
-        `Sender: ${message.senderParticipant.displayName}`,
-        `Conversation: ${message.conversation.title}`,
-        message.conversation.project ? `Project: ${message.conversation.project.name}` : ""
-      ]
-        .filter(Boolean)
-        .join("\n"),
-      metadata: {
-        conversationId: message.conversationId,
-        conversationTitle: message.conversation.title,
-        messageType: message.type,
-        sender: message.senderParticipant.displayName
-      },
-      occurredAt: message.occurredAt,
-      organizationId: message.conversation.organizationId,
-      projectId: message.conversation.projectId,
-      sourceId: message.id,
-      sourceType: "MESSAGE" as const,
-      title: message.conversation.title
-    })),
-    ...events.map((event) => ({
-      content: [event.description ?? "", `Event type: ${event.eventType}`]
-        .filter(Boolean)
-        .join("\n"),
-      metadata: {
-        eventType: event.eventType
-      },
-      occurredAt: event.occurredAt,
-      organizationId: event.organizationId,
-      projectId: event.projectId,
-      sourceId: event.id,
-      sourceType: "TIMELINE_EVENT" as const,
-      title: event.title
-    })),
-    ...actionItems.map((actionItem) => ({
-      content: [
-        actionItem.description ?? "",
-        `Status: ${actionItem.status}`,
-        `Priority: ${actionItem.priority}`,
-        `Type: ${actionItem.type}`
-      ]
-        .filter(Boolean)
-        .join("\n"),
-      metadata: {
-        priority: actionItem.priority,
-        status: actionItem.status,
-        type: actionItem.type
-      },
-      occurredAt: actionItem.updatedAt,
-      organizationId: actionItem.organizationId,
-      projectId: actionItem.projectId ?? actionItem.suggestedProjectId,
-      sourceId: actionItem.id,
-      sourceType: "ACTION_ITEM" as const,
-      title: actionItem.title
-    })),
-    ...classifications.map((classification) => ({
-      content: [
-        classification.summary ?? "",
-        classification.location ? `Location: ${classification.location}` : "",
-        classification.reasoningSummary ?? "",
-        classification.category ? `Category: ${classification.category}` : ""
-      ]
-        .filter(Boolean)
-        .join("\n"),
-      metadata: {
-        category: classification.category,
-        confidence: classification.confidence,
-        status: classification.status
-      },
-      occurredAt: classification.updatedAt,
-      organizationId: classification.organizationId,
-      projectId: classification.projectId,
-      sourceId: classification.id,
-      sourceType: "AI_CLASSIFICATION" as const,
-      title: classification.category
-        ? `AI classification: ${classification.category}`
-        : "AI classification"
-    }))
-  ];
-
-  for (const document of documents) {
-    await prisma.searchDocument.upsert({
-      create: {
-        content: document.content || document.title,
-        metadata: document.metadata,
-        occurredAt: document.occurredAt,
-        organizationId: document.organizationId,
-        projectId: document.projectId,
-        sourceId: document.sourceId,
-        sourceType: document.sourceType,
-        title: document.title
-      },
-      update: {
-        content: document.content || document.title,
-        metadata: document.metadata,
-        occurredAt: document.occurredAt,
-        organizationId: document.organizationId,
-        projectId: document.projectId,
-        title: document.title
-      },
-      where: {
-        sourceType_sourceId: {
-          sourceId: document.sourceId,
-          sourceType: document.sourceType
-        }
-      }
-    });
-  }
 }
 
 function toSearchDocumentsResult(
@@ -2021,6 +2103,7 @@ function toMessageRecord(
     externalMessageId: message.externalMessageId,
     id: message.id,
     occurredAt: message.occurredAt,
+    processingStatus: message.processingStatus,
     senderParticipant: message.senderParticipant,
     senderParticipantId: message.senderParticipantId,
     type: message.type

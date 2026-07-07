@@ -4,6 +4,18 @@ export type MessageDirection = "INBOUND" | "OUTBOUND";
 
 export type MessageType = "TEXT" | "IMAGE" | "DOCUMENT" | "VOICE" | "VIDEO" | "SYSTEM";
 
+export type MessageProcessingStatus =
+  | "RECEIVED"
+  | "MEDIA_PENDING"
+  | "MEDIA_COMPLETE"
+  | "TRANSCRIPTION_PENDING"
+  | "TRANSCRIPTION_COMPLETE"
+  | "SEARCH_PENDING"
+  | "SEARCH_COMPLETE"
+  | "AI_PENDING"
+  | "AI_COMPLETE"
+  | "FAILED";
+
 export interface ProjectReference {
   id: string;
   code: string;
@@ -54,6 +66,7 @@ export interface MessageRecord {
   type: MessageType;
   body: string | null;
   externalMessageId: string | null;
+  processingStatus: MessageProcessingStatus;
   occurredAt: Date;
   createdAt: Date;
   attachments: AttachmentRecord[];

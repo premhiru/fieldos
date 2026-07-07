@@ -18,6 +18,7 @@
 - [WhatsApp Connector](#whatsapp-connector)
 - [AI Classification](#ai-classification)
 - [Operations Command Center](#operations-command-center)
+- [Background Processing and Operations Health](#background-processing-and-operations-health)
 - [AI Search](#ai-search)
 - [Event Model](#event-model)
 - [Evolution Path](#evolution-path)
@@ -52,7 +53,7 @@ Current application boundaries:
 
 - `apps/dashboard`: Next.js App Router dashboard for authentication, organization onboarding, and project navigation.
 - `apps/api`: Fastify API that owns authentication, tenant authorization, organization membership checks, and project endpoints.
-- `apps/worker`: Redis-connected worker that reconciles background sessions, including Baileys WhatsApp sessions.
+- `apps/worker`: Redis-connected worker that reconciles Baileys WhatsApp sessions, updates worker heartbeat, and processes database-backed background jobs.
 - `packages/auth`: Password hashing, JWT signing/verification, auth schemas, and session constants.
 - `packages/ai`: AI message classification, extraction, prompt versioning, and action item processing.
 - `packages/db`: Prisma schema, migrations, Prisma client, and database types.
@@ -66,7 +67,7 @@ Current application boundaries:
 - `packages/integrations/whatsapp/baileys` owns WhatsApp-specific session state, QR pairing, history discovery, and provider payload normalization.
 - `packages/ai` owns AI prompt construction, provider calls, output validation, classification persistence, and action item creation.
 - `apps/api` owns authentication, tenant authorization, and external HTTP contracts.
-- `apps/worker` owns asynchronous processing loops and must keep provider failures out of request and ingestion paths.
+- `apps/worker` owns asynchronous processing loops, worker heartbeat, and background job execution. It must keep provider failures and search indexing out of request and ingestion paths.
 
 ## Data Flow
 
@@ -145,11 +146,38 @@ Command center endpoints:
 - `GET /dashboard/recent-activity`
 - `GET /dashboard/brief`
 
+## Background Processing and Operations Health
+
+FieldOS uses a lightweight database-backed job table for MVP background processing. `ProcessingJob` tracks job type, status, source record, attempts, error message, timestamps, and correlation ID. This avoids introducing a workflow platform before the product needs one.
+
+Supported job types are:
+
+- `SEARCH_INDEX`
+- `AI_CLASSIFICATION`
+- `VOICE_TRANSCRIPTION`
+- `MEDIA_DOWNLOAD`
+
+The worker claims pending jobs, marks them running, logs job ID, organization ID, optional project ID, duration, result, and correlation ID, then marks jobs completed or failed. Failed jobs can be retried individually or in bulk through admin routes.
+
+`Message.processingStatus` stores a support-friendly view of message progress across receipt, media, transcription, search, AI, and failure states. It is not a workflow engine; it exists so developers and support engineers can quickly inspect where a message is stuck.
+
+`WorkerHeartbeat` stores worker name, version, status, and last heartbeat. The worker updates heartbeat every 30 seconds. API responses treat stale online heartbeats as effectively offline.
+
+Admin operations endpoints are restricted to organization `OWNER` and `ADMIN` roles:
+
+- `GET /admin/operations`
+- `GET /admin/jobs`
+- `POST /admin/jobs/:id/retry`
+- `POST /admin/jobs/retry-failed`
+- `GET /admin/workers`
+
 ## AI Search
 
 AI search is grounded retrieval, not an open-ended assistant. The API owns search authorization, record retrieval, answer generation, and fallback behavior.
 
 Search records are normalized into `SearchDocument` rows with an organization scope, optional project scope, source type, source id, title, content, metadata, and occurrence timestamp. The first implementation indexes projects, messages, timeline events, Action Items, and AI classifications.
+
+Search indexing is asynchronous. Project, message, timeline event, Action Item, and AI classification writes enqueue `SEARCH_INDEX` jobs. The worker owns all `SearchDocument` writes. Search request handlers only read the index.
 
 Search API endpoints:
 

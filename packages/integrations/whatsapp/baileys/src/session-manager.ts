@@ -9,7 +9,7 @@ import {
   type WAMessage,
   type WASocket
 } from "@whiskeysockets/baileys";
-import type { PrismaClient } from "@fieldos/db";
+import { queueAIClassificationJob, queueSearchIndexJob, type PrismaClient } from "@fieldos/db";
 import { createLogger } from "@fieldos/shared";
 import { randomUUID } from "node:crypto";
 import pino from "pino";
@@ -543,6 +543,7 @@ export class BaileysWhatsAppSessionManager {
           direction: normalized.direction,
           externalMessageId: normalized.messageId,
           occurredAt: normalized.occurredAt,
+          processingStatus: "SEARCH_PENDING",
           senderParticipantId: participant.id,
           type: normalized.type
         }
@@ -574,24 +575,30 @@ export class BaileysWhatsAppSessionManager {
       );
     }
 
-    await this.prisma.$transaction([
-      this.prisma.conversation.update({
+    await this.prisma.$transaction(async (tx) => {
+      await tx.conversation.update({
         data: {
           lastMessageAt: normalized.occurredAt
         },
         where: {
           id: conversation.id
         }
-      }),
-      this.prisma.whatsAppAccount.update({
+      });
+      await tx.whatsAppAccount.update({
         data: {
           lastMessageAt: normalized.occurredAt
         },
         where: {
           id: account.id
         }
-      })
-    ]);
+      });
+      await queueSearchIndexJob(tx, {
+        organizationId: account.organizationId,
+        projectId: activeMapping.projectId,
+        sourceId: message.id,
+        sourceType: "MESSAGE"
+      });
+    });
 
     await this.enqueueClassification({
       messageId: message.id,
@@ -695,21 +702,38 @@ export class BaileysWhatsAppSessionManager {
     projectId: string | null;
   }): Promise<void> {
     try {
-      await this.prisma.aIMessageClassification.upsert({
-        create: {
-          messageId: input.messageId,
+      await this.prisma.$transaction(async (tx) => {
+        const classification = await tx.aIMessageClassification.upsert({
+          create: {
+            messageId: input.messageId,
+            organizationId: input.organizationId,
+            projectId: input.projectId,
+            status: "PENDING"
+          },
+          update: {
+            errorMessage: null,
+            projectId: input.projectId,
+            status: "PENDING"
+          },
+          where: {
+            messageId: input.messageId
+          }
+        });
+
+        await tx.message.update({
+          data: {
+            processingStatus: "AI_PENDING"
+          },
+          where: {
+            id: input.messageId
+          }
+        });
+
+        await queueAIClassificationJob(tx, {
           organizationId: input.organizationId,
           projectId: input.projectId,
-          status: "PENDING"
-        },
-        update: {
-          errorMessage: null,
-          projectId: input.projectId,
-          status: "PENDING"
-        },
-        where: {
-          messageId: input.messageId
-        }
+          sourceId: classification.id
+        });
       });
     } catch (error: unknown) {
       this.logger.error(

@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@fieldos/db";
+import { queueAIClassificationJob, queueSearchIndexJob } from "@fieldos/db";
 import { createLogger } from "@fieldos/shared";
 
 import { AIConfigurationError, MessageClassifier } from "./message-classifier.js";
@@ -35,20 +36,37 @@ export class AIClassificationProcessor {
       return;
     }
 
-    await this.prisma.aIMessageClassification.upsert({
-      create: {
-        messageId,
-        organizationId: context.conversation.organizationId,
-        projectId: context.conversation.projectId,
-        status: "PENDING"
-      },
-      update: {
-        errorMessage: null,
-        status: "PENDING"
-      },
-      where: {
-        messageId
-      }
+    await this.prisma.$transaction(async (tx) => {
+      const classification = await tx.aIMessageClassification.upsert({
+        create: {
+          messageId,
+          organizationId: context.conversation.organizationId,
+          projectId: context.conversation.projectId,
+          status: "PENDING"
+        },
+        update: {
+          errorMessage: null,
+          status: "PENDING"
+        },
+        where: {
+          messageId
+        }
+      });
+
+      await tx.message.update({
+        data: {
+          processingStatus: "AI_PENDING"
+        },
+        where: {
+          id: messageId
+        }
+      });
+
+      await queueAIClassificationJob(tx, {
+        organizationId: classification.organizationId,
+        projectId: classification.projectId,
+        sourceId: classification.id
+      });
     });
   }
 
@@ -173,6 +191,22 @@ export class AIClassificationProcessor {
         }
       });
 
+      await tx.message.update({
+        data: {
+          processingStatus: "AI_COMPLETE"
+        },
+        where: {
+          id: classification.messageId
+        }
+      });
+
+      await queueSearchIndexJob(tx, {
+        organizationId: classification.organizationId,
+        projectId: classification.projectId,
+        sourceId: classification.id,
+        sourceType: "AI_CLASSIFICATION"
+      });
+
       await tx.actionItem.deleteMany({
         where: {
           classificationId,
@@ -195,7 +229,7 @@ export class AIClassificationProcessor {
           }
         });
 
-        await tx.event.create({
+        const event = await tx.event.create({
           data: {
             description: actionItem.description,
             eventType: "ACTION_ITEM_CREATED",
@@ -206,6 +240,20 @@ export class AIClassificationProcessor {
             sourceType: "ACTION_ITEM",
             title: actionItem.title
           }
+        });
+
+        await queueSearchIndexJob(tx, {
+          organizationId: actionItem.organizationId,
+          projectId: actionItem.projectId,
+          sourceId: actionItem.id,
+          sourceType: "ACTION_ITEM"
+        });
+
+        await queueSearchIndexJob(tx, {
+          organizationId: event.organizationId,
+          projectId: event.projectId,
+          sourceId: event.id,
+          sourceType: "TIMELINE_EVENT"
         });
       }
 
@@ -225,7 +273,7 @@ export class AIClassificationProcessor {
           }
         });
 
-        await tx.event.create({
+        const event = await tx.event.create({
           data: {
             description: actionItem.description,
             eventType: "ACTION_ITEM_CREATED",
@@ -237,19 +285,44 @@ export class AIClassificationProcessor {
             title: actionItem.title
           }
         });
+
+        await queueSearchIndexJob(tx, {
+          organizationId: actionItem.organizationId,
+          projectId: actionItem.projectId ?? actionItem.suggestedProjectId,
+          sourceId: actionItem.id,
+          sourceType: "ACTION_ITEM"
+        });
+
+        await queueSearchIndexJob(tx, {
+          organizationId: event.organizationId,
+          projectId: event.projectId,
+          sourceId: event.id,
+          sourceType: "TIMELINE_EVENT"
+        });
       }
     });
   }
 
   private async markFailed(classificationId: string, errorMessage: string): Promise<void> {
-    await this.prisma.aIMessageClassification.update({
-      data: {
-        errorMessage,
-        status: "FAILED"
-      },
-      where: {
-        id: classificationId
-      }
+    await this.prisma.$transaction(async (tx) => {
+      const classification = await tx.aIMessageClassification.update({
+        data: {
+          errorMessage,
+          status: "FAILED"
+        },
+        where: {
+          id: classificationId
+        }
+      });
+
+      await tx.message.update({
+        data: {
+          processingStatus: "FAILED"
+        },
+        where: {
+          id: classification.messageId
+        }
+      });
     });
   }
 

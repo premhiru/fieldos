@@ -21,6 +21,8 @@ describe("AIClassificationProcessor", () => {
 
     expect(prisma.classifications).toHaveLength(1);
     expect(prisma.classifications[0]?.status).toBe("PENDING");
+    expect(prisma.messages[0]?.processingStatus).toBe("AI_PENDING");
+    expect(prisma.processingJobs[0]?.type).toBe("AI_CLASSIFICATION");
   });
 
   it("classifies messages without a project so project suggestions can be created", async () => {
@@ -44,7 +46,9 @@ describe("AIClassificationProcessor", () => {
 
     expect(prisma.classifications[0]?.status).toBe("COMPLETED");
     expect(prisma.classifications[0]?.category).toBe("DEFECT");
+    expect(prisma.messages[0]?.processingStatus).toBe("AI_COMPLETE");
     expect(prisma.actionItems).toHaveLength(1);
+    expect(prisma.processingJobs.some((job) => job.type === "SEARCH_INDEX")).toBe(true);
   });
 
   it("does not create an action item when the model says no follow-up is required", async () => {
@@ -68,6 +72,7 @@ describe("AIClassificationProcessor", () => {
     await processor.processPending();
 
     expect(prisma.classifications[0]?.status).toBe("FAILED");
+    expect(prisma.messages[0]?.processingStatus).toBe("FAILED");
     expect(prisma.actionItems).toHaveLength(0);
   });
 });
@@ -109,6 +114,7 @@ interface FakeMessage {
   conversationId: string;
   id: string;
   occurredAt: Date;
+  processingStatus?: string;
   senderParticipant: {
     displayName: string;
   };
@@ -158,8 +164,17 @@ class FakePrisma {
   }> = [];
   events: Array<{
     id: string;
+    organizationId?: string;
+    projectId?: string | null;
     sourceId: string;
     title: string;
+  }> = [];
+  processingJobs: Array<{
+    id: string;
+    sourceId: string;
+    sourceType: string;
+    status: string;
+    type: string;
   }> = [];
   projects = [
     {
@@ -231,7 +246,17 @@ class FakePrisma {
     },
     message: {
       findUnique: async ({ where }: { where: { id: string } }) =>
-        this.messages.find((item) => item.id === where.id) ?? null
+        this.messages.find((item) => item.id === where.id) ?? null,
+      update: async ({ data, where }: { data: Record<string, unknown>; where: { id: string } }) => {
+        const message = this.messages.find((item) => item.id === where.id);
+
+        if (!message) {
+          throw new Error("message missing");
+        }
+
+        Object.assign(message, data);
+        return message;
+      }
     },
     actionItem: {
       create: async ({
@@ -267,6 +292,36 @@ class FakePrisma {
         };
         this.events.push(event);
         return event;
+      }
+    },
+    processingJob: {
+      upsert: async ({
+        create,
+        update,
+        where
+      }: {
+        create: { sourceId: string; sourceType: string; status: string; type: string };
+        update: Record<string, unknown>;
+        where: { type_sourceType_sourceId: { sourceId: string; sourceType: string; type: string } };
+      }) => {
+        const existing = this.processingJobs.find(
+          (job) =>
+            job.sourceId === where.type_sourceType_sourceId.sourceId &&
+            job.sourceType === where.type_sourceType_sourceId.sourceType &&
+            job.type === where.type_sourceType_sourceId.type
+        );
+
+        if (existing) {
+          Object.assign(existing, update);
+          return existing;
+        }
+
+        const job = {
+          ...create,
+          id: `job_${this.processingJobs.length + 1}`
+        };
+        this.processingJobs.push(job);
+        return job;
       }
     },
     project: {

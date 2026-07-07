@@ -12,9 +12,13 @@ export type {
   EventSourceType,
   Membership,
   MembershipRole,
+  MessageProcessingStatus,
   Milestone,
   MilestoneStatus,
   Organization,
+  ProcessingJob,
+  ProcessingJobStatus,
+  ProcessingJobType,
   PrismaClient,
   Project,
   ProjectStatus,
@@ -25,5 +29,7 @@ export type {
   WhatsAppAccountStatus,
   WhatsAppChatMapping,
   WhatsAppChatMappingStatus,
-  WhatsAppConnectorType
+  WhatsAppConnectorType,
+  WorkerHeartbeat,
+  WorkerStatus
 } from "@prisma/client";

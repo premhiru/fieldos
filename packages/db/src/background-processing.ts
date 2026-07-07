@@ -1,0 +1,611 @@
+import { randomUUID } from "node:crypto";
+
+import type {
+  Prisma,
+  PrismaClient,
+  ProcessingJob,
+  ProcessingJobType,
+  SearchDocumentSourceType,
+  WorkerStatus
+} from "@prisma/client";
+
+export interface QueueProcessingJobInput {
+  correlationId?: string;
+  maxAttempts?: number;
+  organizationId: string;
+  projectId?: string | null;
+  sourceId: string;
+  sourceType: string;
+  type: ProcessingJobType;
+}
+
+export interface JobMetricsRow {
+  completedToday: number;
+  failed: number;
+  pending: number;
+  running: number;
+  type: ProcessingJobType;
+}
+
+export async function queueProcessingJob(
+  prisma: PrismaClient | Prisma.TransactionClient,
+  input: QueueProcessingJobInput
+): Promise<ProcessingJob> {
+  const correlationId = input.correlationId ?? randomUUID();
+
+  return prisma.processingJob.upsert({
+    create: {
+      correlationId,
+      maxAttempts: input.maxAttempts ?? 3,
+      organizationId: input.organizationId,
+      projectId: input.projectId ?? null,
+      sourceId: input.sourceId,
+      sourceType: input.sourceType,
+      status: "PENDING",
+      type: input.type
+    },
+    update: {
+      completedAt: null,
+      errorMessage: null,
+      failedAt: null,
+      organizationId: input.organizationId,
+      projectId: input.projectId ?? null,
+      sourceId: input.sourceId,
+      sourceType: input.sourceType,
+      status: "PENDING"
+    },
+    where: {
+      type_sourceType_sourceId: {
+        sourceId: input.sourceId,
+        sourceType: input.sourceType,
+        type: input.type
+      }
+    }
+  });
+}
+
+export async function queueSearchIndexJob(
+  prisma: PrismaClient | Prisma.TransactionClient,
+  input: Omit<QueueProcessingJobInput, "sourceType" | "type"> & {
+    sourceType: SearchDocumentSourceType;
+  }
+): Promise<ProcessingJob> {
+  return queueProcessingJob(prisma, {
+    ...input,
+    sourceType: input.sourceType,
+    type: "SEARCH_INDEX"
+  });
+}
+
+export async function queueAIClassificationJob(
+  prisma: PrismaClient | Prisma.TransactionClient,
+  input: Omit<QueueProcessingJobInput, "sourceType" | "type">
+): Promise<ProcessingJob> {
+  return queueProcessingJob(prisma, {
+    ...input,
+    sourceType: "AI_MESSAGE_CLASSIFICATION",
+    type: "AI_CLASSIFICATION"
+  });
+}
+
+export async function claimNextProcessingJob(
+  prisma: PrismaClient,
+  type: ProcessingJobType
+): Promise<ProcessingJob | null> {
+  const jobs = await prisma.processingJob.findMany({
+    orderBy: {
+      createdAt: "asc"
+    },
+    take: 10,
+    where: {
+      status: "PENDING",
+      type
+    }
+  });
+  const job = jobs.find((candidate) => candidate.attempts < candidate.maxAttempts);
+
+  if (!job) {
+    return null;
+  }
+
+  try {
+    const result = await prisma.processingJob.updateMany({
+      data: {
+        attempts: {
+          increment: 1
+        },
+        errorMessage: null,
+        startedAt: new Date(),
+        status: "RUNNING"
+      },
+      where: {
+        id: job.id,
+        status: "PENDING"
+      }
+    });
+
+    if (result.count === 0) {
+      return null;
+    }
+
+    return prisma.processingJob.findUnique({
+      where: {
+        id: job.id
+      }
+    });
+  } catch {
+    return null;
+  }
+}
+
+export async function markProcessingJobComplete(
+  prisma: PrismaClient | Prisma.TransactionClient,
+  jobId: string
+): Promise<void> {
+  await prisma.processingJob.update({
+    data: {
+      completedAt: new Date(),
+      errorMessage: null,
+      failedAt: null,
+      status: "COMPLETED"
+    },
+    where: {
+      id: jobId
+    }
+  });
+}
+
+export async function markProcessingJobFailed(
+  prisma: PrismaClient | Prisma.TransactionClient,
+  input: {
+    errorMessage: string;
+    job: Pick<ProcessingJob, "attempts" | "id" | "maxAttempts">;
+  }
+): Promise<void> {
+  const exhausted = input.job.attempts >= input.job.maxAttempts;
+
+  await prisma.processingJob.update({
+    data: {
+      errorMessage: input.errorMessage,
+      failedAt: new Date(),
+      status: exhausted ? "FAILED" : "PENDING"
+    },
+    where: {
+      id: input.job.id
+    }
+  });
+}
+
+export async function retryProcessingJob(
+  prisma: PrismaClient,
+  jobId: string
+): Promise<ProcessingJob> {
+  await prisma.processingJob.updateMany({
+    data: {
+      completedAt: null,
+      errorMessage: null,
+      failedAt: null,
+      startedAt: null,
+      status: "PENDING"
+    },
+    where: {
+      id: jobId,
+      status: "FAILED"
+    }
+  });
+
+  return prisma.processingJob.findUniqueOrThrow({
+    where: {
+      id: jobId
+    }
+  });
+}
+
+export async function retryFailedProcessingJobs(
+  prisma: PrismaClient,
+  organizationId: string
+): Promise<number> {
+  const result = await prisma.processingJob.updateMany({
+    data: {
+      completedAt: null,
+      errorMessage: null,
+      failedAt: null,
+      startedAt: null,
+      status: "PENDING"
+    },
+    where: {
+      organizationId,
+      status: "FAILED"
+    }
+  });
+
+  return result.count;
+}
+
+export async function heartbeatWorker(
+  prisma: PrismaClient,
+  input: {
+    status: WorkerStatus;
+    version: string;
+    workerName: string;
+  }
+) {
+  return prisma.workerHeartbeat.upsert({
+    create: {
+      lastHeartbeatAt: new Date(),
+      status: input.status,
+      version: input.version,
+      workerName: input.workerName
+    },
+    update: {
+      lastHeartbeatAt: new Date(),
+      status: input.status,
+      version: input.version
+    },
+    where: {
+      workerName: input.workerName
+    }
+  });
+}
+
+export async function processSearchIndexJob(
+  prisma: PrismaClient,
+  job: Pick<ProcessingJob, "sourceId" | "sourceType">
+): Promise<void> {
+  const document = await buildSearchDocument(prisma, job);
+
+  if (!document) {
+    return;
+  }
+
+  await prisma.searchDocument.upsert({
+    create: {
+      content: document.content || document.title,
+      metadata: document.metadata,
+      occurredAt: document.occurredAt,
+      organizationId: document.organizationId,
+      projectId: document.projectId,
+      sourceId: document.sourceId,
+      sourceType: document.sourceType,
+      title: document.title
+    },
+    update: {
+      content: document.content || document.title,
+      metadata: document.metadata,
+      occurredAt: document.occurredAt,
+      organizationId: document.organizationId,
+      projectId: document.projectId,
+      title: document.title
+    },
+    where: {
+      sourceType_sourceId: {
+        sourceId: document.sourceId,
+        sourceType: document.sourceType
+      }
+    }
+  });
+}
+
+export async function getJobMetrics(
+  prisma: PrismaClient,
+  organizationId: string
+): Promise<JobMetricsRow[]> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const [pending, running, failed, completedToday] = await Promise.all([
+    prisma.processingJob.groupBy({
+      by: ["type"],
+      _count: true,
+      where: {
+        organizationId,
+        status: "PENDING"
+      }
+    }),
+    prisma.processingJob.groupBy({
+      by: ["type"],
+      _count: true,
+      where: {
+        organizationId,
+        status: "RUNNING"
+      }
+    }),
+    prisma.processingJob.groupBy({
+      by: ["type"],
+      _count: true,
+      where: {
+        organizationId,
+        status: "FAILED"
+      }
+    }),
+    prisma.processingJob.groupBy({
+      by: ["type"],
+      _count: true,
+      where: {
+        completedAt: {
+          gte: today
+        },
+        organizationId,
+        status: "COMPLETED"
+      }
+    })
+  ]);
+
+  const rows = new Map<ProcessingJobType, JobMetricsRow>();
+  const ensure = (type: ProcessingJobType) => {
+    const existing = rows.get(type);
+
+    if (existing) {
+      return existing;
+    }
+
+    const row = {
+      completedToday: 0,
+      failed: 0,
+      pending: 0,
+      running: 0,
+      type
+    };
+    rows.set(type, row);
+    return row;
+  };
+
+  for (const type of [
+    "SEARCH_INDEX",
+    "AI_CLASSIFICATION",
+    "VOICE_TRANSCRIPTION",
+    "MEDIA_DOWNLOAD"
+  ] as const) {
+    ensure(type);
+  }
+
+  for (const row of pending) {
+    ensure(row.type).pending = row._count;
+  }
+
+  for (const row of running) {
+    ensure(row.type).running = row._count;
+  }
+
+  for (const row of failed) {
+    ensure(row.type).failed = row._count;
+  }
+
+  for (const row of completedToday) {
+    ensure(row.type).completedToday = row._count;
+  }
+
+  return [...rows.values()];
+}
+
+type SearchDocumentInput = {
+  content: string;
+  metadata: Prisma.InputJsonValue;
+  occurredAt: Date | null;
+  organizationId: string;
+  projectId: string | null;
+  sourceId: string;
+  sourceType: SearchDocumentSourceType;
+  title: string;
+};
+
+async function buildSearchDocument(
+  prisma: PrismaClient,
+  job: Pick<ProcessingJob, "sourceId" | "sourceType">
+): Promise<SearchDocumentInput | null> {
+  switch (job.sourceType) {
+    case "PROJECT":
+      return buildProjectDocument(prisma, job.sourceId);
+    case "MESSAGE":
+      return buildMessageDocument(prisma, job.sourceId);
+    case "TIMELINE_EVENT":
+      return buildEventDocument(prisma, job.sourceId);
+    case "ACTION_ITEM":
+      return buildActionItemDocument(prisma, job.sourceId);
+    case "AI_CLASSIFICATION":
+      return buildAIClassificationDocument(prisma, job.sourceId);
+    default:
+      return null;
+  }
+}
+
+async function buildProjectDocument(
+  prisma: PrismaClient,
+  projectId: string
+): Promise<SearchDocumentInput | null> {
+  const project = await prisma.project.findUnique({
+    where: {
+      id: projectId
+    }
+  });
+
+  if (!project) {
+    return null;
+  }
+
+  return {
+    content: `Project ${project.name} ${project.code} status ${project.status}`,
+    metadata: {
+      code: project.code,
+      status: project.status
+    },
+    occurredAt: project.updatedAt,
+    organizationId: project.organizationId,
+    projectId: project.id,
+    sourceId: project.id,
+    sourceType: "PROJECT",
+    title: `${project.code} ${project.name}`
+  };
+}
+
+async function buildMessageDocument(
+  prisma: PrismaClient,
+  messageId: string
+): Promise<SearchDocumentInput | null> {
+  const message = await prisma.message.findUnique({
+    include: {
+      conversation: {
+        select: {
+          organizationId: true,
+          project: {
+            select: {
+              name: true
+            }
+          },
+          projectId: true,
+          title: true
+        }
+      },
+      senderParticipant: {
+        select: {
+          displayName: true
+        }
+      }
+    },
+    where: {
+      id: messageId
+    }
+  });
+
+  if (!message) {
+    return null;
+  }
+
+  return {
+    content: [
+      message.body ?? "",
+      `Sender: ${message.senderParticipant.displayName}`,
+      `Conversation: ${message.conversation.title}`,
+      message.conversation.project ? `Project: ${message.conversation.project.name}` : ""
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    metadata: {
+      conversationId: message.conversationId,
+      conversationTitle: message.conversation.title,
+      messageType: message.type,
+      sender: message.senderParticipant.displayName
+    },
+    occurredAt: message.occurredAt,
+    organizationId: message.conversation.organizationId,
+    projectId: message.conversation.projectId,
+    sourceId: message.id,
+    sourceType: "MESSAGE",
+    title: message.conversation.title
+  };
+}
+
+async function buildEventDocument(
+  prisma: PrismaClient,
+  eventId: string
+): Promise<SearchDocumentInput | null> {
+  const event = await prisma.event.findUnique({
+    where: {
+      id: eventId
+    }
+  });
+
+  if (!event) {
+    return null;
+  }
+
+  return {
+    content: [event.description ?? "", `Event type: ${event.eventType}`].filter(Boolean).join("\n"),
+    metadata: {
+      eventType: event.eventType
+    },
+    occurredAt: event.occurredAt,
+    organizationId: event.organizationId,
+    projectId: event.projectId,
+    sourceId: event.id,
+    sourceType: "TIMELINE_EVENT",
+    title: event.title
+  };
+}
+
+async function buildActionItemDocument(
+  prisma: PrismaClient,
+  actionItemId: string
+): Promise<SearchDocumentInput | null> {
+  const actionItem = await prisma.actionItem.findUnique({
+    where: {
+      id: actionItemId
+    }
+  });
+
+  if (!actionItem) {
+    return null;
+  }
+
+  return {
+    content: [
+      actionItem.description ?? "",
+      `Status: ${actionItem.status}`,
+      `Priority: ${actionItem.priority}`,
+      `Type: ${actionItem.type}`
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    metadata: {
+      priority: actionItem.priority,
+      status: actionItem.status,
+      type: actionItem.type
+    },
+    occurredAt: actionItem.updatedAt,
+    organizationId: actionItem.organizationId,
+    projectId: actionItem.projectId ?? actionItem.suggestedProjectId,
+    sourceId: actionItem.id,
+    sourceType: "ACTION_ITEM",
+    title: actionItem.title
+  };
+}
+
+async function buildAIClassificationDocument(
+  prisma: PrismaClient,
+  classificationId: string
+): Promise<SearchDocumentInput | null> {
+  const classification = await prisma.aIMessageClassification.findUnique({
+    where: {
+      id: classificationId
+    }
+  });
+
+  if (!classification) {
+    return null;
+  }
+
+  return {
+    content: [
+      classification.summary ?? "",
+      classification.location ? `Location: ${classification.location}` : "",
+      classification.reasoningSummary ?? "",
+      classification.category ? `Category: ${classification.category}` : ""
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    metadata: {
+      category: classification.category,
+      confidence: classification.confidence,
+      status: classification.status
+    },
+    occurredAt: classification.updatedAt,
+    organizationId: classification.organizationId,
+    projectId: classification.projectId,
+    sourceId: classification.id,
+    sourceType: "AI_CLASSIFICATION",
+    title: classification.category
+      ? `AI classification: ${classification.category}`
+      : "AI classification"
+  };
+}
+
+export function getWorkerEffectiveStatus(input: {
+  lastHeartbeatAt: Date;
+  status: WorkerStatus;
+}): WorkerStatus {
+  if (input.status !== "ONLINE") {
+    return input.status;
+  }
+
+  return Date.now() - input.lastHeartbeatAt.getTime() > 90_000 ? "OFFLINE" : input.status;
+}

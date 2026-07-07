@@ -4,6 +4,14 @@ export const organizationParamsSchema = z.object({
   organizationId: z.string().min(1)
 });
 
+export const adminOperationsQuerySchema = z.object({
+  organizationId: z.string().trim().min(1)
+});
+
+export const processingJobParamsSchema = z.object({
+  id: z.string().min(1)
+});
+
 export const projectParamsSchema = z.object({
   projectId: z.string().min(1)
 });

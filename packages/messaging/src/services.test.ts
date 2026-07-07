@@ -220,6 +220,7 @@ class InMemoryMessagingRepository implements MessagingRepository {
       createdAt: new Date(),
       externalMessageId: input.externalMessageId ?? null,
       id: nextId("message"),
+      processingStatus: "RECEIVED" as const,
       senderParticipant: participant
     };
     this.messages.push(message);

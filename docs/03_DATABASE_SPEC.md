@@ -17,6 +17,7 @@
 - [Event Model](#event-model)
 - [Milestone Model](#milestone-model)
 - [Search Model](#search-model)
+- [Background Processing Model](#background-processing-model)
 - [Schema Ownership](#schema-ownership)
 - [Migration Policy](#migration-policy)
 - [Retention and Compliance](#retention-and-compliance)
@@ -43,6 +44,8 @@ Current MVP models:
 - `Event`: Generic organization-scoped activity record prepared for timeline features.
 - `Milestone`: Lightweight project deadline used by the Operations Command Center.
 - `SearchDocument`: Grounded search index entry for retrievable FieldOS records.
+- `ProcessingJob`: Lightweight background job record used for search indexing, AI classification, and future media/transcription work.
+- `WorkerHeartbeat`: Operational heartbeat record for deployed worker processes.
 - `WhatsAppAccount`: A WhatsApp connector account owned by an organization.
 - `WhatsAppChatMapping`: Connector-specific mapping between a WhatsApp chat JID, a generic conversation, and an optional project.
 
@@ -85,6 +88,19 @@ Message types:
 - `VOICE`
 - `VIDEO`
 - `SYSTEM`
+
+Message processing statuses:
+
+- `RECEIVED`
+- `MEDIA_PENDING`
+- `MEDIA_COMPLETE`
+- `TRANSCRIPTION_PENDING`
+- `TRANSCRIPTION_COMPLETE`
+- `SEARCH_PENDING`
+- `SEARCH_COMPLETE`
+- `AI_PENDING`
+- `AI_COMPLETE`
+- `FAILED`
 
 Key constraints:
 
@@ -249,6 +265,8 @@ Key indexes:
 
 `SearchDocument` is a generic retrieval index used by keyword search and grounded AI answers.
 
+Search documents are written only by background `SEARCH_INDEX` jobs. API search routes read the index and do not rebuild it synchronously.
+
 Supported source types:
 
 - `PROJECT`
@@ -277,6 +295,50 @@ Key constraints and indexes:
 - `organizationId, sourceType, createdAt` supports type filters.
 - `projectId, createdAt` supports project detail surfaces.
 - A PostgreSQL GIN full-text index supports keyword search over title and content.
+
+## Background Processing Model
+
+`ProcessingJob` is the MVP background queue and observability table. It is intentionally simple and avoids a separate workflow/orchestration platform.
+
+Job types:
+
+- `SEARCH_INDEX`
+- `AI_CLASSIFICATION`
+- `VOICE_TRANSCRIPTION`
+- `MEDIA_DOWNLOAD`
+
+Job statuses:
+
+- `PENDING`
+- `RUNNING`
+- `FAILED`
+- `COMPLETED`
+
+Fields:
+
+- `organizationId`: Required tenant scope.
+- `projectId`: Optional project scope for filtering and logs.
+- `type`: Job kind.
+- `status`: Current queue state.
+- `sourceType` and `sourceId`: Source record to process.
+- `attempts` and `maxAttempts`: Bounded retry tracking.
+- `errorMessage`: Last failure reason.
+- `correlationId`: Stable trace identifier.
+- `startedAt`, `completedAt`, and `failedAt`: Processing timestamps.
+
+Key constraints and indexes:
+
+- `type, sourceType, sourceId` is unique to keep queueing idempotent.
+- `organizationId, status, createdAt` supports operations views.
+- `organizationId, type, status` supports job metrics.
+- `projectId, status, createdAt` supports project-scoped debugging.
+
+`WorkerHeartbeat` stores worker liveness:
+
+- `workerName`: Unique worker identifier.
+- `version`: Deployment version or commit.
+- `status`: `ONLINE`, `OFFLINE`, `STARTING`, or `STOPPING`.
+- `lastHeartbeatAt`: Updated every 30 seconds by the worker.
 
 ## Schema Ownership
 

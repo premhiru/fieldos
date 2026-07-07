@@ -19,7 +19,7 @@
 
 ## Current Milestone
 
-Task 010 AI Search is implemented locally and awaiting production deployment verification.
+Task 010B Operations Health and Background Job Monitoring is implemented locally and awaiting production deployment verification.
 
 ## Completed Tasks
 
@@ -125,10 +125,17 @@ Task 010 AI Search is implemented locally and awaiting production deployment ver
   - Project detail pages now include a scoped `Ask about this project` panel.
   - API tests cover search document creation, message search, timeline event search, Action Item search, scoped search, cross-organization isolation, AI answer citations, fallback, and invalid questions.
   - ADR 0010 documents grounded AI search.
+- Task 010B: Operations Health and Background Job Monitoring.
+  - Search indexing moved out of API search requests and into worker-owned `SEARCH_INDEX` jobs.
+  - `ProcessingJob`, `WorkerHeartbeat`, and `Message.processingStatus` added to Prisma.
+  - Worker now updates heartbeat, processes search/AI jobs, logs job IDs, correlation IDs, organization IDs, project IDs, durations, and outcomes.
+  - Admin API endpoints added for operations health, jobs, worker heartbeat, individual retry, and bulk retry.
+  - Dashboard `/admin/operations` page added for organization owners and admins.
+  - ADR 0010B documents the lightweight observability approach.
 
 ## In-Progress Tasks
 
-- Task 010 production deployment verification.
+- Task 010B production deployment verification.
 
 ## Known Technical Debt
 
@@ -149,13 +156,13 @@ Task 010 AI Search is implemented locally and awaiting production deployment ver
 - Pagination is still limited to the highest-volume AI and ActionItem project views; conversation and message pagination should be formalized before large customer imports.
 - API route response envelopes are improved but not yet generated from a shared OpenAPI contract.
 - Production environments must set `OPENROUTER_API_KEY` and confirm the intended `AI_MODEL` before AI classification can run. `OPENAI_API_KEY` remains a fallback for OpenAI-compatible providers.
-- SearchDocument indexing is currently refreshed from API search calls; high-volume production usage should move indexing to an asynchronous worker job.
+- Voice transcription and media download are represented in job metrics but the full transcription/download workers remain intentionally deferred.
 - Search uses PostgreSQL keyword search for the MVP; semantic/vector search is intentionally deferred until search telemetry proves the need.
 
 ## Upcoming Milestones
 
-- Deploy Task 010 to Railway and verify the search migration.
-- Validate grounded AI search with real production tenant data.
+- Deploy Task 010B to Railway and verify the background processing migration.
+- Validate worker heartbeat, async search indexing, and AI job execution with production tenant data.
 - Configure branch protection for `main` and `develop`.
 - Create `develop` branch after remote setup.
 - Add invite and membership management after the basic auth/org/project slice is verified.
@@ -179,6 +186,7 @@ Task 010 AI Search is implemented locally and awaiting production deployment ver
 - ADR 0007: Simplify the MVP around ActionItems, compact AI extraction, event-driven timeline preparation, and human-approved project suggestions.
 - ADR 0009: Use an API-owned Operations Command Center with deterministic health rules and lightweight milestones.
 - ADR 0010: Use PostgreSQL-backed grounded retrieval with cited sources for AI search.
+- ADR 0010B: Use lightweight database-backed background jobs and worker heartbeat for operations observability.
 
 ## Deployment Status
 
@@ -227,5 +235,5 @@ Task 010 AI Search is implemented locally and awaiting production deployment ver
 - Sprint 1.5 code has passed local validation; production deployment requires environment variable review and a deployment trigger.
 - Task 007 code is validated locally; the Railway worker now has OpenRouter environment variables configured for provider-backed classification.
 - Task 009 code is deployed to Railway and migrations are applied.
-- Task 010 code is validated locally; production deployment requires a deployment trigger and migration application for the `SearchDocument` model.
+- Task 010B code is validated locally; production deployment requires migration application and API/worker/dashboard deployment.
 - Live WhatsApp QR scanning and activation were not performed because no dedicated business test number was provided in this environment.

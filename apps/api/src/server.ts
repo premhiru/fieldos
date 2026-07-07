@@ -41,6 +41,7 @@ import {
 } from "./repository.js";
 import {
   activateWhatsAppChatMappingSchema,
+  adminOperationsQuerySchema,
   createOrganizationSchema,
   createProjectSchema,
   conversationParamsSchema,
@@ -48,6 +49,7 @@ import {
   dashboardQuerySchema,
   messageParamsSchema,
   organizationParamsSchema,
+  processingJobParamsSchema,
   projectParamsSchema,
   projectSearchAskSchema,
   actionItemParamsSchema,
@@ -273,6 +275,57 @@ export function buildServer(options: BuildServerOptions = {}) {
 
     return {
       brief: dashboard.brief
+    };
+  });
+
+  server.get("/admin/operations", { preHandler: requireAuth }, async (request) => {
+    const query = adminOperationsQuerySchema.parse(request.query);
+    await requireAdminOrganizationMembership(requireCurrentUser(request).id, query.organizationId);
+
+    return {
+      operations: await repository.getAdminOperations(query.organizationId)
+    };
+  });
+
+  server.get("/admin/jobs", { preHandler: requireAuth }, async (request) => {
+    const query = adminOperationsQuerySchema.parse(request.query);
+    await requireAdminOrganizationMembership(requireCurrentUser(request).id, query.organizationId);
+
+    return {
+      jobs: await repository.listProcessingJobs(query.organizationId)
+    };
+  });
+
+  server.post("/admin/jobs/:id/retry", { preHandler: requireAuth }, async (request) => {
+    const params = processingJobParamsSchema.parse(request.params);
+    const job = await repository.getProcessingJob(params.id);
+
+    if (!job) {
+      throw notFound("Processing job not found.");
+    }
+
+    await requireAdminOrganizationMembership(requireCurrentUser(request).id, job.organizationId);
+
+    return {
+      job: await repository.retryProcessingJob(params.id)
+    };
+  });
+
+  server.post("/admin/jobs/retry-failed", { preHandler: requireAuth }, async (request) => {
+    const query = adminOperationsQuerySchema.parse(request.query);
+    await requireAdminOrganizationMembership(requireCurrentUser(request).id, query.organizationId);
+
+    return {
+      retried: await repository.retryFailedProcessingJobs(query.organizationId)
+    };
+  });
+
+  server.get("/admin/workers", { preHandler: requireAuth }, async (request) => {
+    const query = adminOperationsQuerySchema.parse(request.query);
+    await requireAdminOrganizationMembership(requireCurrentUser(request).id, query.organizationId);
+
+    return {
+      workers: await repository.listWorkerHeartbeats()
     };
   });
 
@@ -750,6 +803,16 @@ export function buildServer(options: BuildServerOptions = {}) {
 
     if (!writableRoles.has(membership.role)) {
       throw forbidden();
+    }
+
+    return membership;
+  }
+
+  async function requireAdminOrganizationMembership(userId: string, organizationId: string) {
+    const membership = await requireOrganizationMembership(userId, organizationId);
+
+    if (!writableRoles.has(membership.role)) {
+      throw forbidden("Only organization owners and admins can access operations health.");
     }
 
     return membership;

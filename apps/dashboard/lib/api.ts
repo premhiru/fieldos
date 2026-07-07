@@ -26,6 +26,21 @@ export type MilestoneStatus = "UPCOMING" | "DUE_SOON" | "OVERDUE" | "COMPLETED";
 export type DashboardHealth = "HEALTHY" | "NEEDS_ATTENTION" | "CRITICAL";
 export type SearchSourceType =
   "PROJECT" | "MESSAGE" | "TIMELINE_EVENT" | "ACTION_ITEM" | "AI_CLASSIFICATION";
+export type ProcessingJobType =
+  "SEARCH_INDEX" | "AI_CLASSIFICATION" | "VOICE_TRANSCRIPTION" | "MEDIA_DOWNLOAD";
+export type ProcessingJobStatus = "PENDING" | "RUNNING" | "FAILED" | "COMPLETED";
+export type WorkerStatus = "ONLINE" | "OFFLINE" | "STARTING" | "STOPPING";
+export type MessageProcessingStatus =
+  | "RECEIVED"
+  | "MEDIA_PENDING"
+  | "MEDIA_COMPLETE"
+  | "TRANSCRIPTION_PENDING"
+  | "TRANSCRIPTION_COMPLETE"
+  | "SEARCH_PENDING"
+  | "SEARCH_COMPLETE"
+  | "AI_PENDING"
+  | "AI_COMPLETE"
+  | "FAILED";
 
 export interface User {
   id: string;
@@ -98,6 +113,7 @@ export interface Message {
   type: MessageType;
   body: string | null;
   externalMessageId: string | null;
+  processingStatus: MessageProcessingStatus;
   occurredAt: string;
   createdAt: string;
   attachments: Attachment[];
@@ -265,6 +281,68 @@ export interface SearchAnswer {
   sources: SearchAnswerSource[];
 }
 
+export interface ProcessingJob {
+  id: string;
+  organizationId: string;
+  projectId: string | null;
+  type: ProcessingJobType;
+  status: ProcessingJobStatus;
+  sourceType: string;
+  sourceId: string;
+  attempts: number;
+  maxAttempts: number;
+  errorMessage: string | null;
+  correlationId: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  failedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkerHeartbeat {
+  id: string;
+  workerName: string;
+  version: string;
+  status: WorkerStatus;
+  lastHeartbeatAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface JobMetrics {
+  completedToday: number;
+  failed: number;
+  pending: number;
+  running: number;
+  type: ProcessingJobType;
+}
+
+export interface AdminOperations {
+  ai: {
+    averageProcessingTimeMs: number | null;
+    failuresToday: number;
+    jobsPending: number;
+  };
+  jobSummary: JobMetrics[];
+  media: {
+    failedDownloads: number;
+    pendingDownloads: number;
+    pendingTranscriptions: number;
+  };
+  search: {
+    completedToday: number;
+    pendingIndexJobs: number;
+  };
+  whatsApp: {
+    connectedAccounts: number;
+    disconnectedAccounts: number;
+    failedConnections: number;
+    qrPending: number;
+  };
+  workers: WorkerHeartbeat[];
+}
+
 export type WhatsAppConnectorType = "BAILEYS" | "META_CLOUD";
 export type WhatsAppAccountStatus =
   "PENDING_QR" | "CONNECTING" | "CONNECTED" | "DISCONNECTED" | "ERROR";
@@ -382,6 +460,24 @@ export const api = {
   getDashboard: (organizationId: string) => {
     const params = new URLSearchParams({ organizationId });
     return apiRequest<{ dashboard: OperationsDashboard }>(`/dashboard?${params.toString()}`);
+  },
+  getAdminOperations: (organizationId: string) => {
+    const params = new URLSearchParams({ organizationId });
+    return apiRequest<{ operations: AdminOperations }>(`/admin/operations?${params.toString()}`);
+  },
+  listAdminJobs: (organizationId: string) => {
+    const params = new URLSearchParams({ organizationId });
+    return apiRequest<{ jobs: ProcessingJob[] }>(`/admin/jobs?${params.toString()}`);
+  },
+  retryAdminJob: (jobId: string) =>
+    apiRequest<{ job: ProcessingJob }>(`/admin/jobs/${jobId}/retry`, {
+      method: "POST"
+    }),
+  retryFailedAdminJobs: (organizationId: string) => {
+    const params = new URLSearchParams({ organizationId });
+    return apiRequest<{ retried: number }>(`/admin/jobs/retry-failed?${params.toString()}`, {
+      method: "POST"
+    });
   },
   getProject: (projectId: string) => apiRequest<{ project: Project }>(`/projects/${projectId}`),
   getMessageClassification: (messageId: string) =>

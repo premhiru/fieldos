@@ -28,10 +28,12 @@ import type {
   DashboardHealth,
   MilestoneRecord,
   OperationsDashboardRecord,
+  ProcessingJobRecord,
   SearchDocumentsResult,
   SearchSourceType,
   WhatsAppAccountRecord,
-  WhatsAppChatMappingRecord
+  WhatsAppChatMappingRecord,
+  WorkerHeartbeatRecord
 } from "./repository.js";
 
 vi.stubEnv("CORS_ORIGIN", "http://localhost:3000");
@@ -665,6 +667,11 @@ describe("FieldOS API auth and tenancy", () => {
       status: "ACTIVE"
     });
     const message = await createProjectMessage(repository, organization.id, project.id);
+    expect(
+      repository.processingJobs.some(
+        (job) => job.sourceId === message.id && job.type === "SEARCH_INDEX"
+      )
+    ).toBe(true);
 
     const classifyResponse = await server.inject({
       headers: {
@@ -676,6 +683,16 @@ describe("FieldOS API auth and tenancy", () => {
 
     expect(classifyResponse.statusCode).toBe(200);
     expect(classifyResponse.json().classification.status).toBe("PENDING");
+    expect(
+      repository.messages.find((candidate) => candidate.id === message.id)?.processingStatus
+    ).toBe("AI_PENDING");
+    expect(
+      repository.processingJobs.some(
+        (job) =>
+          job.sourceId === classifyResponse.json().classification.id &&
+          job.type === "AI_CLASSIFICATION"
+      )
+    ).toBe(true);
 
     const getResponse = await server.inject({
       headers: {
@@ -899,6 +916,107 @@ describe("FieldOS API auth and tenancy", () => {
     });
 
     expect(response.statusCode).toBe(404);
+  });
+
+  it("returns operations health metrics for organization admins", async () => {
+    const cookie = await signup(server);
+    const organization = await createOrganization(server, cookie);
+    repository.addWorkerHeartbeat();
+    repository.addProcessingJob({
+      organizationId: organization.id,
+      status: "PENDING",
+      type: "SEARCH_INDEX"
+    });
+    repository.addProcessingJob({
+      organizationId: organization.id,
+      status: "FAILED",
+      type: "AI_CLASSIFICATION"
+    });
+    const account = await repository.createWhatsAppAccount({
+      displayName: "Dispatch line",
+      organizationId: organization.id
+    });
+    await repository.updateWhatsAppAccountStatus(account.id, "CONNECTED");
+
+    const response = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "GET",
+      url: `/admin/operations?organizationId=${organization.id}`
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().operations.workers).toHaveLength(1);
+    expect(response.json().operations.search.pendingIndexJobs).toBe(1);
+    expect(response.json().operations.ai.failuresToday).toBe(1);
+    expect(response.json().operations.whatsApp.connectedAccounts).toBe(1);
+
+    const workersResponse = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "GET",
+      url: `/admin/workers?organizationId=${organization.id}`
+    });
+
+    expect(workersResponse.statusCode).toBe(200);
+    expect(workersResponse.json().workers[0].workerName).toBe("fieldos-worker");
+  });
+
+  it("blocks non-admin operations access", async () => {
+    const ownerCookie = await signup(server, "operations-owner@example.com");
+    const organization = await createOrganization(server, ownerCookie);
+    const memberCookie = await signup(server, "operations-member@example.com");
+    repository.addMembership(repository.users[1]?.id ?? "", organization.id, "MEMBER");
+
+    const response = await server.inject({
+      headers: {
+        cookie: memberCookie
+      },
+      method: "GET",
+      url: `/admin/operations?organizationId=${organization.id}`
+    });
+
+    expect(response.statusCode).toBe(403);
+  });
+
+  it("retries individual and bulk failed jobs", async () => {
+    const cookie = await signup(server);
+    const organization = await createOrganization(server, cookie);
+    const individualJob = repository.addProcessingJob({
+      organizationId: organization.id,
+      status: "FAILED",
+      type: "SEARCH_INDEX"
+    });
+    repository.addProcessingJob({
+      organizationId: organization.id,
+      status: "FAILED",
+      type: "AI_CLASSIFICATION"
+    });
+
+    const individualRetry = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "POST",
+      url: `/admin/jobs/${individualJob.id}/retry`
+    });
+
+    expect(individualRetry.statusCode).toBe(200);
+    expect(individualRetry.json().job.status).toBe("PENDING");
+
+    const bulkRetry = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "POST",
+      url: `/admin/jobs/retry-failed?organizationId=${organization.id}`
+    });
+
+    expect(bulkRetry.statusCode).toBe(200);
+    expect(bulkRetry.json().retried).toBe(1);
+    expect(repository.processingJobs.every((job) => job.status === "PENDING")).toBe(true);
   });
 
   it("searches messages, timeline events, Action Items, projects, and AI classifications", async () => {
@@ -1324,6 +1442,8 @@ class InMemoryRepository implements AppRepository {
   projects: ProjectRecord[] = [];
   classifications: AIMessageClassificationRecord[] = [];
   actionItems: ActionItemRecord[] = [];
+  processingJobs: ProcessingJobRecord[] = [];
+  workerHeartbeats: WorkerHeartbeatRecord[] = [];
   users: StoredUser[] = [];
   whatsAppAccounts: WhatsAppAccountRecord[] = [];
   whatsAppChatMappings: WhatsAppChatMappingRecord[] = [];
@@ -1371,6 +1491,13 @@ class InMemoryRepository implements AppRepository {
       updatedAt: now
     };
     this.projects.push(project);
+    this.addProcessingJob({
+      organizationId: project.organizationId,
+      projectId: project.id,
+      sourceId: project.id,
+      sourceType: "PROJECT",
+      type: "SEARCH_INDEX"
+    });
     return project;
   }
 
@@ -1498,6 +1625,7 @@ class InMemoryRepository implements AppRepository {
       createdAt: new Date(),
       externalMessageId: input.externalMessageId ?? null,
       id: nextId("message"),
+      processingStatus: "SEARCH_PENDING" as const,
       senderParticipant: participant
     };
     this.messages.push(message);
@@ -1509,6 +1637,13 @@ class InMemoryRepository implements AppRepository {
       conversation.lastMessageAt = input.occurredAt;
       conversation.lastMessageBody = input.body ?? null;
       conversation.updatedAt = new Date();
+      this.addProcessingJob({
+        organizationId: conversation.organizationId,
+        projectId: conversation.projectId,
+        sourceId: message.id,
+        sourceType: "MESSAGE",
+        type: "SEARCH_INDEX"
+      });
     }
 
     return message;
@@ -1823,6 +1958,14 @@ class InMemoryRepository implements AppRepository {
       existing.projectId = conversation.projectId;
       existing.status = "PENDING";
       existing.updatedAt = new Date();
+      message.processingStatus = "AI_PENDING";
+      this.addProcessingJob({
+        organizationId: existing.organizationId,
+        projectId: existing.projectId,
+        sourceId: existing.id,
+        sourceType: "AI_MESSAGE_CLASSIFICATION",
+        type: "AI_CLASSIFICATION"
+      });
       return existing;
     }
 
@@ -1843,6 +1986,14 @@ class InMemoryRepository implements AppRepository {
       updatedAt: new Date()
     };
     this.classifications.push(classification);
+    message.processingStatus = "AI_PENDING";
+    this.addProcessingJob({
+      organizationId: classification.organizationId,
+      projectId: classification.projectId,
+      sourceId: classification.id,
+      sourceType: "AI_MESSAGE_CLASSIFICATION",
+      type: "AI_CLASSIFICATION"
+    });
     return classification;
   }
 
@@ -2032,6 +2183,80 @@ class InMemoryRepository implements AppRepository {
     };
   }
 
+  async getAdminOperations(organizationId: string) {
+    const jobSummary = this.buildJobMetrics(organizationId);
+    const byType = new Map(jobSummary.map((row) => [row.type, row]));
+    const whatsappCount = (status: WhatsAppAccountRecord["status"]) =>
+      this.whatsAppAccounts.filter(
+        (account) => account.organizationId === organizationId && account.status === status
+      ).length;
+
+    return {
+      ai: {
+        averageProcessingTimeMs: null,
+        failuresToday: byType.get("AI_CLASSIFICATION")?.failed ?? 0,
+        jobsPending: byType.get("AI_CLASSIFICATION")?.pending ?? 0
+      },
+      jobSummary,
+      media: {
+        failedDownloads: byType.get("MEDIA_DOWNLOAD")?.failed ?? 0,
+        pendingDownloads: byType.get("MEDIA_DOWNLOAD")?.pending ?? 0,
+        pendingTranscriptions: byType.get("VOICE_TRANSCRIPTION")?.pending ?? 0
+      },
+      search: {
+        completedToday: byType.get("SEARCH_INDEX")?.completedToday ?? 0,
+        pendingIndexJobs: byType.get("SEARCH_INDEX")?.pending ?? 0
+      },
+      whatsApp: {
+        connectedAccounts: whatsappCount("CONNECTED"),
+        disconnectedAccounts: whatsappCount("DISCONNECTED"),
+        failedConnections: whatsappCount("ERROR"),
+        qrPending: whatsappCount("PENDING_QR")
+      },
+      workers: this.workerHeartbeats
+    };
+  }
+
+  async listProcessingJobs(organizationId: string): Promise<ProcessingJobRecord[]> {
+    return this.processingJobs.filter((job) => job.organizationId === organizationId);
+  }
+
+  async getProcessingJob(jobId: string): Promise<ProcessingJobRecord | null> {
+    return this.processingJobs.find((job) => job.id === jobId) ?? null;
+  }
+
+  async listWorkerHeartbeats(): Promise<WorkerHeartbeatRecord[]> {
+    return this.workerHeartbeats;
+  }
+
+  async retryProcessingJob(jobId: string): Promise<ProcessingJobRecord> {
+    const job = this.processingJobs.find((candidate) => candidate.id === jobId);
+
+    if (!job) {
+      throw new Error("job missing");
+    }
+
+    job.status = "PENDING";
+    job.errorMessage = null;
+    job.failedAt = null;
+    job.startedAt = null;
+    job.completedAt = null;
+    job.updatedAt = new Date();
+    return job;
+  }
+
+  async retryFailedProcessingJobs(organizationId: string): Promise<number> {
+    const failed = this.processingJobs.filter(
+      (job) => job.organizationId === organizationId && job.status === "FAILED"
+    );
+
+    for (const job of failed) {
+      await this.retryProcessingJob(job.id);
+    }
+
+    return failed.length;
+  }
+
   async searchDocuments(input: {
     cursor?: string | null;
     dateFrom?: Date | null;
@@ -2094,6 +2319,52 @@ class InMemoryRepository implements AppRepository {
     };
     this.classifications.push(classification);
     return classification;
+  }
+
+  addProcessingJob(input: {
+    organizationId: string;
+    projectId?: string | null;
+    sourceId?: string;
+    sourceType?: string;
+    status?: ProcessingJobRecord["status"];
+    type?: ProcessingJobRecord["type"];
+  }): ProcessingJobRecord {
+    const now = new Date();
+    const job: ProcessingJobRecord = {
+      attempts: input.status === "FAILED" ? 3 : 0,
+      completedAt: input.status === "COMPLETED" ? now : null,
+      correlationId: nextId("correlation"),
+      createdAt: now,
+      errorMessage: input.status === "FAILED" ? "Job failed." : null,
+      failedAt: input.status === "FAILED" ? now : null,
+      id: nextId("job"),
+      maxAttempts: 3,
+      organizationId: input.organizationId,
+      projectId: input.projectId ?? null,
+      sourceId: input.sourceId ?? nextId("source"),
+      sourceType: input.sourceType ?? "MESSAGE",
+      startedAt: input.status === "RUNNING" || input.status === "COMPLETED" ? now : null,
+      status: input.status ?? "PENDING",
+      type: input.type ?? "SEARCH_INDEX",
+      updatedAt: now
+    };
+    this.processingJobs.push(job);
+    return job;
+  }
+
+  addWorkerHeartbeat(input: Partial<WorkerHeartbeatRecord> = {}): WorkerHeartbeatRecord {
+    const now = new Date();
+    const worker: WorkerHeartbeatRecord = {
+      createdAt: now,
+      id: nextId("worker"),
+      lastHeartbeatAt: input.lastHeartbeatAt ?? now,
+      status: input.status ?? "ONLINE",
+      updatedAt: now,
+      version: input.version ?? "test",
+      workerName: input.workerName ?? "fieldos-worker"
+    };
+    this.workerHeartbeats.push(worker);
+    return worker;
   }
 
   addActionItem(input: {
@@ -2313,6 +2584,32 @@ class InMemoryRepository implements AppRepository {
       ...actionItemDocuments,
       ...classificationDocuments
     ];
+  }
+
+  private buildJobMetrics(organizationId: string) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return (
+      ["SEARCH_INDEX", "AI_CLASSIFICATION", "VOICE_TRANSCRIPTION", "MEDIA_DOWNLOAD"] as const
+    ).map((type) => {
+      const jobs = this.processingJobs.filter(
+        (job) => job.organizationId === organizationId && job.type === type
+      );
+
+      return {
+        completedToday: jobs.filter(
+          (job) =>
+            job.status === "COMPLETED" &&
+            job.completedAt &&
+            job.completedAt.getTime() >= today.getTime()
+        ).length,
+        failed: jobs.filter((job) => job.status === "FAILED").length,
+        pending: jobs.filter((job) => job.status === "PENDING").length,
+        running: jobs.filter((job) => job.status === "RUNNING").length,
+        type
+      };
+    });
   }
 
   private projectReference(projectId: string | null) {

@@ -15,6 +15,7 @@
 - [Commands](#commands)
 - [Deployment](#deployment)
 - [Operations Command Center](#operations-command-center)
+- [Operations Health](#operations-health)
 - [AI Search](#ai-search)
 - [Repository Layout](#repository-layout)
 - [Development Philosophy](#development-philosophy)
@@ -45,6 +46,8 @@ flowchart TD
   Messaging["packages/messaging\nConversations, Messages, Attachments"]
   AI["packages/ai\nClassification, Search Answers"]
   Search["SearchDocument\nGrounded Retrieval Index"]
+  Jobs["ProcessingJob\nBackground Queue"]
+  Heartbeat["WorkerHeartbeat\nWorker Status"]
   WhatsApp["packages/integrations/whatsapp/baileys\nBaileys Adapter"]
   Postgres["PostgreSQL"]
   Redis["Redis"]
@@ -60,12 +63,17 @@ flowchart TD
   Worker --> Shared
   Worker --> AI
   Worker --> WhatsApp
+  Worker --> Jobs
+  Worker --> Search
+  Worker --> Heartbeat
   WhatsApp --> DB
   WhatsApp --> Messaging
-  WhatsApp --> AI
+  WhatsApp --> Jobs
   AI --> Provider
   AI --> DB
   Search --> DB
+  Jobs --> DB
+  Heartbeat --> DB
   Worker --> Redis
   DB --> Postgres
   Auth --> Shared
@@ -229,6 +237,14 @@ FieldOS classifies only messages that already passed the WhatsApp activation gat
 
 The AI layer classifies a message, writes a concise summary, extracts a location when present, decides whether human action is required, and creates Action Items when review is useful. Action Items remain `PENDING` until a user accepts or ignores them; FieldOS does not automatically create operational work or reassign projects from AI output.
 
+## Operations Health
+
+FieldOS includes a lightweight operations health page at `/admin/operations` for organization `OWNER` and `ADMIN` users. It shows worker heartbeat, job metrics, WhatsApp account status, AI queue health, search indexing health, and media/transcription queue placeholders.
+
+Background work is tracked in `ProcessingJob` rows. Search indexing is asynchronous: message, project, event, Action Item, and AI classification writes enqueue `SEARCH_INDEX` jobs, and the worker updates `SearchDocument`. Search endpoints only read the index.
+
+Worker status is tracked through `WorkerHeartbeat`, updated every 30 seconds by the Railway worker. Failed jobs can be retried individually or in bulk from the operations page.
+
 ## Operations Command Center
 
 The authenticated dashboard homepage is the Operations Command Center. It aggregates organization-scoped project health, Action Items assigned to the current user, recent business activity, upcoming milestones, and a short daily brief.
@@ -248,6 +264,8 @@ The API exposes command center data through:
 
 FieldOS includes grounded AI search across organization and project records. Search is powered by the `SearchDocument` index in PostgreSQL and covers projects, messages, timeline events, Action Items, and AI classifications.
 
+Search indexing is maintained by background jobs, not by search requests. If a new record does not appear immediately, check `/admin/operations` for pending or failed Search Index jobs.
+
 The API exposes:
 
 - `GET /search`
@@ -264,8 +282,9 @@ The dashboard includes a Search page with project, source type, and date filters
 2. Validate WhatsApp QR pairing and explicit chat activation with dedicated business test numbers.
 3. Build Task 011 on top of the stabilized command center, messaging, and search foundation.
 4. Add invite and membership management.
-5. Add operational observability and deployment automation.
-6. Expand AI-assisted triage into human-approved operational tasks, reports, event timeline views, and official Meta WhatsApp Cloud API support after core workflow boundaries are stable.
+5. Verify operations health against sustained WhatsApp and AI traffic.
+6. Add deployment automation.
+7. Expand AI-assisted triage into human-approved operational tasks, reports, event timeline views, and official Meta WhatsApp Cloud API support after core workflow boundaries are stable.
 
 ## Contributing Guidelines
 

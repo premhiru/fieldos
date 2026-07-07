@@ -18,6 +18,7 @@ model Organization {
   events                   Event[]
   milestones               Milestone[]
   memberships              Membership[]
+  processingJobs           ProcessingJob[]
   projects                 Project[]
   searchDocuments          SearchDocument[]
   whatsAppAccounts         WhatsAppAccount[]
@@ -119,6 +120,7 @@ model Message {
   type                MessageType
   body                String?
   externalMessageId   String?
+  processingStatus    MessageProcessingStatus @default(RECEIVED)
   occurredAt          DateTime
   createdAt           DateTime                 @default(now())
   aiClassification    AIMessageClassification?
@@ -129,6 +131,7 @@ model Message {
 
   @@unique([conversationId, externalMessageId])
   @@index([conversationId, occurredAt])
+  @@index([processingStatus, createdAt])
   @@index([senderParticipantId])
 }
 
@@ -273,6 +276,44 @@ model SearchDocument {
   @@index([projectId, createdAt])
 }
 
+model ProcessingJob {
+  id             String              @id @default(cuid())
+  organizationId String
+  projectId      String?
+  type           ProcessingJobType
+  status         ProcessingJobStatus @default(PENDING)
+  sourceType     String
+  sourceId       String
+  attempts       Int                 @default(0)
+  maxAttempts    Int                 @default(3)
+  errorMessage   String?
+  correlationId  String
+  startedAt      DateTime?
+  completedAt    DateTime?
+  failedAt       DateTime?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([type, sourceType, sourceId])
+  @@index([organizationId, status, createdAt])
+  @@index([organizationId, type, status])
+  @@index([projectId, status, createdAt])
+  @@index([status, createdAt])
+}
+
+model WorkerHeartbeat {
+  id              String       @id @default(cuid())
+  workerName      String       @unique
+  version         String
+  status          WorkerStatus @default(STARTING)
+  lastHeartbeatAt DateTime
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([status, lastHeartbeatAt])
+}
+
 model WhatsAppAccount {
   id                 String                @id @default(cuid())
   organizationId     String
@@ -355,6 +396,40 @@ enum MessageType {
   VOICE
   VIDEO
   SYSTEM
+}
+
+enum MessageProcessingStatus {
+  RECEIVED
+  MEDIA_PENDING
+  MEDIA_COMPLETE
+  TRANSCRIPTION_PENDING
+  TRANSCRIPTION_COMPLETE
+  SEARCH_PENDING
+  SEARCH_COMPLETE
+  AI_PENDING
+  AI_COMPLETE
+  FAILED
+}
+
+enum ProcessingJobType {
+  SEARCH_INDEX
+  AI_CLASSIFICATION
+  VOICE_TRANSCRIPTION
+  MEDIA_DOWNLOAD
+}
+
+enum ProcessingJobStatus {
+  PENDING
+  RUNNING
+  FAILED
+  COMPLETED
+}
+
+enum WorkerStatus {
+  ONLINE
+  OFFLINE
+  STARTING
+  STOPPING
 }
 
 enum WhatsAppConnectorType {

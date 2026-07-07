@@ -10,6 +10,7 @@ const navItems = [
   { href: "/inbox", label: "Inbox" },
   { href: "/action-items", label: "Action Items" },
   { href: "/search", label: "Search" },
+  { href: "/admin/operations", label: "Operations" },
   { href: "/settings", label: "Settings" }
 ];
 
