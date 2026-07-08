@@ -317,3 +317,9 @@ Task 013 Project Intelligence and Automated Reporting is deployed. Live WhatsApp
   - Local API tests cover project intelligence, report export, queued report generation, signed evidence views, and cross-organization evidence isolation.
   - Local dashboard tests cover Evidence Viewer rendering from signed evidence responses.
   - Live WhatsApp media previews and worker-generated PDF links require shared durable storage before they can be fully verified across separate Railway services.
+- AI provider rate-limit queue fix is deployed.
+  - Migration `20260708020000_ai_provider_rate_limit_queue` applied to Railway PostgreSQL.
+  - API deployment `8cbe9f64-5337-48c5-a96f-e8502ccf4ad4` succeeded.
+  - Worker deployment `a2e2d112-38b1-4597-bcbf-081d4d11a77b` succeeded.
+  - API health verified at `https://fieldos-api-production.up.railway.app/health`.
+  - Worker throttling configured for one AI-provider job per poll, twelve seconds between provider calls, sixty-second default 429 retries, and ten max attempts.
