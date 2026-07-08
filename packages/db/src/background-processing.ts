@@ -116,6 +116,17 @@ export async function queuePhotoAnalysisJob(
   });
 }
 
+export async function queueReportGenerationJob(
+  prisma: PrismaClient | Prisma.TransactionClient,
+  input: Omit<QueueProcessingJobInput, "sourceType" | "type">
+): Promise<ProcessingJob> {
+  return queueProcessingJob(prisma, {
+    ...input,
+    sourceType: "PROJECT_REPORT",
+    type: "REPORT_GENERATION"
+  });
+}
+
 export async function claimNextProcessingJob(
   prisma: PrismaClient,
   type: ProcessingJobType
@@ -383,6 +394,7 @@ export async function getJobMetrics(
     "AI_CLASSIFICATION",
     "VOICE_TRANSCRIPTION",
     "PHOTO_ANALYSIS",
+    "REPORT_GENERATION",
     "MEDIA_DOWNLOAD"
   ] as const) {
     ensure(type);
@@ -435,6 +447,8 @@ async function buildSearchDocument(
       return buildAIClassificationDocument(prisma, job.sourceId);
     case "PHOTO_ANALYSIS":
       return buildPhotoAnalysisDocument(prisma, job.sourceId);
+    case "PROJECT_REPORT":
+      return buildProjectReportDocument(prisma, job.sourceId);
     default:
       return null;
   }
@@ -692,6 +706,45 @@ async function buildPhotoAnalysisDocument(
     sourceId: analysis.id,
     sourceType: "PHOTO_ANALYSIS",
     title: `Photo analysis: ${analysis.evidence.filename}`
+  };
+}
+
+async function buildProjectReportDocument(
+  prisma: PrismaClient,
+  projectReportId: string
+): Promise<SearchDocumentInput | null> {
+  const report = await prisma.projectReport.findUnique({
+    include: {
+      project: {
+        select: {
+          code: true,
+          name: true
+        }
+      }
+    },
+    where: {
+      id: projectReportId
+    }
+  });
+
+  if (!report || report.status !== "COMPLETED") {
+    return null;
+  }
+
+  return {
+    content: report.markdown ?? report.title,
+    metadata: {
+      generatedAt: report.generatedAt?.toISOString() ?? null,
+      pdfStorageKey: report.pdfStorageKey,
+      reportType: report.type,
+      status: report.status
+    },
+    occurredAt: report.generatedAt ?? report.updatedAt,
+    organizationId: report.organizationId,
+    projectId: report.projectId,
+    sourceId: report.id,
+    sourceType: "PROJECT_REPORT",
+    title: `${report.project.code} ${report.title}`
   };
 }
 

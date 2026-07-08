@@ -34,7 +34,8 @@ export const searchSourceTypeSchema = z.enum([
   "TIMELINE_EVENT",
   "ACTION_ITEM",
   "AI_CLASSIFICATION",
-  "PHOTO_ANALYSIS"
+  "PHOTO_ANALYSIS",
+  "PROJECT_REPORT"
 ]);
 
 export const photoAnalysisParamsSchema = z.object({
@@ -43,6 +44,23 @@ export const photoAnalysisParamsSchema = z.object({
 
 export const evidenceParamsSchema = z.object({
   id: z.string().min(1)
+});
+
+export const mediaParamsSchema = z.object({
+  token: z.string().min(1)
+});
+
+export const mediaQuerySchema = z.object({
+  expires: z.coerce.number().int().positive(),
+  signature: z.string().trim().min(1)
+});
+
+export const reportFormatQuerySchema = z.object({
+  format: z.enum(["json", "markdown", "pdf"]).default("json")
+});
+
+export const generateProjectReportSchema = z.object({
+  type: z.enum(["WEEKLY_PROGRESS"]).default("WEEKLY_PROGRESS")
 });
 
 export const paginationQuerySchema = z.object({

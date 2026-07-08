@@ -5,7 +5,7 @@
 | Purpose      | Introduce the FieldOS engineering foundation, repository layout, and development workflow. |
 | Owner        | Founding Engineering                                                                       |
 | Status       | Active                                                                                     |
-| Last Updated | 2026-07-07                                                                                 |
+| Last Updated | 2026-07-08                                                                                 |
 
 ## Table of Contents
 
@@ -19,6 +19,7 @@
 - [AI Search](#ai-search)
 - [Unified Evidence Processing](#unified-evidence-processing)
 - [Photo Intelligence](#photo-intelligence)
+- [Project Intelligence and Reporting](#project-intelligence-and-reporting)
 - [Repository Layout](#repository-layout)
 - [Development Philosophy](#development-philosophy)
 - [Tech Stack](#tech-stack)
@@ -34,7 +35,7 @@ The repository is a pnpm and Turborepo monorepo containing a Next.js dashboard, 
 
 ## Architecture
 
-FieldOS starts as a modular monolith with clear package boundaries. The current product slice supports JWT-cookie authentication, organization workspaces, organization memberships, projects, a channel-agnostic messaging foundation, a WhatsApp Web connector that feeds messages into the unified inbox, human-reviewed AI classification for active project messages, and worker-owned photo intelligence for image attachments.
+FieldOS starts as a modular monolith with clear package boundaries. The current product slice supports JWT-cookie authentication, organization workspaces, organization memberships, projects, a channel-agnostic messaging foundation, a WhatsApp Web connector that feeds messages into the unified inbox, human-reviewed AI classification for active project messages, worker-owned photo intelligence for image attachments, and project intelligence reports grounded in timeline events, Action Items, classifications, transcripts, and evidence metadata.
 
 ```mermaid
 flowchart TD
@@ -47,7 +48,9 @@ flowchart TD
   Auth["packages/auth\nJWT, Passwords, Auth Schemas"]
   Messaging["packages/messaging\nConversations, Messages, Attachments"]
   AI["packages/ai\nClassification, Search Answers, Vision"]
+  Intelligence["packages/intelligence\nProject Briefs and Reports"]
   Evidence["UnifiedEvidenceContext\nRuntime Evidence Package"]
+  Storage["StorageProvider\nSigned Media URLs"]
   Search["SearchDocument\nGrounded Retrieval Index"]
   Jobs["ProcessingJob\nBackground Queue"]
   Heartbeat["WorkerHeartbeat\nWorker Status"]
@@ -65,6 +68,7 @@ flowchart TD
   API --> Search
   Worker --> Shared
   Worker --> AI
+  Worker --> Intelligence
   Worker --> WhatsApp
   Worker --> Jobs
   Worker --> Search
@@ -74,7 +78,10 @@ flowchart TD
   WhatsApp --> Messaging
   WhatsApp --> Jobs
   Evidence --> AI
+  Intelligence --> Evidence
   Evidence --> Search
+  API --> Storage
+  Worker --> Storage
   AI --> Provider
   AI --> DB
   Search --> DB
@@ -114,6 +121,8 @@ pnpm db:seed
 ```
 
 Configure AI classification and photo intelligence by setting `OPENROUTER_API_KEY`. `AI_BASE_URL` defaults to `https://openrouter.ai/api/v1`, `AI_MODEL` defaults to `openrouter/free`, and `VISION_MODEL` defaults to `openrouter/free`. `OPENAI_API_KEY` remains supported as a fallback for OpenAI-compatible providers and is used for voice transcription when available.
+
+Configure local signed media serving with `MEDIA_SIGNING_SECRET`. In production, API and worker media paths must point at the same durable storage backend or be replaced by an object-storage provider implementation.
 
 Test the auth flow:
 
@@ -172,6 +181,7 @@ apps/
 packages/
   ui/              Shared UI components.
   db/              Prisma schema, migration, client, and database utilities.
+  intelligence/    Deterministic project briefs, risk summaries, decisions, and report export.
   ai/              Message classification, extraction, and action item generation.
   auth/            JWT cookie auth, password hashing, and auth schemas.
   integrations/
@@ -214,6 +224,20 @@ infrastructure/    Infrastructure definitions.
 - Docker
 - GitHub Actions
 - OpenAI-compatible Chat Completions API
+
+## Project Intelligence and Reporting
+
+Project Intelligence turns existing operational evidence into read-only summaries for teams:
+
+- Morning Brief: latest timeline activity, priority Action Items, classifications, evidence, risks, and upcoming milestones.
+- Daily Summary: completed work, open items, received evidence, risks, and decisions.
+- Weekly Progress Report: executive summary, progress, risks, pending decisions, recent evidence, and source appendix.
+- Risk Summary: high-signal risks from overdue/urgent Action Items, issue classifications, photo issues, and late milestones.
+- Pending Decisions: human decisions required before FieldOS changes project state.
+
+The API exposes project-scoped intelligence endpoints and signed evidence views. The dashboard includes a Project Intelligence page with PDF and Markdown export, cached background report generation, evidence gallery access, and a reusable Evidence Viewer for images, PDFs, audio, transcripts, vision analysis, source WhatsApp messages, timeline references, and linked Action Items.
+
+Reports are grounded in stored FieldOS records. They do not invent status from model output, and generated report jobs run asynchronously through the worker-owned `REPORT_GENERATION` queue.
 
 ## Auth and Tenancy
 

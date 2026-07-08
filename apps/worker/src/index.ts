@@ -1,4 +1,5 @@
 import { Redis } from "ioredis";
+import { createHash } from "node:crypto";
 import {
   AIClassificationProcessor,
   MessageClassifier,
@@ -8,6 +9,7 @@ import {
 import { BaileysWhatsAppSessionManager, RedisWhatsAppQrStore } from "@fieldos/baileys-whatsapp";
 import {
   claimNextProcessingJob,
+  buildProjectIntelligenceContext,
   heartbeatWorker,
   markProcessingJobComplete,
   markProcessingJobFailed,
@@ -16,8 +18,13 @@ import {
   queueSearchIndexJob,
   type ProcessingJob
 } from "@fieldos/db";
+import {
+  ProjectIntelligenceService,
+  weeklyReportToMarkdown,
+  weeklyReportToPdfBuffer
+} from "@fieldos/intelligence";
 
-import { createLogger } from "@fieldos/shared";
+import { createLogger, LocalStorageProvider } from "@fieldos/shared";
 
 import { workerEnv } from "./env.js";
 import { PhotoAnalysisService } from "./photo-analysis.js";
@@ -56,6 +63,11 @@ const photoAnalysisService = new PhotoAnalysisService({
   }),
   storageRootPath: workerEnv.WHATSAPP_STORAGE_PATH
 });
+const storageProvider = new LocalStorageProvider({
+  rootPath: workerEnv.WHATSAPP_STORAGE_PATH,
+  signingSecret: workerEnv.MEDIA_SIGNING_SECRET
+});
+const projectIntelligenceService = new ProjectIntelligenceService();
 const workerName = process.env.WORKER_NAME ?? "fieldos-worker";
 const workerVersion =
   process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) ?? process.env.npm_package_version ?? "0.0.0";
@@ -104,13 +116,15 @@ async function start() {
 async function processBackgroundJobs(): Promise<void> {
   const voiceProcessed = await processJobsOfType("VOICE_TRANSCRIPTION", processVoiceJob);
   const photoProcessed = await processJobsOfType("PHOTO_ANALYSIS", processPhotoJob);
+  const reportProcessed = await processJobsOfType("REPORT_GENERATION", processReportJob);
   const searchProcessed = await processJobsOfType("SEARCH_INDEX", processSearchJob);
   const aiProcessed = await processJobsOfType("AI_CLASSIFICATION", processAIJob);
-  const processed = searchProcessed + aiProcessed + voiceProcessed + photoProcessed;
+  const processed =
+    searchProcessed + aiProcessed + voiceProcessed + photoProcessed + reportProcessed;
 
   if (processed > 0) {
     logger.info(
-      { aiProcessed, photoProcessed, processed, searchProcessed, voiceProcessed },
+      { aiProcessed, photoProcessed, processed, reportProcessed, searchProcessed, voiceProcessed },
       "background jobs processed"
     );
   }
@@ -142,7 +156,12 @@ function scheduleBackgroundProcessing(delayMs = workerEnv.AI_CLASSIFICATION_POLL
 }
 
 async function processJobsOfType(
-  type: "AI_CLASSIFICATION" | "PHOTO_ANALYSIS" | "SEARCH_INDEX" | "VOICE_TRANSCRIPTION",
+  type:
+    | "AI_CLASSIFICATION"
+    | "PHOTO_ANALYSIS"
+    | "REPORT_GENERATION"
+    | "SEARCH_INDEX"
+    | "VOICE_TRANSCRIPTION",
   processor: (job: ProcessingJob) => Promise<void>
 ): Promise<number> {
   let processed = 0;
@@ -432,6 +451,106 @@ async function processAIJob(job: ProcessingJob): Promise<void> {
 
   if (classification?.status === "FAILED") {
     throw new Error(classification.errorMessage ?? "AI classification failed.");
+  }
+}
+
+async function processReportJob(job: ProcessingJob): Promise<void> {
+  const report = await prisma.projectReport.findUnique({
+    include: {
+      project: true
+    },
+    where: {
+      id: job.sourceId
+    }
+  });
+
+  if (!report) {
+    return;
+  }
+
+  try {
+    await prisma.projectReport.update({
+      data: {
+        errorMessage: null,
+        status: "RUNNING"
+      },
+      where: {
+        id: report.id
+      }
+    });
+
+    const context = await buildProjectIntelligenceContext(prisma, report.projectId);
+
+    if (!context) {
+      throw new Error("Project intelligence context could not be built.");
+    }
+
+    const weeklyReport = projectIntelligenceService.generateWeeklyReport(context);
+    const markdown = weeklyReportToMarkdown(weeklyReport);
+    const pdf = weeklyReportToPdfBuffer(weeklyReport);
+    const contentHash = createHash("sha256").update(markdown).digest("hex");
+    const pdfStorageKey = `reports/${report.organizationId}/${report.projectId}/${report.id}.pdf`;
+
+    await storageProvider.upload({
+      contentType: "application/pdf",
+      data: pdf,
+      key: pdfStorageKey
+    });
+
+    await prisma.$transaction(async (tx) => {
+      const completedReport = await tx.projectReport.update({
+        data: {
+          content: JSON.parse(JSON.stringify(weeklyReport)),
+          contentHash,
+          errorMessage: null,
+          generatedAt: new Date(),
+          markdown,
+          pdfStorageKey,
+          status: "COMPLETED",
+          title: weeklyReport.title
+        },
+        where: {
+          id: report.id
+        }
+      });
+
+      const event = await tx.event.create({
+        data: {
+          description: `Generated ${weeklyReport.title}.`,
+          eventType: "PROJECT_REPORT_GENERATED",
+          organizationId: report.organizationId,
+          projectId: report.projectId,
+          sourceId: completedReport.id,
+          sourceType: "REPORT",
+          title: "Project Report Generated",
+          occurredAt: completedReport.generatedAt ?? new Date()
+        }
+      });
+
+      await queueSearchIndexJob(tx, {
+        organizationId: report.organizationId,
+        projectId: report.projectId,
+        sourceId: completedReport.id,
+        sourceType: "PROJECT_REPORT"
+      });
+      await queueSearchIndexJob(tx, {
+        organizationId: report.organizationId,
+        projectId: report.projectId,
+        sourceId: event.id,
+        sourceType: "TIMELINE_EVENT"
+      });
+    });
+  } catch (error: unknown) {
+    await prisma.projectReport.update({
+      data: {
+        errorMessage: error instanceof Error ? error.message : "Report generation failed.",
+        status: "FAILED"
+      },
+      where: {
+        id: report.id
+      }
+    });
+    throw error;
   }
 }
 

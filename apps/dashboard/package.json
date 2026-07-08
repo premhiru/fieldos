@@ -8,7 +8,7 @@
     "dev": "next dev --port 3000",
     "lint": "eslint . --max-warnings=0",
     "start": "next start --port 3000",
-    "test": "vitest run app --passWithNoTests",
+    "test": "vitest run app components --passWithNoTests",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

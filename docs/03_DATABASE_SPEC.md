@@ -5,7 +5,7 @@
 | Purpose      | Define the data model, ownership boundaries, migration policy, and database standards. |
 | Owner        | Engineering                                                                            |
 | Status       | Draft                                                                                  |
-| Last Updated | 2026-07-07                                                                             |
+| Last Updated | 2026-07-08                                                                             |
 
 ## Table of Contents
 
@@ -14,6 +14,7 @@
 - [Messaging Model](#messaging-model)
 - [Unified Evidence Processing](#unified-evidence-processing)
 - [Photo Intelligence Model](#photo-intelligence-model)
+- [Project Report Model](#project-report-model)
 - [WhatsApp Connector Model](#whatsapp-connector-model)
 - [AI Classification Model](#ai-classification-model)
 - [Event Model](#event-model)
@@ -42,6 +43,7 @@ Current MVP models:
 - `Message`: Inbound, outbound, or system event inside a conversation.
 - `Attachment`: File metadata attached to a message.
 - `PhotoAnalysis`: Advisory visual analysis linked one-to-one with an image attachment.
+- `ProjectReport`: Cached generated project intelligence report with export metadata.
 - `AIMessageClassification`: AI-derived classification, summary, extracted fields, and processing status for one message.
 - `ActionItem`: Human-reviewable recommendation derived from an AI classification or deterministic project suggestion.
 - `Event`: Generic organization-scoped activity record prepared for timeline features.
@@ -171,6 +173,35 @@ Key constraints and indexes:
 - `messageId` and `conversationId` support inbox and evidence lookups.
 
 Vision analysis is not a source of truth. It is an advisory enrichment for operators and must not automatically certify completion, safety, compliance, or defect presence.
+
+## Project Report Model
+
+`ProjectReport` stores cached report-generation output for project intelligence.
+
+Fields:
+
+- `id`: Primary key.
+- `organizationId`: Required tenant scope.
+- `projectId`: Owning project.
+- `type`: Report type. The MVP supports `WEEKLY_PROGRESS`.
+- `status`: `PENDING`, `RUNNING`, `FAILED`, or `COMPLETED`.
+- `title`: User-facing report title.
+- `content`: JSON report payload for structured reuse.
+- `markdown`: Markdown export text.
+- `pdfStorageKey`: Storage provider key for worker-generated PDF output.
+- `contentHash`: Hash of the generated Markdown payload.
+- `periodStart` and `periodEnd`: Reporting window.
+- `generatedAt`: Completion timestamp.
+- `errorMessage`: Last generation failure.
+- `createdAt` and `updatedAt`: Persistence timestamps.
+
+Key constraints and indexes:
+
+- `organizationId, createdAt` supports organization-scoped report lists.
+- `projectId, type, status, createdAt` supports project intelligence lookups.
+- `status, createdAt` supports worker polling and operations health.
+
+Completed reports are indexed as `SearchDocument` records with source type `PROJECT_REPORT`.
 
 ## WhatsApp Connector Model
 
@@ -338,6 +369,7 @@ Supported source types:
 - `ACTION_ITEM`
 - `AI_CLASSIFICATION`
 - `PHOTO_ANALYSIS`
+- `PROJECT_REPORT`
 
 Fields:
 
@@ -371,6 +403,7 @@ Job types:
 - `VOICE_TRANSCRIPTION`
 - `MEDIA_DOWNLOAD`
 - `PHOTO_ANALYSIS`
+- `REPORT_GENERATION`
 
 Job statuses:
 
@@ -434,3 +467,4 @@ Placeholder.
 - Invite flow and membership management are not implemented yet.
 - Session revocation and password reset tables are not implemented yet.
 - Production object storage tables or metadata are not implemented yet.
+- Project report caching exists, but retention, scheduled report generation, and multi-format storage policy are not implemented yet.

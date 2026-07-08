@@ -5,13 +5,40 @@
 | Purpose      | Capture demo steps and verification notes for FieldOS changes. |
 | Owner        | Product Engineering                                            |
 | Status       | Active                                                         |
-| Last Updated | 2026-07-07                                                     |
+| Last Updated | 2026-07-08                                                     |
 
 ## Table of Contents
 
-- [Task 011: Unified Evidence Processing](#task-011-unified-evidence-processing)
+- [Task 013: Project Intelligence and Automated Reporting](#task-013-project-intelligence-and-automated-reporting)
 - [Task 012: Photo Intelligence](#task-012-photo-intelligence)
+- [Task 011: Unified Evidence Processing](#task-011-unified-evidence-processing)
 - [Task 010B: Operations Health](#task-010b-operations-health)
+
+## Task 013: Project Intelligence and Automated Reporting
+
+What changed:
+
+- Project pages now link to a Project Intelligence workspace.
+- FieldOS generates morning briefs, daily summaries, weekly progress reports, risk summaries, and pending decisions from stored project evidence.
+- Weekly reports can be exported as Markdown or PDF.
+- Weekly report generation can be queued for the worker and cached as a `ProjectReport`.
+- The Evidence Viewer can preview images, PDFs, and audio through signed URLs while showing transcript, vision analysis, source WhatsApp message, timeline references, and linked Action Items.
+- Generated reports are indexed for search after worker completion.
+
+How to test:
+
+1. Sign in and open a project with messages, Action Items, timeline events, photo analysis, or milestones.
+2. Open `/projects/<projectId>/intelligence`.
+3. Confirm Morning Brief, Daily Summary, Weekly Report, Risk Summary, Pending Decisions, and Evidence Gallery render.
+4. Click `Markdown` and confirm a report downloads.
+5. Click `PDF` and confirm a PDF report downloads.
+6. Click `Generate Report` and confirm a `REPORT_GENERATION` job is queued.
+7. Open an evidence item and confirm the Evidence Viewer shows the signed media preview plus source context.
+8. Open `/admin/operations` and confirm Report Generation appears in job metrics after jobs exist.
+
+Current limitation:
+
+- Local signed media URLs work when the API can read the stored file. Production API and worker services need shared object storage, such as S3, R2, or MinIO, before live WhatsApp media previews and worker-generated PDF links are fully reliable across separate services.
 
 ## Task 012: Photo Intelligence
 

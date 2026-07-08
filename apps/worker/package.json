@@ -16,6 +16,7 @@
     "@fieldos/ai": "workspace:*",
     "@fieldos/baileys-whatsapp": "workspace:*",
     "@fieldos/db": "workspace:*",
+    "@fieldos/intelligence": "workspace:*",
     "@fieldos/shared": "workspace:*",
     "ioredis": "^5.8.2",
     "zod": "^4.2.1"

@@ -8,6 +8,7 @@ import * as React from "react";
 
 import { AppShell } from "../../../components/app-shell";
 import { AuthGuard } from "../../../components/auth-guard";
+import { EvidenceViewer } from "../../../components/evidence-viewer";
 import { api, type Attachment, type Message } from "../../../lib/api";
 
 export default function ConversationDetailPage() {
@@ -38,6 +39,7 @@ function ConversationDetailContent() {
   const conversation = conversationQuery.data?.conversation;
   const messages = messagesQuery.data?.messages ?? [];
   const attachments = messages.flatMap((message) => message.attachments);
+  const [selectedEvidenceId, setSelectedEvidenceId] = React.useState<string | null>(null);
 
   if (conversationQuery.isLoading) {
     return <p className="text-sm text-slate-600">Loading conversation...</p>;
@@ -80,7 +82,11 @@ function ConversationDetailContent() {
             ) : (
               <div className="space-y-4">
                 {messages.map((message) => (
-                  <MessageBubble key={message.id} message={message} />
+                  <MessageBubble
+                    key={message.id}
+                    message={message}
+                    onOpenEvidence={setSelectedEvidenceId}
+                  />
                 ))}
               </div>
             )}
@@ -105,18 +111,29 @@ function ConversationDetailContent() {
             ) : (
               <div className="space-y-3">
                 {attachments.map((attachment) => (
-                  <AttachmentRow key={attachment.id} attachment={attachment} />
+                  <AttachmentRow
+                    key={attachment.id}
+                    attachment={attachment}
+                    onOpenEvidence={setSelectedEvidenceId}
+                  />
                 ))}
               </div>
             )}
           </CardContent>
         </Card>
       </div>
+      <EvidenceViewer evidenceId={selectedEvidenceId} onClose={() => setSelectedEvidenceId(null)} />
     </div>
   );
 }
 
-function MessageBubble({ message }: { message: Message }) {
+function MessageBubble({
+  message,
+  onOpenEvidence
+}: {
+  message: Message;
+  onOpenEvidence: (evidenceId: string) => void;
+}) {
   const outbound = message.direction === "OUTBOUND";
   const evidenceSummary = getEvidenceSummary(message.attachments);
 
@@ -141,6 +158,7 @@ function MessageBubble({ message }: { message: Message }) {
         {evidenceSummary.labels.length > 0 ? (
           <MessageEvidencePanel
             attachments={message.attachments}
+            onOpenEvidence={onOpenEvidence}
             outbound={outbound}
             summary={evidenceSummary}
           />
@@ -153,10 +171,12 @@ function MessageBubble({ message }: { message: Message }) {
 
 function MessageEvidencePanel({
   attachments,
+  onOpenEvidence,
   outbound,
   summary
 }: {
   attachments: Attachment[];
+  onOpenEvidence: (evidenceId: string) => void;
   outbound: boolean;
   summary: EvidenceSummaryView;
 }) {
@@ -228,7 +248,11 @@ function MessageEvidencePanel({
       {open ? (
         <div className="mt-3 space-y-2">
           {attachments.map((attachment) => (
-            <AttachmentRow attachment={attachment} key={attachment.id} />
+            <AttachmentRow
+              attachment={attachment}
+              key={attachment.id}
+              onOpenEvidence={onOpenEvidence}
+            />
           ))}
         </div>
       ) : null}
@@ -318,8 +342,13 @@ function MediaPlaceholder({ type }: { type: Message["type"] }) {
   );
 }
 
-function AttachmentRow({ attachment }: { attachment: Attachment }) {
-  const [analysisOpen, setAnalysisOpen] = React.useState(false);
+function AttachmentRow({
+  attachment,
+  onOpenEvidence
+}: {
+  attachment: Attachment;
+  onOpenEvidence: (evidenceId: string) => void;
+}) {
   const analysis = attachment.photoAnalysis;
 
   return (
@@ -333,6 +362,13 @@ function AttachmentRow({ attachment }: { attachment: Attachment }) {
       <div className="mt-1 text-xs text-slate-500">
         {attachment.mimeType} - {formatBytes(attachment.size)}
       </div>
+      <button
+        className="mt-3 rounded border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-white"
+        onClick={() => onOpenEvidence(attachment.id)}
+        type="button"
+      >
+        Open Evidence
+      </button>
       {analysis ? (
         <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
           <div className="flex items-center justify-between gap-3">
@@ -361,7 +397,7 @@ function AttachmentRow({ attachment }: { attachment: Attachment }) {
           ) : null}
           <button
             className="mt-3 rounded border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-white"
-            onClick={() => setAnalysisOpen(true)}
+            onClick={() => onOpenEvidence(attachment.id)}
             type="button"
           >
             Open Full Analysis
@@ -380,96 +416,6 @@ function AttachmentRow({ attachment }: { attachment: Attachment }) {
           {attachment.transcriptionError ? `: ${attachment.transcriptionError}` : ""}.
         </p>
       ) : null}
-      {analysisOpen && analysis ? (
-        <PhotoAnalysisPanel attachment={attachment} onClose={() => setAnalysisOpen(false)} />
-      ) : null}
-    </div>
-  );
-}
-
-function PhotoAnalysisPanel({
-  attachment,
-  onClose
-}: {
-  attachment: Attachment;
-  onClose: () => void;
-}) {
-  const analysis = attachment.photoAnalysis;
-
-  if (!analysis) {
-    return null;
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/30">
-      <div className="h-full w-full max-w-xl overflow-y-auto bg-white p-6 shadow-xl">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="text-xs font-semibold uppercase text-slate-500">Photo Intelligence</div>
-            <h2 className="mt-1 text-xl font-semibold text-slate-950">{attachment.filename}</h2>
-          </div>
-          <button
-            className="rounded border border-slate-300 px-3 py-1 text-sm font-medium text-slate-700"
-            onClick={onClose}
-            type="button"
-          >
-            Close
-          </button>
-        </div>
-
-        <div className="mt-6 flex h-56 items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 text-sm font-medium text-slate-500">
-          Original Photo
-        </div>
-
-        <div className="mt-6 space-y-5">
-          <AnalysisSection title="Summary">
-            <p>{analysis.summary}</p>
-          </AnalysisSection>
-          <AnalysisSection title="Detected Objects">
-            <TagList emptyLabel="Unable to determine." values={analysis.detectedObjects} />
-          </AnalysisSection>
-          <AnalysisSection title="Possible Issues">
-            <TagList
-              emptyLabel="No obvious issue visible. Needs Review."
-              values={analysis.possibleIssues}
-            />
-          </AnalysisSection>
-          <AnalysisSection title="Confidence">
-            <Badge variant="muted">{getVisionConfidenceLabel(analysis.confidence)}</Badge>
-          </AnalysisSection>
-          <AnalysisSection title="Source Message">
-            <p>{attachment.messageId}</p>
-          </AnalysisSection>
-          <AnalysisSection title="Linked Action Items">
-            <p>None linked.</p>
-          </AnalysisSection>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AnalysisSection({ children, title }: { children: React.ReactNode; title: string }) {
-  return (
-    <section className="text-sm text-slate-700">
-      <h3 className="text-xs font-semibold uppercase text-slate-500">{title}</h3>
-      <div className="mt-2">{children}</div>
-    </section>
-  );
-}
-
-function TagList({ emptyLabel, values }: { emptyLabel: string; values: string[] }) {
-  if (values.length === 0) {
-    return <p>{emptyLabel}</p>;
-  }
-
-  return (
-    <div className="flex flex-wrap gap-2">
-      {values.map((value) => (
-        <span className="rounded border border-slate-200 px-2 py-1 text-xs" key={value}>
-          {value}
-        </span>
-      ))}
     </div>
   );
 }

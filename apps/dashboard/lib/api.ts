@@ -25,12 +25,19 @@ export type ActionItemPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 export type MilestoneStatus = "UPCOMING" | "DUE_SOON" | "OVERDUE" | "COMPLETED";
 export type DashboardHealth = "HEALTHY" | "NEEDS_ATTENTION" | "CRITICAL";
 export type SearchSourceType =
-  "PROJECT" | "MESSAGE" | "TIMELINE_EVENT" | "ACTION_ITEM" | "AI_CLASSIFICATION" | "PHOTO_ANALYSIS";
+  | "PROJECT"
+  | "MESSAGE"
+  | "TIMELINE_EVENT"
+  | "ACTION_ITEM"
+  | "AI_CLASSIFICATION"
+  | "PHOTO_ANALYSIS"
+  | "PROJECT_REPORT";
 export type ProcessingJobType =
   | "SEARCH_INDEX"
   | "AI_CLASSIFICATION"
   | "VOICE_TRANSCRIPTION"
   | "PHOTO_ANALYSIS"
+  | "REPORT_GENERATION"
   | "MEDIA_DOWNLOAD";
 export type ProcessingJobStatus = "PENDING" | "RUNNING" | "FAILED" | "COMPLETED";
 export type WorkerStatus = "ONLINE" | "OFFLINE" | "STARTING" | "STOPPING";
@@ -150,6 +157,150 @@ export interface PhotoAnalysis extends PhotoAnalysisSummary {
 export interface PhotoAnalysisPage {
   analyses: PhotoAnalysis[];
   nextCursor: string | null;
+}
+
+export type IntelligenceSourceType =
+  | "ACTION_ITEM"
+  | "AI_CLASSIFICATION"
+  | "EVIDENCE"
+  | "MESSAGE"
+  | "PHOTO_ANALYSIS"
+  | "TIMELINE_EVENT"
+  | "MILESTONE";
+
+export interface IntelligenceSource {
+  id: string;
+  label: string;
+  type: IntelligenceSourceType;
+  href?: string;
+}
+
+export interface IntelligenceBullet {
+  text: string;
+  sources: IntelligenceSource[];
+}
+
+export interface IntelligenceRisk {
+  confidence: "HIGH" | "MEDIUM" | "LOW";
+  explanation: string;
+  mitigation: string;
+  sources: IntelligenceSource[];
+  title: string;
+}
+
+export interface PendingDecision {
+  category:
+    | "APPROVAL_REQUIRED"
+    | "CLIENT_FOLLOW_UP"
+    | "HIGH_PRIORITY_ACTION_ITEM"
+    | "INSPECTION_REVIEW"
+    | "SUPPLIER_FOLLOW_UP";
+  description: string;
+  priority: ActionItemPriority;
+  sources: IntelligenceSource[];
+  title: string;
+}
+
+export interface MorningBrief {
+  bullets: IntelligenceBullet[];
+  generatedAt: string;
+  title: string;
+}
+
+export interface DailySummary {
+  actionItemsCreated: IntelligenceBullet[];
+  approvalsReceived: IntelligenceBullet[];
+  evidenceReceived: IntelligenceBullet[];
+  inspectionsRequested: IntelligenceBullet[];
+  issuesRaised: IntelligenceBullet[];
+  timelineHighlights: IntelligenceBullet[];
+  title: string;
+  workCompleted: IntelligenceBullet[];
+}
+
+export interface WeeklyReport {
+  appendix: {
+    recentActionItems: IntelligenceBullet[];
+    recentDocuments: IntelligenceBullet[];
+    recentPhotos: IntelligenceBullet[];
+  };
+  completedWork: IntelligenceBullet[];
+  executiveSummary: IntelligenceBullet[];
+  generatedAt: string;
+  openRisks: IntelligenceRisk[];
+  outstandingDecisions: PendingDecision[];
+  progressThisWeek: IntelligenceBullet[];
+  project: {
+    code: string;
+    id: string;
+    name: string;
+    status: ProjectStatus;
+  };
+  recentEvidence: IntelligenceBullet[];
+  title: string;
+  upcomingWork: IntelligenceBullet[];
+}
+
+export interface ProjectReport {
+  id: string;
+  organizationId: string;
+  projectId: string;
+  type: "WEEKLY_PROGRESS";
+  status: "PENDING" | "RUNNING" | "FAILED" | "COMPLETED";
+  title: string;
+  content: unknown;
+  markdown: string | null;
+  pdfStorageKey: string | null;
+  pdfUrl?: string | null;
+  contentHash: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  generatedAt: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectIntelligence {
+  dailySummary: DailySummary;
+  morningBrief: MorningBrief;
+  pendingDecisions: PendingDecision[];
+  riskSummary: IntelligenceRisk[];
+  weeklyReport: WeeklyReport;
+}
+
+export interface EvidenceView {
+  id: string;
+  actionItems: ActionItem[];
+  conversation: {
+    id: string;
+    title: string;
+  };
+  createdAt: string;
+  filename: string;
+  message: {
+    body: string | null;
+    id: string;
+    occurredAt: string;
+  };
+  mimeType: string;
+  organizationId: string;
+  photoAnalysis: PhotoAnalysis | null;
+  project: ProjectReference | null;
+  signedUrl: string;
+  size: number;
+  sourceWhatsAppMessage: {
+    conversationTitle: string;
+    messageId: string;
+  };
+  timelineEvents: Array<{
+    id: string;
+    title: string;
+    description: string | null;
+    occurredAt: string;
+  }>;
+  transcript: string | null;
+  transcriptionStatus: VoiceTranscriptionStatus;
 }
 
 export interface Message {
@@ -551,6 +702,30 @@ export async function apiRequest<TResponse>(
   return data as TResponse;
 }
 
+async function apiTextRequest(path: string): Promise<string> {
+  const response = await fetch(`${apiBaseUrl}${path}`, {
+    credentials: "include"
+  });
+
+  if (!response.ok) {
+    throw new DashboardApiError(`Request failed with status ${response.status}`, response.status);
+  }
+
+  return response.text();
+}
+
+async function apiBlobRequest(path: string): Promise<Blob> {
+  const response = await fetch(`${apiBaseUrl}${path}`, {
+    credentials: "include"
+  });
+
+  if (!response.ok) {
+    throw new DashboardApiError(`Request failed with status ${response.status}`, response.status);
+  }
+
+  return response.blob();
+}
+
 export const api = {
   createOrganization: (body: { name: string; slug: string }) =>
     apiRequest<{ organization: Organization }>("/organizations", {
@@ -605,6 +780,8 @@ export const api = {
     apiRequest<{ analysis: PhotoAnalysis }>(`/photo-analysis/${photoAnalysisId}`),
   getEvidencePhotoAnalysis: (evidenceId: string) =>
     apiRequest<{ analysis: PhotoAnalysis }>(`/evidence/${evidenceId}/photo-analysis`),
+  getEvidenceView: (evidenceId: string) =>
+    apiRequest<{ evidence: EvidenceView }>(`/evidence/${evidenceId}/view`),
   getWhatsAppQr: (accountId: string) =>
     apiRequest<{ qr: string | null; status: WhatsAppAccountStatus }>(
       `/whatsapp/accounts/${accountId}/qr`
@@ -691,6 +868,31 @@ export const api = {
       `/projects/${projectId}/photo-analysis?${params.toString()}`
     );
   },
+  getProjectIntelligence: (projectId: string) =>
+    apiRequest<{ intelligence: ProjectIntelligence; latestReport: ProjectReport | null }>(
+      `/projects/${projectId}/intelligence`
+    ),
+  getProjectMorningBrief: (projectId: string) =>
+    apiRequest<{ morningBrief: MorningBrief }>(`/projects/${projectId}/morning-brief`),
+  getProjectDailySummary: (projectId: string) =>
+    apiRequest<{ dailySummary: DailySummary }>(`/projects/${projectId}/daily-summary`),
+  getProjectWeeklyReport: (projectId: string) =>
+    apiRequest<{ weeklyReport: WeeklyReport; latestReport: ProjectReport | null }>(
+      `/projects/${projectId}/weekly-report`
+    ),
+  getProjectRiskSummary: (projectId: string) =>
+    apiRequest<{ risks: IntelligenceRisk[] }>(`/projects/${projectId}/risks`),
+  getProjectPendingDecisions: (projectId: string) =>
+    apiRequest<{ pendingDecisions: PendingDecision[] }>(`/projects/${projectId}/pending-decisions`),
+  generateProjectReport: (projectId: string) =>
+    apiRequest<{ report: ProjectReport }>(`/projects/${projectId}/reports/generate`, {
+      body: JSON.stringify({ type: "WEEKLY_PROGRESS" }),
+      method: "POST"
+    }),
+  exportProjectWeeklyReportMarkdown: (projectId: string) =>
+    apiTextRequest(`/projects/${projectId}/weekly-report?format=markdown`),
+  exportProjectWeeklyReportPdf: (projectId: string) =>
+    apiBlobRequest(`/projects/${projectId}/weekly-report?format=pdf`),
   listProjectActionItems: (projectId: string) =>
     apiRequest<{ actionItems: ActionItem[] }>(`/projects/${projectId}/action-items`),
   listWhatsAppAccounts: (organizationId: string) => {

@@ -5,7 +5,7 @@
 | Purpose      | Track FieldOS milestone progress, task completion, technical debt, architecture decisions, and deployment readiness. |
 | Owner        | Founding Engineering                                                                                                 |
 | Status       | Active                                                                                                               |
-| Last Updated | 2026-07-07                                                                                                           |
+| Last Updated | 2026-07-08                                                                                                           |
 
 ## Table of Contents
 
@@ -19,7 +19,7 @@
 
 ## Current Milestone
 
-Task 012 Photo Intelligence is deployed to production. Live WhatsApp photo verification is pending a paired WhatsApp line and a real image message from an active chat.
+Task 013 Project Intelligence and Automated Reporting is implemented locally. Production deployment and live media/report verification are in progress.
 
 ## Completed Tasks
 
@@ -155,10 +155,20 @@ Task 012 Photo Intelligence is deployed to production. Live WhatsApp photo verif
   - Admin Operations now shows pending Photo Analysis jobs.
   - ADR 0012 documents the advisory Photo Intelligence decision.
   - Local validation passed for format, lint, typecheck, tests, and build.
+- Task 013: Project Intelligence and Automated Reporting.
+  - `packages/intelligence` added for deterministic project briefs, daily summaries, weekly progress reports, risk summaries, and pending decisions.
+  - Project intelligence API endpoints added for overview, morning brief, daily summary, weekly report, risks, pending decisions, and report generation.
+  - `ProjectReport` model, migration, and `REPORT_GENERATION` job type added.
+  - Worker-owned report generation caches Markdown/PDF output, writes report timeline events, and queues search indexing for generated reports.
+  - `StorageProvider` and `LocalStorageProvider` added with expiring signed media URLs.
+  - `GET /evidence/:id/view` and `GET /media/:token` added for secure evidence preview.
+  - Dashboard Project Intelligence page added with report export, generated report status, evidence gallery, and reusable Evidence Viewer.
+  - Search supports generated project reports.
+  - ADR 0013 documents the grounded project intelligence and reporting decision.
 
 ## In-Progress Tasks
 
-- None.
+- Task 013 deployment verification.
 
 ## Known Technical Debt
 
@@ -182,10 +192,12 @@ Task 012 Photo Intelligence is deployed to production. Live WhatsApp photo verif
 - Voice transcription uses OpenAI audio transcription when `OPENAI_API_KEY` is configured; OpenRouter chat keys do not provide audio transcription.
 - WhatsApp media is still filesystem-backed, so Railway worker redeploys may lose local media unless object storage is added.
 - Search uses PostgreSQL keyword search for the MVP; semantic/vector search is intentionally deferred until search telemetry proves the need.
+- Production media and worker-generated report PDF serving needs object storage or a genuinely shared volume because separate Railway API and worker services should not be assumed to share local files.
 
 ## Upcoming Milestones
 
-- Pair the WhatsApp line again and validate live photo analysis, mixed-evidence ingestion, voice transcription, AI classification, and search indexing.
+- Deploy Task 013, apply the `20260708010000_project_intelligence_reporting` migration, and verify project intelligence exports in production.
+- Pair the WhatsApp line again and validate live photo analysis, mixed-evidence ingestion, voice transcription, AI classification, project intelligence, evidence viewing, and search indexing.
 - Configure `OPENAI_API_KEY` for production voice transcription if voice transcript generation is required.
 - Configure branch protection for `main` and `develop`.
 - Create `develop` branch after remote setup.
@@ -213,6 +225,7 @@ Task 012 Photo Intelligence is deployed to production. Live WhatsApp photo verif
 - ADR 0010B: Use lightweight database-backed background jobs and worker heartbeat for operations observability.
 - ADR 0011: Use runtime unified evidence context for grouped operational updates.
 - ADR 0012: Analyze image attachments asynchronously as advisory Photo Intelligence.
+- ADR 0013: Generate grounded project intelligence and reports from stored FieldOS records, with signed evidence media access.
 
 ## Deployment Status
 
@@ -291,3 +304,8 @@ Task 012 Photo Intelligence is deployed to production. Live WhatsApp photo verif
   - Railway worker has `VISION_MODEL=openrouter/free` configured.
   - Live WhatsApp photo analysis verification is pending because the WhatsApp line must be paired and sent a real image from an active chat.
   - Production object storage/media serving is still pending; original image previews remain placeholder-based until storage is added.
+- Task 013 implementation is pending production deployment verification.
+  - Local API tests cover project intelligence, report export, queued report generation, signed evidence views, and cross-organization evidence isolation.
+  - Local dashboard tests cover Evidence Viewer rendering from signed evidence responses.
+  - Production deployment must configure `MEDIA_SIGNING_SECRET` for API and worker.
+  - Live WhatsApp media previews and worker-generated PDF links require shared durable storage before they can be fully verified across separate Railway services.

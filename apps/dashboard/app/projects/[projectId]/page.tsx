@@ -89,18 +89,38 @@ function ProjectDetailContent() {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-semibold text-slate-950">{project.name}</h1>
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-slate-500">{project.code}</span>
-          <Badge variant="muted">{project.status}</Badge>
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div className="space-y-2">
+          <h1 className="text-2xl font-semibold text-slate-950">{project.name}</h1>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-slate-500">{project.code}</span>
+            <Badge variant="muted">{project.status}</Badge>
+          </div>
         </div>
+        <Link
+          className="inline-flex h-10 items-center justify-center rounded-md bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+          href={`/projects/${project.id}/intelligence`}
+        >
+          Project Intelligence
+        </Link>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
         <PlaceholderCard title="Timeline coming soon" />
         <PlaceholderCard title="WhatsApp messages coming soon" />
-        <PlaceholderCard title="Reports coming soon" />
+        <Card>
+          <CardHeader>
+            <CardTitle>Reports</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Link
+              className="text-sm font-medium text-slate-700 hover:text-slate-950"
+              href={`/projects/${project.id}/intelligence`}
+            >
+              Open Project Intelligence
+            </Link>
+          </CardContent>
+        </Card>
       </div>
 
       <Card>

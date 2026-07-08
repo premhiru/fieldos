@@ -10,6 +10,8 @@ import type {
   ProcessingJobStatus,
   ProcessingJobType,
   PrismaClient,
+  ProjectReportStatus,
+  ProjectReportType,
   ProjectStatus,
   SearchDocumentSourceType,
   WorkerStatus,
@@ -18,15 +20,18 @@ import type {
 import {
   getJobMetrics,
   getWorkerEffectiveStatus,
+  buildProjectIntelligenceContext,
   buildUnifiedEvidenceContext,
   Prisma,
   retryFailedProcessingJobs,
   retryProcessingJob,
   queueAIClassificationJob,
+  queueReportGenerationJob,
   queueSearchIndexJob,
   type EvidenceSummary,
   type UnifiedEvidenceContext
 } from "@fieldos/db";
+import type { ProjectIntelligenceContext } from "@fieldos/intelligence";
 import type {
   AttachmentRecord,
   ConversationRecord,
@@ -54,6 +59,8 @@ export type SearchSourceType = SearchDocumentSourceType;
 export type JobType = ProcessingJobType;
 export type JobStatus = ProcessingJobStatus;
 export type WorkerHealthStatus = WorkerStatus;
+export type ReportType = ProjectReportType;
+export type ReportStatus = ProjectReportStatus;
 
 export interface SafeUser {
   id: string;
@@ -340,6 +347,64 @@ export interface PhotoAnalysisPageRecord {
   nextCursor: string | null;
 }
 
+export interface ProjectReportRecord {
+  id: string;
+  organizationId: string;
+  projectId: string;
+  type: ReportType;
+  status: ReportStatus;
+  title: string;
+  content: unknown;
+  markdown: string | null;
+  pdfStorageKey: string | null;
+  contentHash: string | null;
+  periodStart: Date | null;
+  periodEnd: Date | null;
+  generatedAt: Date | null;
+  errorMessage: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface EvidenceViewRecord {
+  id: string;
+  actionItems: ActionItemRecord[];
+  conversation: {
+    id: string;
+    title: string;
+  };
+  createdAt: Date;
+  filename: string;
+  message: {
+    body: string | null;
+    id: string;
+    occurredAt: Date;
+  };
+  mimeType: string;
+  organizationId: string;
+  photoAnalysis: PhotoAnalysisRecord | null;
+  project: {
+    code: string;
+    id: string;
+    name: string;
+  } | null;
+  signedUrl?: string;
+  size: number;
+  sourceWhatsAppMessage: {
+    conversationTitle: string;
+    messageId: string;
+  };
+  storageKey: string;
+  timelineEvents: Array<{
+    id: string;
+    title: string;
+    description: string | null;
+    occurredAt: Date;
+  }>;
+  transcript: string | null;
+  transcriptionStatus: string;
+}
+
 export interface ProcessingJobRecord {
   id: string;
   organizationId: string;
@@ -450,6 +515,13 @@ export interface AppRepository extends MessagingRepository {
   getMessageEvidenceSummary(messageId: string): Promise<EvidenceSummary | null>;
   getPhotoAnalysis(photoAnalysisId: string): Promise<PhotoAnalysisRecord | null>;
   getPhotoAnalysisByEvidenceId(evidenceId: string): Promise<PhotoAnalysisRecord | null>;
+  getProjectIntelligenceContext(projectId: string): Promise<ProjectIntelligenceContext | null>;
+  getLatestProjectReport(input: {
+    projectId: string;
+    type: ReportType;
+  }): Promise<ProjectReportRecord | null>;
+  getEvidenceView(evidenceId: string): Promise<EvidenceViewRecord | null>;
+  queueProjectReport(input: { projectId: string; type: ReportType }): Promise<ProjectReportRecord>;
   getActionItem(actionItemId: string): Promise<ActionItemRecord | null>;
   getOperationsDashboard(input: {
     organizationId: string;
@@ -849,6 +921,174 @@ export function createPrismaRepository(): AppRepository {
       });
 
       return analysis ? toPhotoAnalysisRecord(analysis) : null;
+    },
+
+    async getProjectIntelligenceContext(projectId) {
+      const prisma = await getPrisma();
+      return buildProjectIntelligenceContext(prisma, projectId);
+    },
+
+    async getLatestProjectReport(input) {
+      const prisma = await getPrisma();
+      const report = await prisma.projectReport.findFirst({
+        orderBy: {
+          createdAt: "desc"
+        },
+        where: {
+          projectId: input.projectId,
+          type: input.type
+        }
+      });
+
+      return report ? toProjectReportRecord(report) : null;
+    },
+
+    async queueProjectReport(input) {
+      const prisma = await getPrisma();
+      const existing = await prisma.projectReport.findFirst({
+        orderBy: {
+          createdAt: "desc"
+        },
+        where: {
+          createdAt: {
+            gte: new Date(Date.now() - 60 * 60 * 1000)
+          },
+          projectId: input.projectId,
+          status: {
+            in: ["COMPLETED", "PENDING", "RUNNING"]
+          },
+          type: input.type
+        }
+      });
+
+      if (existing) {
+        return toProjectReportRecord(existing);
+      }
+
+      const project = await prisma.project.findUniqueOrThrow({
+        select: {
+          code: true,
+          name: true,
+          organizationId: true
+        },
+        where: {
+          id: input.projectId
+        }
+      });
+      const periodEnd = new Date();
+      const periodStart = new Date(periodEnd.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+      return prisma.$transaction(async (tx) => {
+        const report = await tx.projectReport.create({
+          data: {
+            organizationId: project.organizationId,
+            periodEnd,
+            periodStart,
+            projectId: input.projectId,
+            status: "PENDING",
+            title: `${project.name} Weekly Progress Report`,
+            type: input.type
+          }
+        });
+
+        await queueReportGenerationJob(tx, {
+          organizationId: project.organizationId,
+          projectId: input.projectId,
+          sourceId: report.id
+        });
+
+        return toProjectReportRecord(report);
+      });
+    },
+
+    async getEvidenceView(evidenceId) {
+      const prisma = await getPrisma();
+      const attachment = await prisma.attachment.findUnique({
+        include: {
+          message: {
+            include: {
+              actionItems: {
+                include: actionItemInclude()
+              },
+              conversation: {
+                include: {
+                  project: {
+                    select: {
+                      code: true,
+                      id: true,
+                      name: true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          photoAnalysis: {
+            include: photoAnalysisInclude()
+          }
+        },
+        where: {
+          id: evidenceId
+        }
+      });
+
+      if (!attachment) {
+        return null;
+      }
+
+      const timelineEvents = await prisma.event.findMany({
+        orderBy: {
+          occurredAt: "desc"
+        },
+        take: 20,
+        where: {
+          OR: [
+            {
+              sourceId: attachment.messageId,
+              sourceType: "MESSAGE"
+            },
+            {
+              sourceId: attachment.id
+            }
+          ]
+        }
+      });
+
+      return {
+        actionItems: attachment.message.actionItems,
+        conversation: {
+          id: attachment.message.conversation.id,
+          title: attachment.message.conversation.title
+        },
+        createdAt: attachment.createdAt,
+        filename: attachment.filename,
+        id: attachment.id,
+        message: {
+          body: attachment.message.body,
+          id: attachment.message.id,
+          occurredAt: attachment.message.occurredAt
+        },
+        mimeType: attachment.mimeType,
+        organizationId: attachment.message.conversation.organizationId,
+        photoAnalysis: attachment.photoAnalysis
+          ? toPhotoAnalysisRecord(attachment.photoAnalysis)
+          : null,
+        project: attachment.message.conversation.project,
+        size: attachment.size,
+        sourceWhatsAppMessage: {
+          conversationTitle: attachment.message.conversation.title,
+          messageId: attachment.message.id
+        },
+        storageKey: attachment.storageKey,
+        timelineEvents: timelineEvents.map((event) => ({
+          description: event.description,
+          id: event.id,
+          occurredAt: event.occurredAt,
+          title: event.title
+        })),
+        transcript: attachment.transcript,
+        transcriptionStatus: attachment.transcriptionStatus
+      };
     },
 
     async getActionItem(actionItemId) {
@@ -2386,6 +2626,44 @@ function toPhotoAnalysisRecord(analysis: {
     provider: analysis.provider,
     summary: analysis.summary,
     tags: jsonStringArray(analysis.tags)
+  };
+}
+
+function toProjectReportRecord(report: {
+  content: Prisma.JsonValue | null;
+  contentHash: string | null;
+  createdAt: Date;
+  errorMessage: string | null;
+  generatedAt: Date | null;
+  id: string;
+  markdown: string | null;
+  organizationId: string;
+  pdfStorageKey: string | null;
+  periodEnd: Date | null;
+  periodStart: Date | null;
+  projectId: string;
+  status: ReportStatus;
+  title: string;
+  type: ReportType;
+  updatedAt: Date;
+}): ProjectReportRecord {
+  return {
+    content: report.content,
+    contentHash: report.contentHash,
+    createdAt: report.createdAt,
+    errorMessage: report.errorMessage,
+    generatedAt: report.generatedAt,
+    id: report.id,
+    markdown: report.markdown,
+    organizationId: report.organizationId,
+    pdfStorageKey: report.pdfStorageKey,
+    periodEnd: report.periodEnd,
+    periodStart: report.periodStart,
+    projectId: report.projectId,
+    status: report.status,
+    title: report.title,
+    type: report.type,
+    updatedAt: report.updatedAt
   };
 }
 

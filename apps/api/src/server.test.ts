@@ -13,6 +13,7 @@ import type {
 } from "@fieldos/messaging";
 import type { WhatsAppQrStore } from "@fieldos/baileys-whatsapp/qr-store";
 import type { EvidenceSummary, UnifiedEvidenceContext } from "@fieldos/db";
+import type { ProjectIntelligenceContext } from "@fieldos/intelligence";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
@@ -30,6 +31,7 @@ import type {
   MilestoneRecord,
   OperationsDashboardRecord,
   PhotoAnalysisRecord,
+  ProjectReportRecord,
   ProcessingJobRecord,
   SearchDocumentsResult,
   SearchSourceType,
@@ -41,6 +43,7 @@ import type {
 vi.stubEnv("CORS_ORIGIN", "http://localhost:3000");
 vi.stubEnv("DATABASE_URL", "postgresql://fieldos:fieldos@localhost:5432/fieldos?schema=public");
 vi.stubEnv("JWT_SECRET", "test-secret-that-is-long-enough");
+vi.stubEnv("MEDIA_SIGNING_SECRET", "test-media-signing-secret");
 vi.stubEnv("NODE_ENV", "production");
 vi.stubEnv("PORT", "3001");
 
@@ -899,6 +902,176 @@ describe("FieldOS API auth and tenancy", () => {
     expect(projectResponse.statusCode).toBe(404);
   });
 
+  it("returns project intelligence, exports reports, and queues cached report generation", async () => {
+    const cookie = await signup(server);
+    const organization = await createOrganization(server, cookie);
+    const project = await repository.createProject({
+      code: "INT-001",
+      name: "Intelligence project",
+      organizationId: organization.id,
+      status: "ACTIVE"
+    });
+    const message = await createProjectMessage(repository, organization.id, project.id);
+    const conversation = repository.conversations.find(
+      (candidate) => candidate.id === message.conversationId
+    );
+
+    if (!conversation) {
+      throw new Error("conversation missing");
+    }
+
+    const attachment = await repository.createAttachment({
+      conversationId: conversation.id,
+      filename: "weekly-photo.jpg",
+      messageId: message.id,
+      mimeType: "image/jpeg",
+      size: 2048,
+      storageKey: "whatsapp-media/weekly-photo.jpg"
+    });
+    repository.addCompletedClassification({
+      category: "DEFECT",
+      messageId: message.id,
+      organizationId: organization.id,
+      projectId: project.id
+    });
+    repository.addActionItem({
+      messageId: message.id,
+      organizationId: organization.id,
+      priority: "HIGH",
+      projectId: project.id
+    });
+    repository.addPhotoAnalysis({
+      attachment,
+      conversation,
+      message,
+      organizationId: organization.id,
+      project,
+      summary: "Photo shows cable tray works needing review."
+    });
+    repository.addEvent({
+      organizationId: organization.id,
+      projectId: project.id,
+      sourceType: "MESSAGE",
+      title: "Site Update"
+    });
+    repository.addMilestone({
+      dueDate: new Date("2026-07-12T00:00:00.000Z"),
+      organizationId: organization.id,
+      projectId: project.id,
+      title: "Client inspection"
+    });
+
+    const intelligenceResponse = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "GET",
+      url: `/projects/${project.id}/intelligence`
+    });
+    const markdownResponse = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "GET",
+      url: `/projects/${project.id}/weekly-report?format=markdown`
+    });
+    const pdfResponse = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "GET",
+      url: `/projects/${project.id}/weekly-report?format=pdf`
+    });
+    const generateResponse = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "POST",
+      payload: {
+        type: "WEEKLY_PROGRESS"
+      },
+      url: `/projects/${project.id}/reports/generate`
+    });
+
+    expect(intelligenceResponse.statusCode).toBe(200);
+    expect(intelligenceResponse.json().intelligence.morningBrief.bullets.length).toBeGreaterThan(0);
+    expect(markdownResponse.statusCode).toBe(200);
+    expect(markdownResponse.body).toContain("Executive Summary");
+    expect(pdfResponse.statusCode).toBe(200);
+    expect(pdfResponse.body.slice(0, 5)).toBe("%PDF-");
+    expect(generateResponse.statusCode).toBe(200);
+    expect(generateResponse.json().report.status).toBe("PENDING");
+    expect(
+      repository.processingJobs.some(
+        (job) =>
+          job.type === "REPORT_GENERATION" && job.sourceId === generateResponse.json().report.id
+      )
+    ).toBe(true);
+  });
+
+  it("returns signed evidence views and blocks cross-organization evidence access", async () => {
+    const ownerCookie = await signup(server, "owner-evidence@example.com");
+    const organization = await createOrganization(server, ownerCookie);
+    const project = await repository.createProject({
+      code: "EVIEW",
+      name: "Evidence view project",
+      organizationId: organization.id,
+      status: "ACTIVE"
+    });
+    const message = await createProjectMessage(repository, organization.id, project.id);
+    const conversation = repository.conversations.find(
+      (candidate) => candidate.id === message.conversationId
+    );
+
+    if (!conversation) {
+      throw new Error("conversation missing");
+    }
+
+    const attachment = await repository.createAttachment({
+      conversationId: conversation.id,
+      filename: "evidence.jpg",
+      messageId: message.id,
+      mimeType: "image/jpeg",
+      size: 1024,
+      storageKey: "whatsapp-media/evidence.jpg"
+    });
+    repository.addActionItem({
+      messageId: message.id,
+      organizationId: organization.id,
+      projectId: project.id
+    });
+    repository.addPhotoAnalysis({
+      attachment,
+      conversation,
+      message,
+      organizationId: organization.id,
+      project,
+      summary: "Evidence photo summary."
+    });
+    const outsiderCookie = await signup(server, "outsider-evidence@example.com");
+
+    const ownerResponse = await server.inject({
+      headers: {
+        cookie: ownerCookie
+      },
+      method: "GET",
+      url: `/evidence/${attachment.id}/view`
+    });
+    const outsiderResponse = await server.inject({
+      headers: {
+        cookie: outsiderCookie
+      },
+      method: "GET",
+      url: `/evidence/${attachment.id}/view`
+    });
+
+    expect(ownerResponse.statusCode).toBe(200);
+    expect(ownerResponse.json().evidence.signedUrl).toContain("/media/");
+    expect(ownerResponse.json().evidence.storageKey).toBeUndefined();
+    expect(ownerResponse.json().evidence.actionItems).toHaveLength(1);
+    expect(outsiderResponse.statusCode).toBe(404);
+  });
+
   it("lists project AI classifications and Action Items", async () => {
     const cookie = await signup(server);
     const organization = await createOrganization(server, cookie);
@@ -1646,6 +1819,7 @@ class InMemoryRepository implements AppRepository {
   organizations: Omit<OrganizationRecord, "role">[] = [];
   participants: ParticipantRecord[] = [];
   photoAnalyses: PhotoAnalysisRecord[] = [];
+  projectReports: ProjectReportRecord[] = [];
   projects: ProjectRecord[] = [];
   classifications: AIMessageClassificationRecord[] = [];
   actionItems: ActionItemRecord[] = [];
@@ -2344,6 +2518,208 @@ class InMemoryRepository implements AppRepository {
     };
   }
 
+  async getProjectIntelligenceContext(
+    projectId: string
+  ): Promise<ProjectIntelligenceContext | null> {
+    const project = this.projects.find((candidate) => candidate.id === projectId);
+
+    if (!project) {
+      return null;
+    }
+
+    const conversations = this.conversations.filter(
+      (conversation) => conversation.projectId === projectId
+    );
+    const conversationIds = new Set(conversations.map((conversation) => conversation.id));
+    const messages = this.messages.filter((message) => conversationIds.has(message.conversationId));
+    const messageIds = new Set(messages.map((message) => message.id));
+
+    return {
+      actionItems: this.actionItems
+        .filter((item) => item.projectId === projectId || item.suggestedProjectId === projectId)
+        .map((item) => ({
+          createdAt: item.createdAt,
+          description: item.description,
+          id: item.id,
+          messageId: item.messageId,
+          priority: item.priority,
+          status: item.status,
+          title: item.title,
+          type: item.type,
+          updatedAt: item.updatedAt
+        })),
+      classifications: this.classifications
+        .filter((classification) => classification.projectId === projectId)
+        .map((classification) => ({
+          actionRequired: classification.actionRequired,
+          category: classification.category,
+          confidence: classification.confidence,
+          createdAt: classification.createdAt,
+          id: classification.id,
+          location: classification.location,
+          messageId: classification.messageId,
+          reasoningSummary: classification.reasoningSummary,
+          status: classification.status,
+          summary: classification.summary,
+          updatedAt: classification.updatedAt
+        })),
+      evidence: this.attachments
+        .filter((attachment) => messageIds.has(attachment.messageId))
+        .map((attachment) => ({
+          createdAt: attachment.createdAt,
+          filename: attachment.filename,
+          id: attachment.id,
+          messageId: attachment.messageId,
+          mimeType: attachment.mimeType,
+          transcript: attachment.transcript,
+          transcriptionStatus: attachment.transcriptionStatus
+        })),
+      events: this.events
+        .filter((event) => event.projectId === projectId)
+        .map((event) => ({
+          description: event.description,
+          eventType: event.eventType,
+          id: event.id,
+          occurredAt: event.occurredAt,
+          sourceId: event.sourceId,
+          sourceType: event.sourceType,
+          title: event.title
+        })),
+      generatedAt: new Date("2026-07-08T00:00:00.000Z"),
+      milestones: this.milestones
+        .filter((milestone) => milestone.projectId === projectId)
+        .map((milestone) => ({
+          dueDate: milestone.dueDate,
+          id: milestone.id,
+          status: milestone.status,
+          title: milestone.title
+        })),
+      photoAnalyses: this.photoAnalyses
+        .filter((analysis) => analysis.projectId === projectId)
+        .map((analysis) => ({
+          confidence: analysis.confidence,
+          createdAt: analysis.createdAt,
+          detectedObjects: analysis.detectedObjects,
+          evidenceId: analysis.evidenceId,
+          id: analysis.id,
+          possibleIssues: analysis.possibleIssues,
+          summary: analysis.summary,
+          tags: analysis.tags
+        })),
+      project: {
+        code: project.code,
+        id: project.id,
+        name: project.name,
+        status: project.status
+      }
+    };
+  }
+
+  async getLatestProjectReport(input: {
+    projectId: string;
+    type: ProjectReportRecord["type"];
+  }): Promise<ProjectReportRecord | null> {
+    return (
+      this.projectReports
+        .filter((report) => report.projectId === input.projectId && report.type === input.type)
+        .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())[0] ?? null
+    );
+  }
+
+  async queueProjectReport(input: {
+    projectId: string;
+    type: ProjectReportRecord["type"];
+  }): Promise<ProjectReportRecord> {
+    const project = this.projects.find((candidate) => candidate.id === input.projectId);
+
+    if (!project) {
+      throw new Error("project missing in test repository");
+    }
+
+    const now = new Date();
+    const report: ProjectReportRecord = {
+      content: null,
+      contentHash: null,
+      createdAt: now,
+      errorMessage: null,
+      generatedAt: null,
+      id: nextId("report"),
+      markdown: null,
+      organizationId: project.organizationId,
+      pdfStorageKey: null,
+      periodEnd: now,
+      periodStart: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),
+      projectId: project.id,
+      status: "PENDING",
+      title: `${project.name} Weekly Progress Report`,
+      type: input.type,
+      updatedAt: now
+    };
+    this.projectReports.push(report);
+    this.addProcessingJob({
+      organizationId: project.organizationId,
+      projectId: project.id,
+      sourceId: report.id,
+      sourceType: "PROJECT_REPORT",
+      type: "REPORT_GENERATION"
+    });
+    return report;
+  }
+
+  async getEvidenceView(evidenceId: string) {
+    const attachment = this.attachments.find((candidate) => candidate.id === evidenceId);
+
+    if (!attachment) {
+      return null;
+    }
+
+    const message = this.messages.find((candidate) => candidate.id === attachment.messageId);
+    const conversation = message
+      ? this.conversations.find((candidate) => candidate.id === message.conversationId)
+      : null;
+
+    if (!message || !conversation) {
+      return null;
+    }
+
+    return {
+      actionItems: this.actionItems.filter((item) => item.messageId === message.id),
+      conversation: {
+        id: conversation.id,
+        title: conversation.title
+      },
+      createdAt: attachment.createdAt,
+      filename: attachment.filename,
+      id: attachment.id,
+      message: {
+        body: message.body,
+        id: message.id,
+        occurredAt: message.occurredAt
+      },
+      mimeType: attachment.mimeType,
+      organizationId: conversation.organizationId,
+      photoAnalysis:
+        this.photoAnalyses.find((analysis) => analysis.evidenceId === attachment.id) ?? null,
+      project: conversation.project,
+      size: attachment.size,
+      sourceWhatsAppMessage: {
+        conversationTitle: conversation.title,
+        messageId: message.id
+      },
+      storageKey: attachment.storageKey,
+      timelineEvents: this.events
+        .filter((event) => event.sourceId === message.id || event.sourceId === attachment.id)
+        .map((event) => ({
+          description: event.description,
+          id: event.id,
+          occurredAt: event.occurredAt,
+          title: event.title
+        })),
+      transcript: attachment.transcript,
+      transcriptionStatus: attachment.transcriptionStatus
+    };
+  }
+
   async ignoreActionItem(input: {
     actionItemId: string;
     userId: string;
@@ -2985,6 +3361,25 @@ class InMemoryRepository implements AppRepository {
       title: `Photo analysis: ${analysis.evidence.filename}`,
       updatedAt: analysis.createdAt
     }));
+    const projectReportDocuments = this.projectReports
+      .filter((report) => report.status === "COMPLETED")
+      .map((report) => ({
+        createdAt: report.createdAt,
+        id: `search_project_report_${report.id}`,
+        metadata: {
+          reportType: report.type,
+          status: report.status
+        },
+        occurredAt: report.generatedAt ?? report.updatedAt,
+        organizationId: report.organizationId,
+        project: this.projectReference(report.projectId),
+        projectId: report.projectId,
+        snippet: report.markdown ?? report.title,
+        sourceId: report.id,
+        sourceType: "PROJECT_REPORT" as const,
+        title: report.title,
+        updatedAt: report.updatedAt
+      }));
 
     return [
       ...projectDocuments,
@@ -2992,7 +3387,8 @@ class InMemoryRepository implements AppRepository {
       ...eventDocuments,
       ...actionItemDocuments,
       ...classificationDocuments,
-      ...photoAnalysisDocuments
+      ...photoAnalysisDocuments,
+      ...projectReportDocuments
     ];
   }
 
@@ -3006,7 +3402,8 @@ class InMemoryRepository implements AppRepository {
         "AI_CLASSIFICATION",
         "VOICE_TRANSCRIPTION",
         "MEDIA_DOWNLOAD",
-        "PHOTO_ANALYSIS"
+        "PHOTO_ANALYSIS",
+        "REPORT_GENERATION"
       ] as const
     ).map((type) => {
       const jobs = this.processingJobs.filter(

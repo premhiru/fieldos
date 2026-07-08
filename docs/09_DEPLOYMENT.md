@@ -5,7 +5,7 @@
 | Purpose      | Define the first production hosting approach for FieldOS services. |
 | Owner        | Founding Engineering                                               |
 | Status       | Active                                                             |
-| Last Updated | 2026-07-02                                                         |
+| Last Updated | 2026-07-08                                                         |
 
 ## Table of Contents
 
@@ -72,6 +72,7 @@ REDIS_URL=${{Redis.REDIS_URL}}
 JWT_SECRET=<generated secret, at least 16 characters>
 CORS_ORIGIN=https://fieldos-sand.vercel.app
 WHATSAPP_STORAGE_PATH=/data/whatsapp
+MEDIA_SIGNING_SECRET=<generated secret shared by API and worker>
 WHATSAPP_SESSION_POLL_INTERVAL_MS=10000
 ```
 
@@ -86,6 +87,7 @@ AI_BASE_URL=https://openrouter.ai/api/v1
 AI_MODEL=openrouter/free
 VISION_MODEL=openrouter/free
 WHATSAPP_STORAGE_PATH=/data/whatsapp
+MEDIA_SIGNING_SECRET=<generated secret shared by API and worker>
 WHATSAPP_SESSION_POLL_INTERVAL_MS=10000
 ```
 
@@ -115,8 +117,10 @@ NEXT_PUBLIC_API_URL=https://fieldos-api-production.up.railway.app
 - The worker should restart on failure.
 - Keep Postgres and Redis private to Railway services where possible.
 - Use a dedicated business WhatsApp test number before live pairing.
+- Use durable object storage or a truly shared volume for production media and generated report PDFs. Railway API and worker services should not be assumed to share local filesystem state.
 
 ## Open Items
 
 - Baileys session files need a persistent Railway volume or object storage before live WhatsApp pairing.
+- Production media previews and worker-generated report PDFs need object storage such as S3, R2, or MinIO if API and worker run as separate services.
 - Railway config-as-code was not adopted because the generated TypeScript SDK import failed on Windows in this environment.

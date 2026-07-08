@@ -28,7 +28,8 @@ const sourceTypes: Array<{ label: string; value: SearchSourceType | "" }> = [
   { label: "Timeline Events", value: "TIMELINE_EVENT" },
   { label: "Action Items", value: "ACTION_ITEM" },
   { label: "AI Classifications", value: "AI_CLASSIFICATION" },
-  { label: "Photo Analysis", value: "PHOTO_ANALYSIS" }
+  { label: "Photo Analysis", value: "PHOTO_ANALYSIS" },
+  { label: "Project Reports", value: "PROJECT_REPORT" }
 ];
 
 export default function SearchPage() {
@@ -277,7 +278,11 @@ function getSourceHref(result: SearchResult): string {
   }
 
   if (result.sourceType === "PHOTO_ANALYSIS") {
-    return result.projectId ? `/projects/${result.projectId}` : "/search";
+    return result.projectId ? `/projects/${result.projectId}/intelligence` : "/search";
+  }
+
+  if (result.sourceType === "PROJECT_REPORT") {
+    return result.projectId ? `/projects/${result.projectId}/intelligence` : "/search";
   }
 
   return result.projectId ? `/projects/${result.projectId}` : "/search";

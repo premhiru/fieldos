@@ -5,7 +5,7 @@
 | Purpose      | Describe the FieldOS system architecture, boundaries, integration points, and evolution plan. |
 | Owner        | Engineering                                                                                   |
 | Status       | Draft                                                                                         |
-| Last Updated | 2026-07-07                                                                                    |
+| Last Updated | 2026-07-08                                                                                    |
 
 ## Table of Contents
 
@@ -19,6 +19,8 @@
 - [AI Classification](#ai-classification)
 - [Unified Evidence Processing](#unified-evidence-processing)
 - [Photo Intelligence](#photo-intelligence)
+- [Project Intelligence and Reporting](#project-intelligence-and-reporting)
+- [Media Serving](#media-serving)
 - [Operations Command Center](#operations-command-center)
 - [Background Processing and Operations Health](#background-processing-and-operations-health)
 - [AI Search](#ai-search)
@@ -59,6 +61,7 @@ Current application boundaries:
 - `packages/auth`: Password hashing, JWT signing/verification, auth schemas, and session constants.
 - `packages/ai`: AI message classification, vision analysis, extraction, prompt versioning, and action item processing.
 - `packages/db`: Prisma schema, migrations, Prisma client, and database types.
+- `packages/intelligence`: Deterministic project intelligence summaries and report export helpers.
 - `packages/integrations/whatsapp/baileys`: WhatsApp Web adapter, QR store, session storage, message normalization, and ingestion.
 - `packages/ui`: Reusable shadcn-style UI primitives.
 - `packages/shared`: Environment, logging, API client utility, constants, and shared helpers.
@@ -68,6 +71,7 @@ Current application boundaries:
 - `packages/messaging` owns channel-agnostic conversation and message business rules.
 - `packages/integrations/whatsapp/baileys` owns WhatsApp-specific session state, QR pairing, history discovery, and provider payload normalization.
 - `packages/ai` owns AI prompt construction, provider calls, output validation, classification persistence, photo analysis provider calls, and action item creation.
+- `packages/intelligence` owns project brief/report composition and export formatting. It consumes prepared records and does not call external providers.
 - `apps/api` owns authentication, tenant authorization, and external HTTP contracts.
 - `apps/worker` owns asynchronous processing loops, worker heartbeat, and background job execution. It must keep provider failures and search indexing out of request and ingestion paths.
 
@@ -170,6 +174,42 @@ Vision output is advisory. It can help field teams notice possible issues, but i
 
 Photo analysis results are visible in the inbox, project detail page, command-center recent evidence snippets, admin operations health, and AI Search. The API exposes project-scoped and evidence-scoped read routes while keeping authorization organization-scoped.
 
+## Project Intelligence and Reporting
+
+Project Intelligence is grounded summarization over FieldOS records. The API builds a `ProjectIntelligenceContext` from timeline events, Action Items, AI classifications, photo analyses, voice transcripts, evidence metadata, and milestones, then passes that context to `packages/intelligence`.
+
+The intelligence package exposes:
+
+- `generateMorningBrief()`
+- `generateDailySummary()`
+- `generateWeeklyReport()`
+- `generateRiskSummary()`
+- `generatePendingDecisions()`
+
+The service is deterministic for the MVP. It does not call an AI provider and it does not store hidden reasoning. Every report section carries lightweight source references so UI surfaces can link back to messages, evidence, Action Items, events, and analyses.
+
+Report generation can run synchronously for ad hoc export or asynchronously through `REPORT_GENERATION` jobs. Worker-generated reports are cached in `ProjectReport`, export Markdown and PDF, create a timeline event, and queue search indexing for the completed report.
+
+Project intelligence API endpoints:
+
+- `GET /projects/:projectId/intelligence`
+- `GET /projects/:projectId/morning-brief`
+- `GET /projects/:projectId/daily-summary`
+- `GET /projects/:projectId/weekly-report`
+- `GET /projects/:projectId/risks`
+- `GET /projects/:projectId/pending-decisions`
+- `POST /projects/:projectId/reports/generate`
+
+Dashboard intelligence surfaces must remain presentation-oriented. They call API endpoints, render report sections, request exports, and open evidence through the reusable Evidence Viewer.
+
+## Media Serving
+
+FieldOS now uses a `StorageProvider` abstraction with `upload()`, `download()`, `getSignedUrl()`, and `delete()` methods. `LocalStorageProvider` is the local implementation and signs API media URLs with `MEDIA_SIGNING_SECRET`.
+
+The dashboard never receives raw storage keys. It requests evidence through `GET /evidence/:id/view`, receives a short-lived signed URL, and previews media through `GET /media/:token`.
+
+Production deployments should replace or back `LocalStorageProvider` with durable shared object storage such as S3, R2, or MinIO. Separate API and worker services cannot reliably share local files unless the platform provides a shared volume.
+
 ## Operations Command Center
 
 The Operations Command Center is the authenticated homepage. The dashboard remains presentation-oriented and consumes organization-scoped aggregates from the API instead of calculating health locally.
@@ -206,6 +246,7 @@ Supported job types are:
 - `VOICE_TRANSCRIPTION`
 - `MEDIA_DOWNLOAD`
 - `PHOTO_ANALYSIS`
+- `REPORT_GENERATION`
 
 The worker claims pending jobs, marks them running, logs job ID, organization ID, optional project ID, duration, result, and correlation ID, then marks jobs completed or failed. Failed jobs can be retried individually or in bulk through admin routes.
 
@@ -227,7 +268,7 @@ AI search is grounded retrieval, not an open-ended assistant. The API owns searc
 
 Search records are normalized into `SearchDocument` rows with an organization scope, optional project scope, source type, source id, title, content, metadata, and occurrence timestamp. The first implementation indexes projects, messages, timeline events, Action Items, AI classifications, and photo analyses.
 
-Search indexing is asynchronous. Project, message, timeline event, Action Item, AI classification, and photo analysis writes enqueue `SEARCH_INDEX` jobs. The worker owns all `SearchDocument` writes. Search request handlers only read the index.
+Search indexing is asynchronous. Project, message, timeline event, Action Item, AI classification, photo analysis, and completed project report writes enqueue `SEARCH_INDEX` jobs. The worker owns all `SearchDocument` writes. Search request handlers only read the index.
 
 Search API endpoints:
 

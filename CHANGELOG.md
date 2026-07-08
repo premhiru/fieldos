@@ -5,7 +5,7 @@
 | Purpose      | Track notable FieldOS product and platform work. |
 | Owner        | Engineering                                      |
 | Status       | Active                                           |
-| Last Updated | 2026-07-07                                       |
+| Last Updated | 2026-07-08                                       |
 
 ## Table of Contents
 
@@ -15,6 +15,9 @@
 
 ### Changed
 
+- Project detail pages now link to a dedicated Project Intelligence workspace.
+- Search source support now includes generated project reports.
+- Media previews now use signed API media URLs instead of exposing storage keys to the dashboard.
 - Photo attachments are now asynchronously enriched with advisory vision summaries when image media is available.
 - AI Search now includes photo analysis summaries, detected objects, possible issues, and tags.
 - AI classification now receives a `UnifiedEvidenceContext` containing message text, project/conversation/sender metadata, attachment metadata, and available voice transcripts.
@@ -27,6 +30,12 @@
 
 ### Added
 
+- Added `packages/intelligence` for grounded morning briefs, daily summaries, weekly reports, risk summaries, and pending decisions.
+- Added `ProjectReport` persistence and worker-owned `REPORT_GENERATION` jobs for cached weekly progress reports.
+- Added project intelligence API endpoints, Markdown export, PDF export, and asynchronous report generation.
+- Added reusable Evidence Viewer UI for media preview, transcripts, vision analysis, source WhatsApp message context, timeline references, and linked Action Items.
+- Added `StorageProvider` and `LocalStorageProvider` with expiring signed media URLs.
+- Added ADR 0013 for Project Intelligence and Automated Reporting.
 - Added `PhotoAnalysis` persistence, `PHOTO_ANALYSIS` jobs, and worker-owned vision processing.
 - Added photo analysis API endpoints for project, analysis, and evidence lookups.
 - Added photo intelligence UI in the inbox, project detail pages, command-center recent evidence, and admin operations health.

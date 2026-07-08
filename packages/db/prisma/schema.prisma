@@ -20,6 +20,7 @@ model Organization {
   memberships              Membership[]
   photoAnalyses            PhotoAnalysis[]
   processingJobs           ProcessingJob[]
+  projectReports           ProjectReport[]
   projects                 Project[]
   searchDocuments          SearchDocument[]
   whatsAppAccounts         WhatsAppAccount[]
@@ -69,6 +70,7 @@ model Project {
   milestones               Milestone[]
   organization             Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   photoAnalyses            PhotoAnalysis[]
+  projectReports           ProjectReport[]
   searchDocuments          SearchDocument[]
   suggestedActionItems     ActionItem[]              @relation("ActionItemSuggestedProject")
   whatsAppChatMapping      WhatsAppChatMapping[]
@@ -311,6 +313,31 @@ model SearchDocument {
   @@index([projectId, createdAt])
 }
 
+model ProjectReport {
+  id             String              @id @default(cuid())
+  organizationId String
+  projectId      String
+  type           ProjectReportType
+  status         ProjectReportStatus @default(PENDING)
+  title          String
+  content        Json?
+  markdown       String?
+  pdfStorageKey  String?
+  contentHash    String?
+  periodStart    DateTime?
+  periodEnd      DateTime?
+  generatedAt    DateTime?
+  errorMessage   String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project        Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([projectId, type, status, createdAt])
+  @@index([status, createdAt])
+}
+
 model ProcessingJob {
   id             String              @id @default(cuid())
   organizationId String
@@ -451,6 +478,7 @@ enum ProcessingJobType {
   AI_CLASSIFICATION
   VOICE_TRANSCRIPTION
   PHOTO_ANALYSIS
+  REPORT_GENERATION
   MEDIA_DOWNLOAD
 }
 
@@ -552,6 +580,17 @@ enum MilestoneStatus {
   COMPLETED
 }
 
+enum ProjectReportType {
+  WEEKLY_PROGRESS
+}
+
+enum ProjectReportStatus {
+  PENDING
+  RUNNING
+  FAILED
+  COMPLETED
+}
+
 enum SearchDocumentSourceType {
   PROJECT
   MESSAGE
@@ -559,4 +598,5 @@ enum SearchDocumentSourceType {
   ACTION_ITEM
   AI_CLASSIFICATION
   PHOTO_ANALYSIS
+  PROJECT_REPORT
 }

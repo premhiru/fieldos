@@ -18,6 +18,11 @@ import {
   type SearchAnswerResult
 } from "@fieldos/ai";
 import {
+  ProjectIntelligenceService,
+  weeklyReportToMarkdown,
+  weeklyReportToPdfBuffer
+} from "@fieldos/intelligence";
+import {
   AttachmentService,
   ConversationService,
   createAttachmentSchema,
@@ -30,12 +35,14 @@ import {
 import fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import { Redis } from "ioredis";
 import { ZodError } from "zod";
+import { LocalStorageProvider, StorageAccessError, type StorageProvider } from "@fieldos/shared";
 
 import { apiEnv } from "./env.js";
 import { conflict, forbidden, HttpError, notFound, unauthorized } from "./http.js";
 import {
   createPrismaRepository,
   type AppRepository,
+  type ProjectReportRecord,
   type Role,
   type SafeUser
 } from "./repository.js";
@@ -48,6 +55,9 @@ import {
   createWhatsAppAccountSchema,
   dashboardQuerySchema,
   evidenceParamsSchema,
+  generateProjectReportSchema,
+  mediaParamsSchema,
+  mediaQuerySchema,
   messageParamsSchema,
   organizationParamsSchema,
   paginationQuerySchema,
@@ -55,6 +65,7 @@ import {
   processingJobParamsSchema,
   projectParamsSchema,
   projectSearchAskSchema,
+  reportFormatQuerySchema,
   actionItemParamsSchema,
   searchAskSchema,
   searchQuerySchema,
@@ -72,6 +83,7 @@ export interface BuildServerOptions {
   searchAnswerer?: {
     answer(input: SearchAnswerInput): Promise<SearchAnswerResult>;
   };
+  storageProvider?: StorageProvider;
 }
 
 declare module "fastify" {
@@ -86,6 +98,13 @@ export function buildServer(options: BuildServerOptions = {}) {
   const messageService = new MessageService(repository);
   const attachmentService = new AttachmentService(repository);
   const searchAnswerer = options.searchAnswerer ?? new SearchAnswerGenerator();
+  const projectIntelligenceService = new ProjectIntelligenceService();
+  const storageProvider =
+    options.storageProvider ??
+    new LocalStorageProvider({
+      rootPath: apiEnv.WHATSAPP_STORAGE_PATH,
+      signingSecret: apiEnv.MEDIA_SIGNING_SECRET ?? apiEnv.JWT_SECRET
+    });
   const qrRedis = options.qrStore ? null : new Redis(apiEnv.REDIS_URL, { lazyConnect: true });
   const qrStore = options.qrStore ?? new RedisWhatsAppQrStore(qrRedis as Redis);
   const server = fastify({
@@ -149,6 +168,34 @@ export function buildServer(options: BuildServerOptions = {}) {
   server.get("/health", async () => ({
     status: "ok"
   }));
+
+  server.get("/media/:token", async (request, reply) => {
+    const params = mediaParamsSchema.parse(request.params);
+    const query = mediaQuerySchema.parse(request.query);
+
+    if (!(storageProvider instanceof LocalStorageProvider)) {
+      throw notFound("Media provider does not support signed local URLs.");
+    }
+
+    try {
+      const key = storageProvider.verifySignedToken({
+        expires: query.expires,
+        signature: query.signature,
+        token: params.token
+      });
+      const data = await storageProvider.download(key);
+
+      reply.header("content-type", inferContentType(key));
+      reply.header("cache-control", "private, max-age=60");
+      return reply.send(data);
+    } catch (error) {
+      if (error instanceof StorageAccessError) {
+        throw forbidden(error.message);
+      }
+
+      throw notFound("Media not found.");
+    }
+  });
 
   server.post("/auth/signup", async (request, reply) => {
     const body = signupSchema.parse(request.body);
@@ -505,6 +552,120 @@ export function buildServer(options: BuildServerOptions = {}) {
     }
   );
 
+  server.get("/projects/:projectId/intelligence", { preHandler: requireAuth }, async (request) => {
+    const params = projectParamsSchema.parse(request.params);
+    const project = await requireProjectForRequest(request, params.projectId);
+    const context = await repository.getProjectIntelligenceContext(project.id);
+
+    if (!context) {
+      throw notFound("Project intelligence context not found.");
+    }
+
+    const weeklyReport = projectIntelligenceService.generateWeeklyReport(context);
+    const latestReport = await repository.getLatestProjectReport({
+      projectId: project.id,
+      type: "WEEKLY_PROGRESS"
+    });
+
+    return {
+      intelligence: {
+        dailySummary: projectIntelligenceService.generateDailySummary(context),
+        morningBrief: projectIntelligenceService.generateMorningBrief(context),
+        pendingDecisions: projectIntelligenceService.generatePendingDecisions(context),
+        riskSummary: projectIntelligenceService.generateRiskSummary(context),
+        weeklyReport
+      },
+      latestReport: latestReport ? await withReportSignedUrl(request, latestReport) : null
+    };
+  });
+
+  server.get("/projects/:projectId/morning-brief", { preHandler: requireAuth }, async (request) => {
+    const context = await getProjectIntelligenceContextForRequest(request);
+
+    return {
+      morningBrief: projectIntelligenceService.generateMorningBrief(context)
+    };
+  });
+
+  server.get("/projects/:projectId/daily-summary", { preHandler: requireAuth }, async (request) => {
+    const context = await getProjectIntelligenceContextForRequest(request);
+
+    return {
+      dailySummary: projectIntelligenceService.generateDailySummary(context)
+    };
+  });
+
+  server.get("/projects/:projectId/risks", { preHandler: requireAuth }, async (request) => {
+    const context = await getProjectIntelligenceContextForRequest(request);
+
+    return {
+      risks: projectIntelligenceService.generateRiskSummary(context)
+    };
+  });
+
+  server.get(
+    "/projects/:projectId/pending-decisions",
+    { preHandler: requireAuth },
+    async (request) => {
+      const context = await getProjectIntelligenceContextForRequest(request);
+
+      return {
+        pendingDecisions: projectIntelligenceService.generatePendingDecisions(context)
+      };
+    }
+  );
+
+  server.get(
+    "/projects/:projectId/weekly-report",
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const query = reportFormatQuerySchema.parse(request.query);
+      const context = await getProjectIntelligenceContextForRequest(request);
+      const weeklyReport = projectIntelligenceService.generateWeeklyReport(context);
+
+      if (query.format === "markdown") {
+        reply.header("content-type", "text/markdown; charset=utf-8");
+        return reply.send(weeklyReportToMarkdown(weeklyReport));
+      }
+
+      if (query.format === "pdf") {
+        reply.header("content-type", "application/pdf");
+        reply.header(
+          "content-disposition",
+          `attachment; filename="${context.project.code.toLowerCase()}-weekly-report.pdf"`
+        );
+        return reply.send(weeklyReportToPdfBuffer(weeklyReport));
+      }
+
+      const latestReport = await repository.getLatestProjectReport({
+        projectId: context.project.id,
+        type: "WEEKLY_PROGRESS"
+      });
+
+      return {
+        latestReport: latestReport ? await withReportSignedUrl(request, latestReport) : null,
+        weeklyReport
+      };
+    }
+  );
+
+  server.post(
+    "/projects/:projectId/reports/generate",
+    { preHandler: requireAuth },
+    async (request) => {
+      const params = projectParamsSchema.parse(request.params);
+      const body = generateProjectReportSchema.parse(request.body ?? {});
+      const project = await requireProjectForRequest(request, params.projectId);
+
+      return {
+        report: await repository.queueProjectReport({
+          projectId: project.id,
+          type: body.type
+        })
+      };
+    }
+  );
+
   server.get("/conversations", { preHandler: requireAuth }, async (request) => {
     const query = listConversationsSchema.parse(request.query);
     const user = requireCurrentUser(request);
@@ -644,6 +805,31 @@ export function buildServer(options: BuildServerOptions = {}) {
 
     return {
       analysis
+    };
+  });
+
+  server.get("/evidence/:id/view", { preHandler: requireAuth }, async (request) => {
+    const params = evidenceParamsSchema.parse(request.params);
+    const evidence = await repository.getEvidenceView(params.id);
+
+    if (!evidence) {
+      throw notFound("Evidence not found.");
+    }
+
+    await requireOrganizationMembership(requireCurrentUser(request).id, evidence.organizationId);
+    const signedUrl = await storageProvider.getSignedUrl({
+      baseUrl: getRequestBaseUrl(request),
+      expiresInSeconds: 15 * 60,
+      key: evidence.storageKey
+    });
+    const publicEvidence: Partial<typeof evidence> = { ...evidence };
+    delete publicEvidence.storageKey;
+
+    return {
+      evidence: {
+        ...publicEvidence,
+        signedUrl
+      }
     };
   });
 
@@ -954,6 +1140,41 @@ export function buildServer(options: BuildServerOptions = {}) {
     });
   }
 
+  async function requireProjectForRequest(request: FastifyRequest, projectId: string) {
+    const project = await repository.findProjectForUser(requireCurrentUser(request).id, projectId);
+
+    if (!project) {
+      throw notFound("Project not found.");
+    }
+
+    return project;
+  }
+
+  async function getProjectIntelligenceContextForRequest(request: FastifyRequest) {
+    const params = projectParamsSchema.parse(request.params);
+    const project = await requireProjectForRequest(request, params.projectId);
+    const context = await repository.getProjectIntelligenceContext(project.id);
+
+    if (!context) {
+      throw notFound("Project intelligence context not found.");
+    }
+
+    return context;
+  }
+
+  async function withReportSignedUrl(request: FastifyRequest, report: ProjectReportRecord) {
+    return {
+      ...report,
+      pdfUrl: report.pdfStorageKey
+        ? await storageProvider.getSignedUrl({
+            baseUrl: getRequestBaseUrl(request),
+            expiresInSeconds: 15 * 60,
+            key: report.pdfStorageKey
+          })
+        : null
+    };
+  }
+
   async function answerSearchQuestion(input: {
     organizationId: string;
     projectId: string | null;
@@ -1030,6 +1251,63 @@ export function buildServer(options: BuildServerOptions = {}) {
 }
 
 const notEnoughInformationAnswer = "I could not find enough information in FieldOS to answer that.";
+
+function getRequestBaseUrl(request: FastifyRequest): string {
+  const forwardedProtocol = headerValue(request.headers["x-forwarded-proto"]);
+  const forwardedHost = headerValue(request.headers["x-forwarded-host"]);
+  const host = forwardedHost ?? request.headers.host ?? "localhost:3001";
+  const protocol = forwardedProtocol ?? (apiEnv.NODE_ENV === "production" ? "https" : "http");
+
+  return `${protocol}://${host}`;
+}
+
+function headerValue(value: string | string[] | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const rawValue = Array.isArray(value) ? value[0] : value;
+
+  if (!rawValue) {
+    return null;
+  }
+
+  return rawValue.split(",")[0]?.trim() || null;
+}
+
+function inferContentType(key: string): string {
+  const normalized = key.toLowerCase();
+
+  if (normalized.endsWith(".jpg") || normalized.endsWith(".jpeg")) {
+    return "image/jpeg";
+  }
+
+  if (normalized.endsWith(".png")) {
+    return "image/png";
+  }
+
+  if (normalized.endsWith(".webp")) {
+    return "image/webp";
+  }
+
+  if (normalized.endsWith(".pdf")) {
+    return "application/pdf";
+  }
+
+  if (normalized.endsWith(".ogg")) {
+    return "audio/ogg";
+  }
+
+  if (normalized.endsWith(".mp3")) {
+    return "audio/mpeg";
+  }
+
+  if (normalized.endsWith(".mp4")) {
+    return "video/mp4";
+  }
+
+  return "application/octet-stream";
+}
 
 function buildDeterministicSearchAnswer(
   question: string,

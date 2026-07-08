@@ -6,6 +6,7 @@ export const workerEnv = createEnv(
     AI_BASE_URL: z.string().url().default("https://openrouter.ai/api/v1"),
     AI_CLASSIFICATION_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(15_000),
     AI_MODEL: z.string().trim().min(1).default("openrouter/free"),
+    MEDIA_SIGNING_SECRET: z.string().trim().min(16).default("local-media-signing-secret"),
     NODE_ENV: nodeEnvSchema,
     OPENROUTER_API_KEY: z.string().trim().optional(),
     OPENAI_API_KEY: z.string().trim().optional(),
