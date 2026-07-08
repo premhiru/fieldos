@@ -51,6 +51,24 @@ function ProjectDetailContent() {
     queryKey: ["project-photo-analysis", params.projectId],
     retry: false
   });
+  const projectStateQuery = useQuery({
+    enabled: Boolean(projectQuery.data?.project),
+    queryFn: () => api.getProjectState(params.projectId),
+    queryKey: ["project-state", params.projectId],
+    retry: false
+  });
+  const recommendationsQuery = useQuery({
+    enabled: Boolean(projectQuery.data?.project),
+    queryFn: () => api.listProjectRecommendations(params.projectId, "PENDING"),
+    queryKey: ["project-recommendations", params.projectId, "PENDING"],
+    retry: false
+  });
+  const coordinatorRunsQuery = useQuery({
+    enabled: Boolean(projectQuery.data?.project),
+    queryFn: () => api.listProjectCoordinatorRuns(params.projectId),
+    queryKey: ["project-coordinator-runs", params.projectId],
+    retry: false
+  });
   const acceptMutation = useMutation({
     mutationFn: (actionItemId: string) => api.acceptActionItem(actionItemId),
     onSuccess: async () => {
@@ -74,7 +92,20 @@ function ProjectDetailContent() {
         question: projectQuestion
       })
   });
+  const runCoordinatorsMutation = useMutation({
+    mutationFn: () => api.runProjectCoordinators(params.projectId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["project-state", params.projectId] });
+      await queryClient.invalidateQueries({
+        queryKey: ["project-recommendations", params.projectId, "PENDING"]
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ["project-coordinator-runs", params.projectId]
+      });
+    }
+  });
   const project = projectQuery.data?.project;
+  const projectState = projectStateQuery.data?.state;
   const classifications = classificationsQuery.data?.classifications ?? [];
   const actionItems = actionItemsQuery.data?.actionItems ?? [];
   const photoAnalyses = photoAnalysisQuery.data?.analyses ?? [];
@@ -122,6 +153,88 @@ function ProjectDetailContent() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Project Coordinator</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-5">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant={projectState?.health === "CRITICAL" ? "warning" : "muted"}>
+                  {formatStatus(projectState?.health ?? "UNKNOWN")}
+                </Badge>
+                <Badge variant="muted">{projectState?.completionPercent ?? 0}% Complete</Badge>
+                <span className="text-sm text-slate-500">
+                  Last update {formatTime(projectState?.lastActivityAt ?? null)}
+                </span>
+              </div>
+              <Button
+                disabled={runCoordinatorsMutation.isPending}
+                onClick={() => runCoordinatorsMutation.mutate()}
+                type="button"
+                variant="secondary"
+              >
+                {runCoordinatorsMutation.isPending ? "Running..." : "Run Coordinators Now"}
+              </Button>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <ProjectStateSummary
+                label="Recent progress"
+                value={projectState?.recentProgressSummary}
+              />
+              <ProjectStateSummary label="Recent risks" value={projectState?.recentRiskSummary} />
+              <ProjectStateSummary label="Evidence" value={projectState?.recentEvidenceSummary} />
+              <ProjectStateSummary
+                label="Pending decisions"
+                value={projectState?.pendingDecisionSummary}
+              />
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-slate-950">Pending recommendations</div>
+              {(recommendationsQuery.data?.recommendations ?? []).length === 0 ? (
+                <p className="mt-2 text-sm text-slate-600">No pending recommendations.</p>
+              ) : (
+                <div className="mt-2 space-y-2">
+                  {(recommendationsQuery.data?.recommendations ?? []).slice(0, 4).map((item) => (
+                    <Link
+                      className="block rounded-md border border-slate-200 p-3 text-sm hover:bg-slate-50"
+                      href={`/recommendations/${item.id}`}
+                      key={item.id}
+                    >
+                      <span className="font-medium text-slate-950">{item.title}</span>
+                      <span className="ml-2 text-xs text-slate-500">
+                        {formatStatus(item.priority)} - {formatStatus(item.sourceCoordinator)}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+            <details className="rounded-md border border-slate-200 p-3">
+              <summary className="cursor-pointer text-sm font-medium text-slate-950">
+                View Coordinator History
+              </summary>
+              <div className="mt-3 space-y-2">
+                {(coordinatorRunsQuery.data?.runs ?? []).slice(0, 8).map((run) => (
+                  <div
+                    className="flex flex-wrap items-center justify-between gap-2 text-sm"
+                    key={run.id}
+                  >
+                    <span>
+                      {formatStatus(run.coordinatorType)} - {formatStatus(run.status)}
+                    </span>
+                    <span className="text-slate-500">
+                      {run.recommendationsCreated} created - {formatTime(run.startedAt)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </details>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -288,6 +401,21 @@ function PhotoAnalysisRow({ analysis }: { analysis: PhotoAnalysis }) {
   );
 }
 
+function ProjectStateSummary({
+  label,
+  value
+}: Readonly<{
+  label: string;
+  value: string | null | undefined;
+}>) {
+  return (
+    <div className="rounded-md border border-slate-200 p-3">
+      <div className="text-xs font-semibold uppercase text-slate-500">{label}</div>
+      <p className="mt-1 text-sm text-slate-700">{value ?? "No signal detected."}</p>
+    </div>
+  );
+}
+
 function ActionItemRow({
   actionItem,
   onAccept,
@@ -379,6 +507,25 @@ function getVisionConfidenceLabel(confidence: number): string {
   }
 
   return "Low";
+}
+
+function formatTime(value: string | null): string {
+  if (!value) {
+    return "No activity";
+  }
+
+  return new Intl.DateTimeFormat("en", {
+    dateStyle: "medium",
+    timeStyle: "short"
+  }).format(new Date(value));
+}
+
+function formatStatus(value: string): string {
+  return value
+    .toLowerCase()
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 }
 
 function PlaceholderCard({ title }: { title: string }) {

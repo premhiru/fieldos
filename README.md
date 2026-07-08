@@ -20,6 +20,7 @@
 - [Unified Evidence Processing](#unified-evidence-processing)
 - [Photo Intelligence](#photo-intelligence)
 - [Project Intelligence and Reporting](#project-intelligence-and-reporting)
+- [AI Project Coordinators](#ai-project-coordinators)
 - [Pilot Readiness](#pilot-readiness)
 - [Repository Layout](#repository-layout)
 - [Development Philosophy](#development-philosophy)
@@ -50,6 +51,7 @@ flowchart TD
   Messaging["packages/messaging\nConversations, Messages, Attachments"]
   AI["packages/ai\nClassification, Search Answers, Vision"]
   Intelligence["packages/intelligence\nProject Briefs and Reports"]
+  Coordinators["packages/coordinators\nProject State and Recommendations"]
   Evidence["UnifiedEvidenceContext\nRuntime Evidence Package"]
   Storage["StorageProvider\nSigned Media URLs"]
   Search["SearchDocument\nGrounded Retrieval Index"]
@@ -70,6 +72,7 @@ flowchart TD
   Worker --> Shared
   Worker --> AI
   Worker --> Intelligence
+  Worker --> Coordinators
   Worker --> WhatsApp
   Worker --> Jobs
   Worker --> Search
@@ -80,6 +83,8 @@ flowchart TD
   WhatsApp --> Jobs
   Evidence --> AI
   Intelligence --> Evidence
+  Coordinators --> DB
+  API --> Coordinators
   Evidence --> Search
   API --> Storage
   Worker --> Storage
@@ -267,6 +272,19 @@ The API exposes project-scoped intelligence endpoints and signed evidence views.
 
 Reports are grounded in stored FieldOS records. They do not invent status from model output, and generated report jobs run asynchronously through the worker-owned `REPORT_GENERATION` queue.
 
+## AI Project Coordinators
+
+AI Project Coordinators turn stored project evidence into human-approved recommendations. The shared `ProjectState` snapshot tracks health, last activity, evidence/report timestamps, open Action Item counts, and concise summaries so coordinators do not repeatedly scan full project history.
+
+FieldOS includes four coordinators:
+
+- Progress Coordinator: detects meaningful progress and recommends review.
+- Follow-up Coordinator: detects stale active WhatsApp conversations and drafts follow-up messages.
+- Inspection Coordinator: detects completion or inspection-readiness signals.
+- Report Coordinator: recommends weekly report generation when enough project activity exists.
+
+Recommendations are first-class records. Users can approve, dismiss, complete, inspect details, and review WhatsApp drafts. FieldOS recommends; humans approve. WhatsApp drafts require a second explicit send action and are not sent automatically.
+
 ## Auth and Tenancy
 
 FieldOS uses JWT session tokens stored in HTTP-only cookies for the MVP. Passwords are hashed with bcrypt. The API owns session validation and tenant authorization.
@@ -297,9 +315,9 @@ The AI layer builds a `UnifiedEvidenceContext` for each message, classifies the 
 
 ## Operations Health
 
-FieldOS includes a lightweight operations health page at `/admin/operations` for organization `OWNER` and `ADMIN` users. It shows worker heartbeat, job metrics, WhatsApp account status, AI queue health, search indexing health, and media/transcription queue placeholders.
+FieldOS includes a lightweight operations health page at `/admin/operations` for organization `OWNER` and `ADMIN` users. It shows worker heartbeat, job metrics, WhatsApp account status, AI queue health, search indexing health, coordinator run metrics, pending recommendations, and media/transcription queue placeholders.
 
-Background work is tracked in `ProcessingJob` rows. Search indexing is asynchronous: message, project, event, Action Item, and AI classification writes enqueue `SEARCH_INDEX` jobs, and the worker updates `SearchDocument`. Search endpoints only read the index.
+Background work is tracked in `ProcessingJob` rows. Search indexing is asynchronous: message, project, event, Action Item, and AI classification writes enqueue `SEARCH_INDEX` jobs, and the worker updates `SearchDocument`. Project coordinator scans use `PROJECT_COORDINATOR` jobs. Search endpoints only read the index.
 
 Worker status is tracked through `WorkerHeartbeat`, updated every 30 seconds by the Railway worker. Failed jobs can be retried individually or in bulk from the operations page.
 

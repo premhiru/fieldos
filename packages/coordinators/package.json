@@ -1,0 +1,23 @@
+{
+  "name": "@fieldos/coordinators",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput",
+    "lint": "eslint . --max-warnings=0",
+    "test": "vitest run src --passWithNoTests",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@fieldos/db": "workspace:*",
+    "@fieldos/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.16"
+  }
+}

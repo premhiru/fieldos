@@ -9,7 +9,13 @@ import { AppShell } from "../components/app-shell";
 import { AuthGuard } from "../components/auth-guard";
 import { OrganizationOnboarding } from "../components/organization-onboarding";
 import { OrganizationSelector } from "../components/organization-selector";
-import { api, type ActionItem, type DashboardHealth } from "../lib/api";
+import {
+  api,
+  type ActionItem,
+  type DashboardHealth,
+  type Recommendation,
+  type RecommendationPriority
+} from "../lib/api";
 import { useMe, useOperationsDashboard, useOrganizations } from "../lib/queries";
 import { useActiveOrganizationStore } from "../store/active-organization-store";
 
@@ -32,6 +38,12 @@ function DashboardContent() {
     organizations.find((organization) => organization.id === activeOrganizationId) ??
     organizations[0];
   const dashboardQuery = useOperationsDashboard(selectedOrganization?.id ?? null);
+  const recommendationsQuery = useQuery({
+    enabled: Boolean(selectedOrganization?.id),
+    queryFn: () => api.listRecommendations(selectedOrganization?.id ?? "", "PENDING"),
+    queryKey: ["recommendations", selectedOrganization?.id, "PENDING"],
+    retry: false
+  });
   const onboardingQuery = useQuery({
     enabled: Boolean(selectedOrganization?.id),
     queryFn: () => api.getOnboardingState(selectedOrganization?.id ?? ""),
@@ -60,6 +72,24 @@ function DashboardContent() {
   const dismissMutation = useMutation({
     mutationFn: (actionItemId: string) => api.ignoreActionItem(actionItemId),
     onSuccess: invalidateDashboard
+  });
+  const approveRecommendationMutation = useMutation({
+    mutationFn: (recommendationId: string) => api.approveRecommendation(recommendationId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["recommendations", selectedOrganization?.id, "PENDING"]
+      });
+      invalidateDashboard();
+    }
+  });
+  const dismissRecommendationMutation = useMutation({
+    mutationFn: (recommendationId: string) => api.dismissRecommendation(recommendationId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["recommendations", selectedOrganization?.id, "PENDING"]
+      });
+      invalidateDashboard();
+    }
   });
 
   React.useEffect(() => {
@@ -117,6 +147,41 @@ function DashboardContent() {
         </Card>
       ) : (
         <>
+          <Card>
+            <CardHeader>
+              <CardTitle>AI Recommendations</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {recommendationsQuery.isLoading ? (
+                <p className="text-sm text-slate-600">Loading recommendations...</p>
+              ) : recommendationsQuery.isError ? (
+                <p className="text-sm text-red-600">Unable to load AI recommendations.</p>
+              ) : (recommendationsQuery.data?.recommendations ?? []).length === 0 ? (
+                <p className="text-sm text-slate-600">
+                  No pending recommendations. FieldOS will surface the next action here.
+                </p>
+              ) : (
+                <div className="space-y-5">
+                  {(["URGENT", "HIGH", "MEDIUM", "LOW"] as const).map((priority) => (
+                    <RecommendationGroup
+                      disabled={
+                        approveRecommendationMutation.isPending ||
+                        dismissRecommendationMutation.isPending
+                      }
+                      key={priority}
+                      onApprove={(id) => approveRecommendationMutation.mutate(id)}
+                      onDismiss={(id) => dismissRecommendationMutation.mutate(id)}
+                      priority={priority}
+                      recommendations={(recommendationsQuery.data?.recommendations ?? []).filter(
+                        (recommendation) => recommendation.priority === priority
+                      )}
+                    />
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <SummaryCard label="Active Projects" value={dashboard.summary.activeProjects} />
             <SummaryCard label="Healthy Projects" value={dashboard.summary.healthyProjects} />
@@ -499,6 +564,78 @@ function HealthBadge({ health }: Readonly<{ health: DashboardHealth }>) {
   return <Badge variant="success">Healthy</Badge>;
 }
 
+function RecommendationGroup({
+  disabled,
+  onApprove,
+  onDismiss,
+  priority,
+  recommendations
+}: Readonly<{
+  disabled: boolean;
+  onApprove: (id: string) => void;
+  onDismiss: (id: string) => void;
+  priority: RecommendationPriority;
+  recommendations: Recommendation[];
+}>) {
+  if (recommendations.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="text-xs font-semibold uppercase text-slate-500">{formatStatus(priority)}</div>
+      <div className="grid gap-3 xl:grid-cols-2">
+        {recommendations.map((recommendation) => (
+          <div key={recommendation.id} className="rounded-md border border-slate-200 p-3">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-sm font-semibold text-slate-950">{recommendation.title}</h3>
+                  <Badge variant={priority === "URGENT" ? "warning" : "muted"}>
+                    {formatStatus(priority)}
+                  </Badge>
+                  <Badge variant="muted">{formatConfidence(recommendation.confidence)}</Badge>
+                </div>
+                <p className="mt-2 text-sm text-slate-700">{recommendation.reason}</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {recommendation.project.name} - {formatStatus(recommendation.sourceCoordinator)} -{" "}
+                  {formatStatus(recommendation.proposedActionType)}
+                </p>
+                <Link
+                  className="mt-2 inline-flex text-xs font-medium text-slate-600 hover:text-slate-950"
+                  href={`/recommendations/${recommendation.id}`}
+                >
+                  View details
+                </Link>
+              </div>
+              <div className="flex shrink-0 flex-wrap gap-2">
+                <Button
+                  className="h-8 px-3 text-xs"
+                  disabled={disabled}
+                  onClick={() => onDismiss(recommendation.id)}
+                  type="button"
+                  variant="ghost"
+                >
+                  Dismiss
+                </Button>
+                <Button
+                  className="h-8 px-3 text-xs"
+                  disabled={disabled}
+                  onClick={() => onApprove(recommendation.id)}
+                  type="button"
+                  variant="secondary"
+                >
+                  Approve
+                </Button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ActionItemGroup({
   actionItems,
   disabled,
@@ -605,6 +742,18 @@ function formatStatus(value: string): string {
     .split("_")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
+}
+
+function formatConfidence(value: string): string {
+  if (value === "HIGH") {
+    return "High Confidence";
+  }
+
+  if (value === "MEDIUM") {
+    return "Needs Review";
+  }
+
+  return "Low Confidence";
 }
 
 function extractVisualSummary(description: string): string {

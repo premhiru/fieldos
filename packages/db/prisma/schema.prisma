@@ -15,6 +15,7 @@ model Organization {
   updatedAt                DateTime                  @updatedAt
   aiMessageClassifications AIMessageClassification[]
   actionItems              ActionItem[]
+  coordinatorRuns          CoordinatorRun[]
   conversations            Conversation[]
   events                   Event[]
   feedback                 UserFeedback[]
@@ -24,11 +25,14 @@ model Organization {
   notifications            UserNotification[]
   photoAnalyses            PhotoAnalysis[]
   processingJobs           ProcessingJob[]
+  projectStates            ProjectState[]
   projectReports           ProjectReport[]
   projects                 Project[]
+  recommendations          Recommendation[]
   searchDocuments          SearchDocument[]
   whatsAppAccounts         WhatsAppAccount[]
   whatsAppChatMapping      WhatsAppChatMapping[]
+  whatsAppDrafts           WhatsAppDraft[]
 }
 
 model User {
@@ -46,6 +50,10 @@ model User {
   ignoredActionItems            ActionItem[]          @relation("ActionItemIgnoredBy")
   memberships                   Membership[]
   notifications                 UserNotification[]
+  approvedRecommendations       Recommendation[]      @relation("RecommendationApprovedBy")
+  dismissedRecommendations      Recommendation[]      @relation("RecommendationDismissedBy")
+  createdWhatsAppDrafts         WhatsAppDraft[]       @relation("WhatsAppDraftCreatedBy")
+  approvedWhatsAppDrafts        WhatsAppDraft[]       @relation("WhatsAppDraftApprovedBy")
 }
 
 model Membership {
@@ -72,15 +80,19 @@ model Project {
   updatedAt                DateTime                  @updatedAt
   aiMessageClassifications AIMessageClassification[]
   actionItems              ActionItem[]
+  coordinatorRuns          CoordinatorRun[]
   conversations            Conversation[]
   events                   Event[]
   milestones               Milestone[]
   organization             Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   photoAnalyses            PhotoAnalysis[]
+  projectState             ProjectState?
   projectReports           ProjectReport[]
+  recommendations          Recommendation[]
   searchDocuments          SearchDocument[]
   suggestedActionItems     ActionItem[]              @relation("ActionItemSuggestedProject")
   whatsAppChatMapping      WhatsAppChatMapping[]
+  whatsAppDrafts           WhatsAppDraft[]
 
   @@unique([organizationId, code])
   @@index([organizationId])
@@ -104,6 +116,7 @@ model Conversation {
   participants    Participant[]
   project         Project?             @relation(fields: [projectId], references: [id], onDelete: SetNull)
   whatsAppMapping WhatsAppChatMapping?
+  whatsAppDrafts  WhatsAppDraft[]
 
   @@unique([organizationId, channel, externalId])
   @@index([organizationId, updatedAt])
@@ -345,6 +358,121 @@ model ProjectReport {
   @@index([status, createdAt])
 }
 
+model ProjectState {
+  id                          String             @id @default(cuid())
+  organizationId              String
+  projectId                   String             @unique
+  health                      ProjectStateHealth @default(UNKNOWN)
+  completionPercent           Int                @default(0)
+  lastActivityAt              DateTime?
+  lastWhatsAppUpdateAt        DateTime?
+  lastEvidenceAt              DateTime?
+  lastReportAt                DateTime?
+  openActionItemCount         Int                @default(0)
+  urgentActionItemCount       Int                @default(0)
+  highPriorityActionItemCount Int                @default(0)
+  recentProgressSummary       String?
+  recentRiskSummary           String?
+  recentEvidenceSummary       String?
+  recentBlockerSummary        String?
+  pendingDecisionSummary      String?
+  metadata                    Json?
+  createdAt                   DateTime           @default(now())
+  updatedAt                   DateTime           @updatedAt
+  organization                Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project                     Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, health, updatedAt])
+  @@index([organizationId, lastActivityAt])
+}
+
+model Recommendation {
+  id                    String                       @id @default(cuid())
+  organizationId        String
+  projectId             String
+  type                  RecommendationType
+  title                 String
+  description           String
+  reason                String
+  confidence            RecommendationConfidence
+  priority              RecommendationPriority       @default(MEDIUM)
+  status                RecommendationStatus         @default(PENDING)
+  sourceCoordinator     CoordinatorType
+  sourceEntityType      String?
+  sourceEntityId        String?
+  proposedActionType    RecommendationActionType
+  proposedActionPayload Json?
+  approvedAt            DateTime?
+  approvedByUserId      String?
+  dismissedAt           DateTime?
+  dismissedByUserId     String?
+  dismissReason         String?
+  completedAt           DateTime?
+  createdAt             DateTime                     @default(now())
+  updatedAt             DateTime                     @updatedAt
+  approvedByUser        User?                        @relation("RecommendationApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  dismissedByUser       User?                        @relation("RecommendationDismissedBy", fields: [dismissedByUserId], references: [id], onDelete: SetNull)
+  organization          Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project               Project                      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  whatsAppDrafts        WhatsAppDraft[]
+
+  @@index([organizationId, status, priority, createdAt])
+  @@index([projectId, status, priority, createdAt])
+  @@index([sourceCoordinator, proposedActionType, sourceEntityId])
+  @@index([approvedByUserId])
+  @@index([dismissedByUserId])
+}
+
+model CoordinatorRun {
+  id                     String               @id @default(cuid())
+  organizationId         String
+  projectId              String
+  coordinatorType        CoordinatorType
+  status                 CoordinatorRunStatus @default(STARTED)
+  startedAt              DateTime             @default(now())
+  finishedAt             DateTime?
+  recommendationsCreated Int                  @default(0)
+  error                  String?
+  metadata               Json?
+  organization           Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project                Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, startedAt])
+  @@index([projectId, startedAt])
+  @@index([coordinatorType, status, startedAt])
+}
+
+model WhatsAppDraft {
+  id                String              @id @default(cuid())
+  organizationId    String
+  projectId         String
+  whatsappAccountId String?
+  conversationId    String?
+  recommendationId  String?
+  messageBody       String
+  status            WhatsAppDraftStatus @default(DRAFT)
+  createdByUserId   String?
+  approvedByUserId  String?
+  sentAt            DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  approvedByUser    User?               @relation("WhatsAppDraftApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  conversation      Conversation?       @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  createdByUser     User?               @relation("WhatsAppDraftCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  organization      Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project           Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  recommendation    Recommendation?     @relation(fields: [recommendationId], references: [id], onDelete: SetNull)
+  whatsappAccount   WhatsAppAccount?    @relation(fields: [whatsappAccountId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status, createdAt])
+  @@index([projectId, status, createdAt])
+  @@index([recommendationId])
+  @@index([conversationId])
+  @@index([whatsappAccountId])
+  @@index([createdByUserId])
+  @@index([approvedByUserId])
+}
+
 model UserFeedback {
   id             String       @id @default(cuid())
   organizationId String
@@ -448,6 +576,7 @@ model WhatsAppAccount {
   createdAt          DateTime              @default(now())
   updatedAt          DateTime              @updatedAt
   chatMappings       WhatsAppChatMapping[]
+  drafts             WhatsAppDraft[]
   organization       Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([sessionKey])
@@ -538,6 +667,7 @@ enum ProcessingJobType {
   PHOTO_ANALYSIS
   REPORT_GENERATION
   MEDIA_DOWNLOAD
+  PROJECT_COORDINATOR
 }
 
 enum ProcessingJobStatus {
@@ -628,6 +758,7 @@ enum EventSourceType {
   MESSAGE
   ACTION_ITEM
   REPORT
+  RECOMMENDATION
   SYSTEM
 }
 
@@ -663,4 +794,78 @@ enum FeedbackType {
   BUG
   FEATURE
   GENERAL
+}
+
+enum ProjectStateHealth {
+  HEALTHY
+  NEEDS_ATTENTION
+  CRITICAL
+  UNKNOWN
+}
+
+enum RecommendationType {
+  PROGRESS_UPDATE
+  FOLLOW_UP
+  INSPECTION
+  REPORT
+  RISK
+  MISSING_UPDATE
+  APPROVAL_REQUIRED
+  CLIENT_UPDATE
+  SUPPLIER_DELAY
+  GENERAL
+}
+
+enum RecommendationStatus {
+  PENDING
+  APPROVED
+  DISMISSED
+  COMPLETED
+  FAILED
+}
+
+enum RecommendationPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum RecommendationConfidence {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum RecommendationActionType {
+  CREATE_ACTION_ITEM
+  SEND_WHATSAPP_MESSAGE_DRAFT
+  GENERATE_REPORT
+  SCHEDULE_INSPECTION_REMINDER
+  MARK_PROGRESS_REVIEWED
+  REQUEST_PROGRESS_UPDATE
+  REVIEW_EVIDENCE
+}
+
+enum CoordinatorType {
+  PROGRESS
+  FOLLOW_UP
+  INSPECTION
+  REPORT
+  RUNTIME
+}
+
+enum CoordinatorRunStatus {
+  STARTED
+  COMPLETED
+  FAILED
+  SKIPPED
+}
+
+enum WhatsAppDraftStatus {
+  DRAFT
+  APPROVED
+  SENT
+  CANCELLED
+  FAILED
 }

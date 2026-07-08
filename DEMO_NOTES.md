@@ -10,6 +10,7 @@
 ## Table of Contents
 
 - [Task 013B: Cloudflare R2 Durable Storage](#task-013b-cloudflare-r2-durable-storage)
+- [Milestone 2: AI Project Coordinators](#milestone-2-ai-project-coordinators)
 - [Sprint 14: Pilot Readiness](#sprint-14-pilot-readiness)
 - [Task 013: Project Intelligence and Automated Reporting](#task-013-project-intelligence-and-automated-reporting)
 - [Task 012: Photo Intelligence](#task-012-photo-intelligence)
@@ -41,6 +42,31 @@ How to test:
 Current limitation:
 
 - Existing evidence that was stored only on local Railway files before this change is not automatically migrated to R2.
+
+## Milestone 2: AI Project Coordinators
+
+What changed:
+
+- Operations Command Center now starts with AI Recommendations.
+- Project pages now show Project Coordinator state, recent summaries, pending recommendations, run-now control, and coordinator history.
+- FieldOS can approve recommendations into Action Items, report-generation jobs, or WhatsApp drafts.
+- WhatsApp drafts are editable and require a final explicit send action.
+- Operations Health includes coordinator run and recommendation metrics.
+
+How to test:
+
+1. Open the Operations Command Center and confirm AI Recommendations loads.
+2. Open a project and click `Run Coordinators Now`.
+3. Confirm ProjectState updates and coordinator run history records the run.
+4. Open a recommendation detail page and review evidence/source references.
+5. Approve a follow-up recommendation and confirm a WhatsApp draft appears.
+6. Edit the draft and save it.
+7. Approve a report recommendation and confirm a `REPORT_GENERATION` job is queued.
+8. Open `/admin/operations` and confirm coordinator metrics update.
+
+Current limitation:
+
+- The current Baileys package does not expose a production outbound send adapter yet. Draft send fails clearly unless a real `WhatsAppDraftSender` is wired in.
 
 ## Sprint 14: Pilot Readiness
 

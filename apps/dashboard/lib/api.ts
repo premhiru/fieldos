@@ -38,9 +38,36 @@ export type ProcessingJobType =
   | "VOICE_TRANSCRIPTION"
   | "PHOTO_ANALYSIS"
   | "REPORT_GENERATION"
-  | "MEDIA_DOWNLOAD";
+  | "MEDIA_DOWNLOAD"
+  | "PROJECT_COORDINATOR";
 export type ProcessingJobStatus = "PENDING" | "RUNNING" | "FAILED" | "COMPLETED";
 export type WorkerStatus = "ONLINE" | "OFFLINE" | "STARTING" | "STOPPING";
+export type ProjectStateHealth = "HEALTHY" | "NEEDS_ATTENTION" | "CRITICAL" | "UNKNOWN";
+export type RecommendationType =
+  | "PROGRESS_UPDATE"
+  | "FOLLOW_UP"
+  | "INSPECTION"
+  | "REPORT"
+  | "RISK"
+  | "MISSING_UPDATE"
+  | "APPROVAL_REQUIRED"
+  | "CLIENT_UPDATE"
+  | "SUPPLIER_DELAY"
+  | "GENERAL";
+export type RecommendationStatus = "PENDING" | "APPROVED" | "DISMISSED" | "COMPLETED" | "FAILED";
+export type RecommendationPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+export type RecommendationConfidence = "HIGH" | "MEDIUM" | "LOW";
+export type RecommendationActionType =
+  | "CREATE_ACTION_ITEM"
+  | "SEND_WHATSAPP_MESSAGE_DRAFT"
+  | "GENERATE_REPORT"
+  | "SCHEDULE_INSPECTION_REMINDER"
+  | "MARK_PROGRESS_REVIEWED"
+  | "REQUEST_PROGRESS_UPDATE"
+  | "REVIEW_EVIDENCE";
+export type CoordinatorType = "PROGRESS" | "FOLLOW_UP" | "INSPECTION" | "REPORT" | "RUNTIME";
+export type CoordinatorRunStatus = "STARTED" | "COMPLETED" | "FAILED" | "SKIPPED";
+export type WhatsAppDraftStatus = "DRAFT" | "APPROVED" | "SENT" | "CANCELLED" | "FAILED";
 export type MessageProcessingStatus =
   | "RECEIVED"
   | "MEDIA_PENDING"
@@ -74,6 +101,86 @@ export interface Project {
   name: string;
   organizationId: string;
   status: ProjectStatus;
+}
+
+export interface ProjectState {
+  id: string;
+  organizationId: string;
+  projectId: string;
+  health: ProjectStateHealth;
+  completionPercent: number;
+  lastActivityAt: string | null;
+  lastWhatsAppUpdateAt: string | null;
+  lastEvidenceAt: string | null;
+  lastReportAt: string | null;
+  openActionItemCount: number;
+  urgentActionItemCount: number;
+  highPriorityActionItemCount: number;
+  recentProgressSummary: string | null;
+  recentRiskSummary: string | null;
+  recentEvidenceSummary: string | null;
+  recentBlockerSummary: string | null;
+  pendingDecisionSummary: string | null;
+  metadata: unknown;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Recommendation {
+  id: string;
+  organizationId: string;
+  projectId: string;
+  type: RecommendationType;
+  title: string;
+  description: string;
+  reason: string;
+  confidence: RecommendationConfidence;
+  priority: RecommendationPriority;
+  status: RecommendationStatus;
+  sourceCoordinator: CoordinatorType;
+  sourceEntityType: string | null;
+  sourceEntityId: string | null;
+  proposedActionType: RecommendationActionType;
+  proposedActionPayload: unknown;
+  approvedAt: string | null;
+  approvedByUserId: string | null;
+  dismissedAt: string | null;
+  dismissedByUserId: string | null;
+  dismissReason: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  project: ProjectReference;
+  whatsAppDrafts?: WhatsAppDraft[];
+}
+
+export interface CoordinatorRun {
+  id: string;
+  organizationId: string;
+  projectId: string;
+  coordinatorType: CoordinatorType;
+  status: CoordinatorRunStatus;
+  startedAt: string;
+  finishedAt: string | null;
+  recommendationsCreated: number;
+  error: string | null;
+  metadata: unknown;
+}
+
+export interface WhatsAppDraft {
+  id: string;
+  organizationId: string;
+  projectId: string;
+  whatsappAccountId: string | null;
+  conversationId: string | null;
+  recommendationId: string | null;
+  messageBody: string;
+  status: WhatsAppDraftStatus;
+  createdByUserId: string | null;
+  approvedByUserId: string | null;
+  sentAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ProjectReference {
@@ -475,7 +582,7 @@ export interface DashboardRecentActivity {
   projectId: string;
   projectName: string;
   sourceId: string;
-  sourceType: "MESSAGE" | "ACTION_ITEM" | "REPORT" | "SYSTEM";
+  sourceType: "MESSAGE" | "ACTION_ITEM" | "REPORT" | "RECOMMENDATION" | "SYSTEM";
   eventType: string;
   icon: string;
   title: string;
@@ -649,6 +756,20 @@ export interface AdminOperations {
     qrPending: number;
   };
   workers: WorkerHeartbeat[];
+  coordinators: {
+    approvalRate: number;
+    failedRunsToday: number;
+    lastRunPerProject: Array<{
+      projectId: string;
+      projectName: string;
+      coordinatorType: CoordinatorType;
+      status: string;
+      startedAt: string;
+    }>;
+    pendingRecommendations: number;
+    recommendationsCreatedToday: number;
+    runsToday: number;
+  };
 }
 
 export type WhatsAppConnectorType = "BAILEYS" | "META_CLOUD";
@@ -842,6 +963,87 @@ export const api = {
     });
   },
   getProject: (projectId: string) => apiRequest<{ project: Project }>(`/projects/${projectId}`),
+  getProjectState: (projectId: string) =>
+    apiRequest<{ state: ProjectState }>(`/projects/${projectId}/state`),
+  rebuildProjectState: (projectId: string) =>
+    apiRequest<{ state: ProjectState }>(`/projects/${projectId}/state/rebuild`, {
+      method: "POST"
+    }),
+  runProjectCoordinators: (projectId: string) =>
+    apiRequest<{
+      run: {
+        projectState: ProjectState;
+        results: Array<{ coordinatorType: CoordinatorType; recommendationsCreated: number }>;
+      };
+    }>(`/projects/${projectId}/coordinators/run`, {
+      method: "POST"
+    }),
+  listProjectCoordinatorRuns: (projectId: string) =>
+    apiRequest<{ runs: CoordinatorRun[] }>(`/projects/${projectId}/coordinators/runs`),
+  listRecommendations: (organizationId: string, status: RecommendationStatus = "PENDING") => {
+    const params = new URLSearchParams({ organizationId, status });
+    return apiRequest<{ recommendations: Recommendation[] }>(
+      `/recommendations?${params.toString()}`
+    );
+  },
+  listProjectRecommendations: (projectId: string, status: RecommendationStatus = "PENDING") => {
+    const params = new URLSearchParams({ status });
+    return apiRequest<{ recommendations: Recommendation[] }>(
+      `/projects/${projectId}/recommendations?${params.toString()}`
+    );
+  },
+  getRecommendation: (recommendationId: string) =>
+    apiRequest<{ recommendation: Recommendation }>(`/recommendations/${recommendationId}`),
+  approveRecommendation: (recommendationId: string) =>
+    apiRequest<{
+      approval: {
+        actionItemId?: string;
+        draft?: WhatsAppDraft;
+        recommendation: Recommendation;
+        reportId?: string;
+      };
+    }>(`/recommendations/${recommendationId}/approve`, {
+      method: "POST"
+    }),
+  dismissRecommendation: (recommendationId: string, dismissReason?: string) =>
+    apiRequest<{ recommendation: Recommendation }>(`/recommendations/${recommendationId}/dismiss`, {
+      body: JSON.stringify({ dismissReason: dismissReason ?? null }),
+      method: "POST"
+    }),
+  completeRecommendation: (recommendationId: string) =>
+    apiRequest<{ recommendation: Recommendation }>(
+      `/recommendations/${recommendationId}/complete`,
+      {
+        method: "POST"
+      }
+    ),
+  listWhatsAppDrafts: (organizationId: string, projectId?: string | null) => {
+    const params = new URLSearchParams({ organizationId });
+
+    if (projectId) {
+      params.set("projectId", projectId);
+    }
+
+    return apiRequest<{ drafts: WhatsAppDraft[] }>(`/whatsapp/drafts?${params.toString()}`);
+  },
+  getWhatsAppDraft: (draftId: string) =>
+    apiRequest<{ draft: WhatsAppDraft }>(`/whatsapp/drafts/${draftId}`),
+  updateWhatsAppDraft: (draftId: string, body: { messageBody: string }) =>
+    apiRequest<{ draft: WhatsAppDraft }>(`/whatsapp/drafts/${draftId}`, {
+      body: JSON.stringify(body),
+      method: "PATCH"
+    }),
+  sendWhatsAppDraft: (draftId: string) =>
+    apiRequest<{
+      result:
+        { draft: WhatsAppDraft; sent: true } | { draft: WhatsAppDraft; sent: false; error: string };
+    }>(`/whatsapp/drafts/${draftId}/send`, {
+      method: "POST"
+    }),
+  cancelWhatsAppDraft: (draftId: string) =>
+    apiRequest<{ draft: WhatsAppDraft }>(`/whatsapp/drafts/${draftId}/cancel`, {
+      method: "POST"
+    }),
   getMessageClassification: (messageId: string) =>
     apiRequest<{ classification: AIMessageClassification | null }>(
       `/messages/${messageId}/classification`

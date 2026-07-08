@@ -20,6 +20,7 @@
 - [Unified Evidence Processing](#unified-evidence-processing)
 - [Photo Intelligence](#photo-intelligence)
 - [Project Intelligence and Reporting](#project-intelligence-and-reporting)
+- [AI Project Coordinators](#ai-project-coordinators)
 - [Media Serving](#media-serving)
 - [Operations Command Center](#operations-command-center)
 - [Background Processing and Operations Health](#background-processing-and-operations-health)
@@ -63,6 +64,7 @@ Current application boundaries:
 - `packages/ai`: AI message classification, vision analysis, extraction, prompt versioning, and action item processing.
 - `packages/db`: Prisma schema, migrations, Prisma client, and database types.
 - `packages/intelligence`: Deterministic project intelligence summaries and report export helpers.
+- `packages/coordinators`: Project state snapshots, deterministic coordinators, recommendation rules, coordinator run logs, and WhatsApp draft orchestration.
 - `packages/integrations/whatsapp/baileys`: WhatsApp Web adapter, QR store, session storage, message normalization, and ingestion.
 - `packages/ui`: Reusable shadcn-style UI primitives.
 - `packages/shared`: Environment, logging, API client utility, constants, and shared helpers.
@@ -73,6 +75,7 @@ Current application boundaries:
 - `packages/integrations/whatsapp/baileys` owns WhatsApp-specific session state, QR pairing, history discovery, and provider payload normalization.
 - `packages/ai` owns AI prompt construction, provider calls, output validation, classification persistence, photo analysis provider calls, and action item creation.
 - `packages/intelligence` owns project brief/report composition and export formatting. It consumes prepared records and does not call external providers.
+- `packages/coordinators` owns coordinator rules and recommendation lifecycle. It reads persisted project state and evidence, writes `Recommendation` and `CoordinatorRun`, and never sends messages without a human-confirmed draft send.
 - `apps/api` owns authentication, tenant authorization, and external HTTP contracts.
 - `apps/worker` owns asynchronous processing loops, worker heartbeat, and background job execution. It must keep provider failures and search indexing out of request and ingestion paths.
 
@@ -190,6 +193,18 @@ The intelligence package exposes:
 The service is deterministic for the MVP. It does not call an AI provider and it does not store hidden reasoning. Every report section carries lightweight source references so UI surfaces can link back to messages, evidence, Action Items, events, and analyses.
 
 Report generation can run synchronously for ad hoc export or asynchronously through `REPORT_GENERATION` jobs. Worker-generated reports are cached in `ProjectReport`, export Markdown and PDF, create a timeline event, and queue search indexing for the completed report.
+
+## AI Project Coordinators
+
+AI Project Coordinators are the active recommendation layer. They use `ProjectState` as a shared snapshot so the Progress, Follow-up, Inspection, and Report coordinators do not repeatedly scan full project history.
+
+Coordinator logic is deterministic-first:
+
+- Health, stale-update thresholds, open Action Item counts, report readiness, deduplication, and approval state are computed from database records.
+- AI prompts are versioned in `packages/ai/src/prompts`, but model output is limited to concise summaries and draft wording.
+- Recommendations are persisted in `Recommendation` and require human approval before FieldOS creates Action Items, queues reports, or creates WhatsApp drafts.
+
+The worker queues `PROJECT_COORDINATOR` jobs after relevant processing events and also schedules an hourly scan of active projects. `CoordinatorRun` records run status, failures, and recommendation counts for `/admin/operations`.
 
 Project intelligence API endpoints:
 

@@ -8,6 +8,7 @@ import {
   type VisionResult
 } from "@fieldos/ai";
 import { BaileysWhatsAppSessionManager, RedisWhatsAppQrStore } from "@fieldos/baileys-whatsapp";
+import { ProjectCoordinatorRuntime } from "@fieldos/coordinators";
 import {
   claimNextProcessingJob,
   buildProjectIntelligenceContext,
@@ -17,6 +18,7 @@ import {
   markProcessingJobFailed,
   prisma,
   processSearchIndexJob,
+  queueProjectCoordinatorJob,
   queueSearchIndexJob,
   type ProcessingJob
 } from "@fieldos/db";
@@ -95,6 +97,7 @@ const photoAnalysisService = new PhotoAnalysisService({
   storageProvider
 });
 const projectIntelligenceService = new ProjectIntelligenceService();
+const coordinatorRuntime = new ProjectCoordinatorRuntime(prisma);
 const aiProviderThrottle = new ProviderRequestThrottle(workerEnv.AI_PROVIDER_MIN_INTERVAL_MS);
 const workerName = process.env.WORKER_NAME ?? "fieldos-worker";
 const workerVersion =
@@ -107,6 +110,7 @@ redis.on("error", (error: Error) => {
 let heartbeat: NodeJS.Timeout | undefined;
 let processingTimer: NodeJS.Timeout | undefined;
 let processingFailureCount = 0;
+let lastCoordinatorScanAt = 0;
 let shuttingDown = false;
 
 async function start() {
@@ -142,21 +146,39 @@ async function start() {
 }
 
 async function processBackgroundJobs(): Promise<void> {
+  await queueCoordinatorScanIfDue();
   const voiceProcessed = await processJobsOfType("VOICE_TRANSCRIPTION", processVoiceJob);
   const photoProcessed = await processJobsOfType("PHOTO_ANALYSIS", processPhotoJob, {
     limit: workerEnv.AI_PROVIDER_JOBS_PER_POLL
   });
   const reportProcessed = await processJobsOfType("REPORT_GENERATION", processReportJob);
+  const coordinatorProcessed = await processJobsOfType(
+    "PROJECT_COORDINATOR",
+    processCoordinatorJob
+  );
   const searchProcessed = await processJobsOfType("SEARCH_INDEX", processSearchJob);
   const aiProcessed = await processJobsOfType("AI_CLASSIFICATION", processAIJob, {
     limit: workerEnv.AI_PROVIDER_JOBS_PER_POLL
   });
   const processed =
-    searchProcessed + aiProcessed + voiceProcessed + photoProcessed + reportProcessed;
+    searchProcessed +
+    aiProcessed +
+    voiceProcessed +
+    photoProcessed +
+    reportProcessed +
+    coordinatorProcessed;
 
   if (processed > 0) {
     logger.info(
-      { aiProcessed, photoProcessed, processed, reportProcessed, searchProcessed, voiceProcessed },
+      {
+        aiProcessed,
+        coordinatorProcessed,
+        photoProcessed,
+        processed,
+        reportProcessed,
+        searchProcessed,
+        voiceProcessed
+      },
       "background jobs processed"
     );
   }
@@ -191,6 +213,7 @@ async function processJobsOfType(
   type:
     | "AI_CLASSIFICATION"
     | "PHOTO_ANALYSIS"
+    | "PROJECT_COORDINATOR"
     | "REPORT_GENERATION"
     | "SEARCH_INDEX"
     | "VOICE_TRANSCRIPTION",
@@ -498,6 +521,13 @@ async function processPhotoJob(job: ProcessingJob): Promise<void> {
       sourceId: attachment.messageId,
       sourceType: "MESSAGE"
     });
+    if (attachment.message.conversation.projectId) {
+      await queueProjectCoordinatorJob(tx, {
+        organizationId: attachment.message.conversation.organizationId,
+        projectId: attachment.message.conversation.projectId,
+        sourceId: attachment.message.conversation.projectId
+      });
+    }
   });
 }
 
@@ -507,6 +537,8 @@ async function processAIJob(job: ProcessingJob): Promise<void> {
   const classification = await prisma.aIMessageClassification.findUnique({
     select: {
       errorMessage: true,
+      organizationId: true,
+      projectId: true,
       status: true
     },
     where: {
@@ -516,6 +548,33 @@ async function processAIJob(job: ProcessingJob): Promise<void> {
 
   if (classification?.status === "FAILED") {
     throw new Error(classification.errorMessage ?? "AI classification failed.");
+  }
+
+  if (classification?.projectId) {
+    await queueProjectCoordinatorJob(prisma, {
+      organizationId: classification.organizationId,
+      projectId: classification.projectId,
+      sourceId: classification.projectId
+    });
+  }
+}
+
+async function processCoordinatorJob(job: ProcessingJob): Promise<void> {
+  await coordinatorRuntime.runProjectCoordinators(job.sourceId);
+}
+
+async function queueCoordinatorScanIfDue(): Promise<void> {
+  const now = Date.now();
+
+  if (now - lastCoordinatorScanAt < 60 * 60 * 1000) {
+    return;
+  }
+
+  const queued = await coordinatorRuntime.queueScheduledScan();
+  lastCoordinatorScanAt = now;
+
+  if (queued > 0) {
+    logger.info({ queued }, "queued scheduled coordinator scan");
   }
 }
 
@@ -613,6 +672,11 @@ async function processReportJob(job: ProcessingJob): Promise<void> {
         projectId: report.projectId,
         sourceId: event.id,
         sourceType: "TIMELINE_EVENT"
+      });
+      await queueProjectCoordinatorJob(tx, {
+        organizationId: report.organizationId,
+        projectId: report.projectId,
+        sourceId: report.projectId
       });
     });
   } catch (error: unknown) {

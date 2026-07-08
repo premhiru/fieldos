@@ -5,6 +5,9 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: "jsdom",
-    globals: true
+    fileParallelism: false,
+    globals: true,
+    maxWorkers: 1,
+    pool: "threads"
   }
 });

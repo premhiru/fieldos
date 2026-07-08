@@ -133,6 +133,17 @@ export async function queueReportGenerationJob(
   });
 }
 
+export async function queueProjectCoordinatorJob(
+  prisma: PrismaClient | Prisma.TransactionClient,
+  input: Omit<QueueProcessingJobInput, "sourceType" | "type">
+): Promise<ProcessingJob> {
+  return queueProcessingJob(prisma, {
+    ...input,
+    sourceType: "PROJECT",
+    type: "PROJECT_COORDINATOR"
+  });
+}
+
 export async function claimNextProcessingJob(
   prisma: PrismaClient,
   type: ProcessingJobType

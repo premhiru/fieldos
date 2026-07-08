@@ -15,6 +15,7 @@
 - [Unified Evidence Processing](#unified-evidence-processing)
 - [Photo Intelligence Model](#photo-intelligence-model)
 - [Project Report Model](#project-report-model)
+- [AI Project Coordinator Model](#ai-project-coordinator-model)
 - [WhatsApp Connector Model](#whatsapp-connector-model)
 - [AI Classification Model](#ai-classification-model)
 - [Event Model](#event-model)
@@ -45,6 +46,10 @@ Current MVP models:
 - `Attachment`: File metadata attached to a message.
 - `PhotoAnalysis`: Advisory visual analysis linked one-to-one with an image attachment.
 - `ProjectReport`: Cached generated project intelligence report with export metadata.
+- `ProjectState`: Deterministic per-project operational snapshot for coordinators.
+- `Recommendation`: Human-approved AI/deterministic recommendation record.
+- `CoordinatorRun`: Operations log for coordinator executions.
+- `WhatsAppDraft`: Human-editable WhatsApp message draft created from approved recommendations.
 - `AIMessageClassification`: AI-derived classification, summary, extracted fields, and processing status for one message.
 - `ActionItem`: Human-reviewable recommendation derived from an AI classification or deterministic project suggestion.
 - `Event`: Generic organization-scoped activity record prepared for timeline features.
@@ -208,6 +213,44 @@ Key constraints and indexes:
 - `status, createdAt` supports worker polling and operations health.
 
 Completed reports are indexed as `SearchDocument` records with source type `PROJECT_REPORT`. Worker-generated PDF keys use `organizations/{organizationId}/projects/{projectId}/reports/{reportId}.pdf`.
+
+## AI Project Coordinator Model
+
+Project coordinators use four tables:
+
+- `ProjectState`: One deterministic snapshot per project.
+- `Recommendation`: Human-approval record for coordinator proposals.
+- `CoordinatorRun`: Execution log for operational visibility.
+- `WhatsAppDraft`: Editable draft created only after recommendation approval.
+
+`ProjectState` fields:
+
+- `organizationId` and `projectId`: Tenant and project scope. `projectId` is unique.
+- `health`: `HEALTHY`, `NEEDS_ATTENTION`, `CRITICAL`, or `UNKNOWN`.
+- `completionPercent`: Deterministic advisory percentage, not a contractual progress value.
+- `lastActivityAt`, `lastWhatsAppUpdateAt`, `lastEvidenceAt`, and `lastReportAt`: Derived timestamps.
+- Action Item counts: open, urgent, and high-priority.
+- Recent summaries: progress, risk, evidence, blockers, and pending decisions.
+- `metadata`: JSON for deterministic source details.
+
+`Recommendation` fields:
+
+- `type`, `priority`, `confidence`, and `status`: User-facing recommendation classification.
+- `sourceCoordinator`: `PROGRESS`, `FOLLOW_UP`, `INSPECTION`, or `REPORT`.
+- `sourceEntityType` and `sourceEntityId`: Optional source reference for trust and deduplication.
+- `proposedActionType` and `proposedActionPayload`: Human-approved action payload.
+- Approval, dismissal, and completion timestamps and users.
+
+`CoordinatorRun` records coordinator type, status, start/finish timestamps, recommendation count, error, and metadata.
+
+`WhatsAppDraft` stores draft body, linked recommendation, optional account/conversation, creator/approver users, send timestamp, and status. Drafts are not sent automatically.
+
+Key constraints and indexes:
+
+- `ProjectState.projectId` is unique.
+- Recommendation indexes support organization/project pending recommendation views and deduplication.
+- Coordinator run indexes support operations health by organization, project, type, status, and time.
+- WhatsApp draft indexes support organization/project draft lists and recommendation detail views.
 
 ## WhatsApp Connector Model
 
@@ -410,6 +453,7 @@ Job types:
 - `MEDIA_DOWNLOAD`
 - `PHOTO_ANALYSIS`
 - `REPORT_GENERATION`
+- `PROJECT_COORDINATOR`
 
 Job statuses:
 

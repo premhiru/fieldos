@@ -15,6 +15,7 @@
   "dependencies": {
     "@fieldos/ai": "workspace:*",
     "@fieldos/baileys-whatsapp": "workspace:*",
+    "@fieldos/coordinators": "workspace:*",
     "@fieldos/db": "workspace:*",
     "@fieldos/intelligence": "workspace:*",
     "@fieldos/shared": "workspace:*",

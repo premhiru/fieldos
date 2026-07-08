@@ -17,6 +17,7 @@
     "@fastify/cors": "^11.1.0",
     "@fieldos/auth": "workspace:*",
     "@fieldos/baileys-whatsapp": "workspace:*",
+    "@fieldos/coordinators": "workspace:*",
     "@fieldos/db": "workspace:*",
     "@fieldos/ai": "workspace:*",
     "@fieldos/intelligence": "workspace:*",

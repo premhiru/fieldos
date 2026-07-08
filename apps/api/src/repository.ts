@@ -3144,6 +3144,7 @@ function getActivityIcon(sourceType: EventSourceType): string {
   const icons = {
     ACTION_ITEM: "check-circle",
     MESSAGE: "message-circle",
+    RECOMMENDATION: "sparkles",
     REPORT: "file-text",
     SYSTEM: "settings"
   } satisfies Record<EventSourceType, string>;

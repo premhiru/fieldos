@@ -19,7 +19,7 @@
 
 ## Current Milestone
 
-Sprint 14 Pilot Readiness is implemented, pushed to GitHub, migrated locally and in Railway production, and deployed to Railway API/worker. Dashboard production deployment should be confirmed through Vercel/GitHub integration because no Vercel token or local Vercel auth is available in this shell.
+Milestone 2 AI Project Coordinators is implemented, validated locally, and deployed to the Railway backend.
 
 ## Completed Tasks
 
@@ -181,6 +181,19 @@ Sprint 14 Pilot Readiness is implemented, pushed to GitHub, migrated locally and
   - Prisma migration `20260708030000_pilot_readiness` adds demo flags, feedback, analytics, and notifications.
   - Pilot docs added: `QUICK_START.md`, `DEMO_SCRIPT.md`, `PRODUCTION_READINESS.md`, `docs/PILOT_READINESS_REPORT.md`, and `docs/KNOWN_LIMITATIONS.md`.
   - Local validation passed for format, lint, typecheck, tests, build, and Prisma migration deploy.
+- Milestone 2: AI Project Coordinators.
+  - `packages/coordinators` added with deterministic ProjectState rebuilding, coordinator runtime, deduplication, recommendation approval, and WhatsApp draft lifecycle.
+  - Prisma migration `20260708040000_ai_project_coordinators` adds `ProjectState`, `Recommendation`, `CoordinatorRun`, `WhatsAppDraft`, and coordinator enums.
+  - Worker now queues `PROJECT_COORDINATOR` jobs after AI classification, photo analysis, report generation, and scheduled hourly active-project scans.
+  - API endpoints added for project state, coordinator runs, recommendations, approvals, dismissal, completion, and WhatsApp drafts.
+  - Operations Command Center now prioritizes AI Recommendations.
+  - Project pages now show Project Coordinator state, summaries, pending recommendations, run-now action, and coordinator history.
+  - Recommendation detail page added with evidence/source references, proposed payload, approval controls, and draft editing/sending controls.
+  - Operations Health now shows coordinator runs, failures, recommendations created, pending recommendations, and approval rate.
+  - ADR 0014 and `COORDINATOR_DEMO_SCRIPT.md` added.
+  - Local validation passed for format, lint, typecheck, tests, build, and Prisma migration deploy.
+  - Railway API deployment applied migration `20260708040000_ai_project_coordinators`.
+  - Railway worker deployment verified coordinator startup scan and processed `PROJECT_COORDINATOR` jobs.
 
 ## In-Progress Tasks
 
@@ -212,10 +225,13 @@ Sprint 14 Pilot Readiness is implemented, pushed to GitHub, migrated locally and
 - Demo evidence uses metadata records and placeholder storage keys; live media verification still requires a real WhatsApp/R2 smoke test.
 - Product analytics events are captured in the database but do not yet have a dashboard.
 - Quick-start screenshots are static in-repo visual references and should be replaced with production screenshots after deployment.
+- WhatsApp draft sending has a safe sender interface, but the current Baileys package does not expose an outbound send adapter yet; unconfigured sends fail clearly instead of being marked sent.
+- Running `railway run pnpm deploy:migrate` from the local shell currently returns a generic Prisma schema engine error, even though the API service startup migration path succeeds in Railway logs.
 
 ## Upcoming Milestones
 
 - Confirm the Vercel dashboard deployment from the GitHub `main` push and capture production quick-start screenshots.
+- Wire a real outbound WhatsApp sender into the `WhatsAppDraftSender` interface before piloting draft sends.
 - Reset the demo workspace in production through the dashboard after Vercel deployment is confirmed.
 - Pair the WhatsApp line again and validate live photo analysis, mixed-evidence ingestion, voice transcription, AI classification, project intelligence, evidence viewing, and search indexing.
 - Configure `OPENAI_API_KEY` for production voice transcription if voice transcript generation is required.
@@ -247,6 +263,7 @@ Sprint 14 Pilot Readiness is implemented, pushed to GitHub, migrated locally and
 - ADR 0012: Analyze image attachments asynchronously as advisory Photo Intelligence.
 - ADR 0013: Generate grounded project intelligence and reports from stored FieldOS records, with signed evidence media access.
 - ADR 0013B: Use Cloudflare R2 for production media and report storage through signed URLs.
+- ADR 0014: Use AI Project Coordinators, deterministic ProjectState, and human-approved Recommendations.
 - Sprint 14 implementation decision: Keep pilot readiness primitives small, tenant-scoped, and API-owned rather than introducing a product analytics service or tour framework before the first pilot.
 
 ## Deployment Status
@@ -259,6 +276,12 @@ Sprint 14 Pilot Readiness is implemented, pushed to GitHub, migrated locally and
   - Worker deployed and verified running with startup log: `worker started and waiting for jobs`.
   - Railway PostgreSQL service `Postgres` is deployed and migrations are applied.
   - Railway Redis service `Redis` is deployed.
+- Milestone 2 AI Project Coordinators deployed to Railway backend.
+  - API deployment `c852feeb-07ac-447e-aac4-7b110d585b48` completed successfully.
+  - Worker deployment `ef13e05a-fea2-4080-a0c3-37a68183b426` completed successfully.
+  - Production migration `20260708040000_ai_project_coordinators` applied during API startup.
+  - API health returned `{"status":"ok"}` after deployment.
+  - Worker logs show scheduled coordinator scans and completed `PROJECT_COORDINATOR` jobs.
 - Production login cookie fix completed.
   - Cross-origin auth cookies now use `SameSite=None; Secure` in production.
   - API tests assert production cookie attributes.

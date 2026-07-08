@@ -1,7 +1,8 @@
 import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
 import { RedisWhatsAppQrStore, type WhatsAppQrStore } from "@fieldos/baileys-whatsapp/qr-store";
-import { Prisma } from "@fieldos/db";
+import { NoopWhatsAppDraftSender, ProjectCoordinatorRuntime } from "@fieldos/coordinators";
+import { Prisma, prisma } from "@fieldos/db";
 import {
   AUTH_COOKIE_NAME,
   hashPassword,
@@ -75,18 +76,25 @@ import {
   projectParamsSchema,
   projectSearchAskSchema,
   reportFormatQuerySchema,
+  recommendationParamsSchema,
+  recommendationsQuerySchema,
   actionItemParamsSchema,
   searchAskSchema,
   searchQuerySchema,
+  dismissRecommendationSchema,
+  updateWhatsAppDraftSchema,
   updateWhatsAppChatMappingSchema,
   whatsappAccountParamsSchema,
   whatsappAccountsQuerySchema,
+  whatsappDraftParamsSchema,
+  whatsappDraftsQuerySchema,
   whatsappChatMappingParamsSchema
 } from "./schemas.js";
 
 const writableRoles = new Set<Role>(["OWNER", "ADMIN"]);
 
 export interface BuildServerOptions {
+  coordinatorRuntime?: CoordinatorRuntimePort;
   qrStore?: WhatsAppQrStore;
   repository?: AppRepository;
   searchAnswerer?: {
@@ -94,6 +102,25 @@ export interface BuildServerOptions {
   };
   storageProvider?: StorageProvider;
 }
+
+type CoordinatorRuntimePort = Pick<
+  ProjectCoordinatorRuntime,
+  | "approveRecommendation"
+  | "cancelWhatsAppDraft"
+  | "completeRecommendation"
+  | "dismissRecommendation"
+  | "getOperationsMetrics"
+  | "getProjectState"
+  | "getRecommendation"
+  | "getWhatsAppDraft"
+  | "listProjectCoordinatorRuns"
+  | "listRecommendations"
+  | "listWhatsAppDrafts"
+  | "rebuildProjectState"
+  | "runProjectCoordinators"
+  | "sendWhatsAppDraft"
+  | "updateWhatsAppDraft"
+>;
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -108,6 +135,13 @@ export function buildServer(options: BuildServerOptions = {}) {
   const attachmentService = new AttachmentService(repository);
   const searchAnswerer = options.searchAnswerer ?? new SearchAnswerGenerator();
   const projectIntelligenceService = new ProjectIntelligenceService();
+  const coordinatorRuntime =
+    options.coordinatorRuntime ??
+    (options.repository
+      ? createNoopCoordinatorRuntime()
+      : new ProjectCoordinatorRuntime(prisma, {
+          draftSender: new NoopWhatsAppDraftSender()
+        }));
   const storageProvider =
     options.storageProvider ??
     createStorageProvider({
@@ -439,7 +473,10 @@ export function buildServer(options: BuildServerOptions = {}) {
     await requireAdminOrganizationMembership(requireCurrentUser(request).id, query.organizationId);
 
     return {
-      operations: await repository.getAdminOperations(query.organizationId)
+      operations: {
+        ...(await repository.getAdminOperations(query.organizationId)),
+        coordinators: await coordinatorRuntime.getOperationsMetrics(query.organizationId)
+      }
     };
   });
 
@@ -612,6 +649,206 @@ export function buildServer(options: BuildServerOptions = {}) {
 
     return {
       project
+    };
+  });
+
+  server.get("/projects/:projectId/state", { preHandler: requireAuth }, async (request) => {
+    const params = projectParamsSchema.parse(request.params);
+    const project = await requireProjectForRequest(request, params.projectId);
+
+    return {
+      state: await coordinatorRuntime.getProjectState(project.id)
+    };
+  });
+
+  server.post(
+    "/projects/:projectId/state/rebuild",
+    { preHandler: requireAuth },
+    async (request) => {
+      const params = projectParamsSchema.parse(request.params);
+      const user = requireCurrentUser(request);
+      const project = await requireProjectForRequest(request, params.projectId);
+      await requireWritableOrganizationRole(user.id, project.organizationId);
+
+      return {
+        state: await coordinatorRuntime.rebuildProjectState(project.id)
+      };
+    }
+  );
+
+  server.post(
+    "/projects/:projectId/coordinators/run",
+    { preHandler: requireAuth },
+    async (request) => {
+      const params = projectParamsSchema.parse(request.params);
+      const user = requireCurrentUser(request);
+      const project = await requireProjectForRequest(request, params.projectId);
+      await requireWritableOrganizationRole(user.id, project.organizationId);
+
+      return {
+        run: await coordinatorRuntime.runProjectCoordinators(project.id)
+      };
+    }
+  );
+
+  server.get(
+    "/projects/:projectId/coordinators/runs",
+    { preHandler: requireAuth },
+    async (request) => {
+      const params = projectParamsSchema.parse(request.params);
+      const project = await requireProjectForRequest(request, params.projectId);
+
+      return {
+        runs: await coordinatorRuntime.listProjectCoordinatorRuns(project.id)
+      };
+    }
+  );
+
+  server.get("/recommendations", { preHandler: requireAuth }, async (request) => {
+    const query = recommendationsQuerySchema.parse(request.query);
+    await requireOrganizationMembership(requireCurrentUser(request).id, query.organizationId);
+
+    return {
+      recommendations: await coordinatorRuntime.listRecommendations({
+        organizationId: query.organizationId,
+        status: query.status
+      })
+    };
+  });
+
+  server.get(
+    "/projects/:projectId/recommendations",
+    { preHandler: requireAuth },
+    async (request) => {
+      const params = projectParamsSchema.parse(request.params);
+      const query = recommendationsQuerySchema
+        .omit({ organizationId: true })
+        .parse(request.query ?? {});
+      const project = await requireProjectForRequest(request, params.projectId);
+
+      return {
+        recommendations: await coordinatorRuntime.listRecommendations({
+          organizationId: project.organizationId,
+          projectId: project.id,
+          status: query.status
+        })
+      };
+    }
+  );
+
+  server.get("/recommendations/:id", { preHandler: requireAuth }, async (request) => {
+    const params = recommendationParamsSchema.parse(request.params);
+    const recommendation = await requireRecommendationAccess(
+      requireCurrentUser(request).id,
+      params.id
+    );
+
+    return {
+      recommendation
+    };
+  });
+
+  server.post("/recommendations/:id/approve", { preHandler: requireAuth }, async (request) => {
+    const params = recommendationParamsSchema.parse(request.params);
+    const user = requireCurrentUser(request);
+    const recommendation = await requireRecommendationAccess(user.id, params.id);
+    await requireWritableOrganizationRole(user.id, recommendation.organizationId);
+
+    return {
+      approval: await coordinatorRuntime.approveRecommendation({
+        recommendationId: recommendation.id,
+        userId: user.id
+      })
+    };
+  });
+
+  server.post("/recommendations/:id/dismiss", { preHandler: requireAuth }, async (request) => {
+    const params = recommendationParamsSchema.parse(request.params);
+    const body = dismissRecommendationSchema.parse(request.body ?? {});
+    const user = requireCurrentUser(request);
+    const recommendation = await requireRecommendationAccess(user.id, params.id);
+    await requireWritableOrganizationRole(user.id, recommendation.organizationId);
+
+    return {
+      recommendation: await coordinatorRuntime.dismissRecommendation({
+        dismissReason: body.dismissReason ?? null,
+        recommendationId: recommendation.id,
+        userId: user.id
+      })
+    };
+  });
+
+  server.post("/recommendations/:id/complete", { preHandler: requireAuth }, async (request) => {
+    const params = recommendationParamsSchema.parse(request.params);
+    const user = requireCurrentUser(request);
+    const recommendation = await requireRecommendationAccess(user.id, params.id);
+    await requireWritableOrganizationRole(user.id, recommendation.organizationId);
+
+    return {
+      recommendation: await coordinatorRuntime.completeRecommendation(recommendation.id)
+    };
+  });
+
+  server.get("/whatsapp/drafts", { preHandler: requireAuth }, async (request) => {
+    const query = whatsappDraftsQuerySchema.parse(request.query);
+    const user = requireCurrentUser(request);
+    await requireOrganizationMembership(user.id, query.organizationId);
+    await validateMappingProject(user.id, query.organizationId, query.projectId ?? null);
+
+    return {
+      drafts: await coordinatorRuntime.listWhatsAppDrafts({
+        organizationId: query.organizationId,
+        projectId: query.projectId ?? null
+      })
+    };
+  });
+
+  server.get("/whatsapp/drafts/:id", { preHandler: requireAuth }, async (request) => {
+    const params = whatsappDraftParamsSchema.parse(request.params);
+    const draft = await requireWhatsAppDraftAccess(requireCurrentUser(request).id, params.id);
+
+    return {
+      draft
+    };
+  });
+
+  server.patch("/whatsapp/drafts/:id", { preHandler: requireAuth }, async (request) => {
+    const params = whatsappDraftParamsSchema.parse(request.params);
+    const body = updateWhatsAppDraftSchema.parse(request.body);
+    const user = requireCurrentUser(request);
+    const draft = await requireWhatsAppDraftAccess(user.id, params.id);
+    await requireWritableOrganizationRole(user.id, draft.organizationId);
+
+    return {
+      draft: await coordinatorRuntime.updateWhatsAppDraft({
+        draftId: draft.id,
+        messageBody: body.messageBody
+      })
+    };
+  });
+
+  server.post("/whatsapp/drafts/:id/send", { preHandler: requireAuth }, async (request) => {
+    const params = whatsappDraftParamsSchema.parse(request.params);
+    const user = requireCurrentUser(request);
+    const draft = await requireWhatsAppDraftAccess(user.id, params.id);
+    await requireWritableOrganizationRole(user.id, draft.organizationId);
+
+    return {
+      result: await coordinatorRuntime.sendWhatsAppDraft({
+        draftId: draft.id,
+        userId: user.id
+      })
+    };
+  });
+
+  server.post("/whatsapp/drafts/:id/cancel", { preHandler: requireAuth }, async (request) => {
+    const params = whatsappDraftParamsSchema.parse(request.params);
+    const user = requireCurrentUser(request);
+    const draft = await requireWhatsAppDraftAccess(user.id, params.id);
+    await requireWritableOrganizationRole(user.id, draft.organizationId);
+
+    return {
+      draft: await coordinatorRuntime.cancelWhatsAppDraft(draft.id)
     };
   });
 
@@ -1337,6 +1574,28 @@ export function buildServer(options: BuildServerOptions = {}) {
     return actionItem;
   }
 
+  async function requireRecommendationAccess(userId: string, recommendationId: string) {
+    const recommendation = await coordinatorRuntime.getRecommendation(recommendationId);
+
+    if (!recommendation) {
+      throw notFound("Recommendation not found.");
+    }
+
+    await requireOrganizationMembership(userId, recommendation.organizationId);
+    return recommendation;
+  }
+
+  async function requireWhatsAppDraftAccess(userId: string, draftId: string) {
+    const draft = await coordinatorRuntime.getWhatsAppDraft(draftId);
+
+    if (!draft) {
+      throw notFound("WhatsApp draft not found.");
+    }
+
+    await requireOrganizationMembership(userId, draft.organizationId);
+    return draft;
+  }
+
   async function getDashboardForRequest(request: FastifyRequest) {
     const query = dashboardQuerySchema.parse(request.query);
     const user = requireCurrentUser(request);
@@ -1605,6 +1864,37 @@ function toSafeUser(user: SafeUser): SafeUser {
     id: user.id,
     name: user.name,
     updatedAt: user.updatedAt
+  };
+}
+
+function createNoopCoordinatorRuntime(): CoordinatorRuntimePort {
+  return {
+    approveRecommendation: async () => ({ recommendation: null as never }),
+    cancelWhatsAppDraft: async () => null as never,
+    completeRecommendation: async () => null as never,
+    dismissRecommendation: async () => null as never,
+    getOperationsMetrics: async () => ({
+      approvalRate: 0,
+      failedRunsToday: 0,
+      lastRunPerProject: [],
+      pendingRecommendations: 0,
+      recommendationsCreatedToday: 0,
+      runsToday: 0
+    }),
+    getProjectState: async () => null as never,
+    getRecommendation: async () => null,
+    getWhatsAppDraft: async () => null,
+    listProjectCoordinatorRuns: async () => [],
+    listRecommendations: async () => [],
+    listWhatsAppDrafts: async () => [],
+    rebuildProjectState: async () => null as never,
+    runProjectCoordinators: async () => null as never,
+    sendWhatsAppDraft: async () => ({
+      draft: null as never,
+      error: "Not configured.",
+      sent: false
+    }),
+    updateWhatsAppDraft: async () => null as never
   };
 }
 

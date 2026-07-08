@@ -28,6 +28,8 @@ Overall readiness: 82%.
 
 - API health endpoint exists.
 - Worker heartbeat and job monitoring exist.
+- Coordinator run metrics and pending recommendation metrics exist in Operations Health.
+- AI Recommendations and Project Coordinator panels are implemented with human approval controls.
 - R2-backed durable storage is configured for production media and reports.
 - Demo workspace data is tenant-scoped and marked as demo.
 - Feedback, notifications, onboarding, and analytics primitives are implemented.
@@ -38,6 +40,9 @@ Overall readiness: 82%.
 - Deploy API, worker, and dashboard after this commit.
 - Verify `GET /health`.
 - Verify Railway worker heartbeat on `/admin/operations`.
+- Verify coordinator scheduled scan queues `PROJECT_COORDINATOR` jobs at most hourly.
+- Verify a project state rebuild and recommendation approval flow in production.
+- Wire and verify a real outbound WhatsApp sender before relying on draft send in pilot operations.
 - Reset demo workspace in production and confirm dashboard data loads.
 - Confirm no sensitive tokens are printed in logs.
 

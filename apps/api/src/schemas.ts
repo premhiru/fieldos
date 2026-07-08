@@ -28,6 +28,14 @@ export const actionItemParamsSchema = z.object({
   id: z.string().min(1)
 });
 
+export const recommendationParamsSchema = z.object({
+  id: z.string().min(1)
+});
+
+export const whatsappDraftParamsSchema = z.object({
+  id: z.string().min(1)
+});
+
 export const notificationParamsSchema = z.object({
   id: z.string().min(1)
 });
@@ -107,6 +115,24 @@ export const whatsappAccountsQuerySchema = z.object({
 
 export const dashboardQuerySchema = z.object({
   organizationId: z.string().trim().min(1)
+});
+
+export const recommendationsQuerySchema = z.object({
+  organizationId: z.string().trim().min(1),
+  status: z.enum(["PENDING", "APPROVED", "DISMISSED", "COMPLETED", "FAILED"]).optional()
+});
+
+export const dismissRecommendationSchema = z.object({
+  dismissReason: z.string().trim().max(500).nullable().optional()
+});
+
+export const whatsappDraftsQuerySchema = z.object({
+  organizationId: z.string().trim().min(1),
+  projectId: z.string().trim().min(1).optional()
+});
+
+export const updateWhatsAppDraftSchema = z.object({
+  messageBody: z.string().trim().min(1).max(4000)
 });
 
 export const notificationsQuerySchema = z.object({

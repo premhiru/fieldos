@@ -13,6 +13,18 @@
 
 ## Unreleased
 
+### AI Project Coordinators
+
+- Added `packages/coordinators` with ProjectState rebuilding, Progress, Follow-up, Inspection, and Report coordinators.
+- Added `ProjectState`, `Recommendation`, `CoordinatorRun`, and `WhatsAppDraft` models.
+- Added `PROJECT_COORDINATOR` jobs and worker-owned hourly active-project scans.
+- Added recommendation approval, dismissal, completion, detail, and WhatsApp draft API endpoints.
+- Added AI Recommendations to the Operations Command Center.
+- Added Project Coordinator state, run-now action, pending recommendations, and run history to project pages.
+- Added recommendation detail pages with evidence/source references, proposed action payload, approval controls, and draft editing.
+- Added coordinator metrics to Operations Health.
+- Added ADR 0014 and `COORDINATOR_DEMO_SCRIPT.md`.
+
 ### Pilot Readiness
 
 - Added resettable aviation Demo Workspace with synthetic airport projects, WhatsApp-style conversations, messages, evidence metadata, reports, milestones, and Action Items.

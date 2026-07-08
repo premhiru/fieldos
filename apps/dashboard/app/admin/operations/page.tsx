@@ -260,11 +260,21 @@ function SystemCards({ operations }: { operations: AdminOperations }) {
         ["Pending Photo Analysis", operations.media.pendingPhotoAnalyses],
         ["Failed Downloads", operations.media.failedDownloads]
       ]
+    },
+    {
+      title: "Coordinators",
+      rows: [
+        ["Runs Today", operations.coordinators.runsToday],
+        ["Failed Runs", operations.coordinators.failedRunsToday],
+        ["Created Today", operations.coordinators.recommendationsCreatedToday],
+        ["Pending Recommendations", operations.coordinators.pendingRecommendations],
+        ["Approval Rate", `${operations.coordinators.approvalRate}%`]
+      ]
     }
   ];
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
       {cards.map((card) => (
         <Card key={card.title}>
           <CardHeader>
