@@ -21,6 +21,7 @@
 - [Milestone Model](#milestone-model)
 - [Search Model](#search-model)
 - [Background Processing Model](#background-processing-model)
+- [Pilot Readiness Model](#pilot-readiness-model)
 - [Schema Ownership](#schema-ownership)
 - [Migration Policy](#migration-policy)
 - [Retention and Compliance](#retention-and-compliance)
@@ -51,6 +52,9 @@ Current MVP models:
 - `SearchDocument`: Grounded search index entry for retrievable FieldOS records.
 - `ProcessingJob`: Lightweight background job record used for search indexing, AI classification, and future media/transcription work.
 - `WorkerHeartbeat`: Operational heartbeat record for deployed worker processes.
+- `UserFeedback`: Pilot feedback submitted from the dashboard.
+- `ProductAnalyticsEvent`: Internal product analytics event stream.
+- `UserNotification`: Lightweight user notification record.
 - `WhatsAppAccount`: A WhatsApp connector account owned by an organization.
 - `WhatsAppChatMapping`: Connector-specific mapping between a WhatsApp chat JID, a generic conversation, and an optional project.
 
@@ -439,6 +443,23 @@ Key constraints and indexes:
 - `version`: Deployment version or commit.
 - `status`: `ONLINE`, `OFFLINE`, `STARTING`, or `STOPPING`.
 - `lastHeartbeatAt`: Updated every 30 seconds by the worker.
+
+## Pilot Readiness Model
+
+Pilot readiness adds small tenant-scoped models:
+
+- `Organization.isDemo`: Marks resettable demo workspaces. Demo reset deletes only demo organizations owned by the signed-in user.
+- `UserFeedback`: Stores feedback type, message, optional page, status, organization, user, and timestamp.
+- `ProductAnalyticsEvent`: Stores internal event name, optional organization/user scope, JSON metadata, and timestamp.
+- `UserNotification`: Stores lightweight in-app notifications with title, body, href, read timestamp, organization, user, and timestamp.
+
+Indexes:
+
+- `UserFeedback.organizationId, createdAt`.
+- `ProductAnalyticsEvent.organizationId, eventName, createdAt`.
+- `UserNotification.organizationId, userId, createdAt`.
+
+These models are intentionally simple and do not replace audit logs, customer support tooling, or a full analytics warehouse.
 
 ## Schema Ownership
 

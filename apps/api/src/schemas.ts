@@ -28,6 +28,10 @@ export const actionItemParamsSchema = z.object({
   id: z.string().min(1)
 });
 
+export const notificationParamsSchema = z.object({
+  id: z.string().min(1)
+});
+
 export const searchSourceTypeSchema = z.enum([
   "PROJECT",
   "MESSAGE",
@@ -103,6 +107,17 @@ export const whatsappAccountsQuerySchema = z.object({
 
 export const dashboardQuerySchema = z.object({
   organizationId: z.string().trim().min(1)
+});
+
+export const notificationsQuerySchema = z.object({
+  organizationId: z.string().trim().min(1)
+});
+
+export const feedbackSchema = z.object({
+  message: z.string().trim().min(1).max(2000),
+  organizationId: z.string().trim().min(1),
+  page: z.string().trim().max(500).optional(),
+  type: z.enum(["BUG", "FEATURE", "GENERAL"])
 });
 
 export const createWhatsAppAccountSchema = z.object({

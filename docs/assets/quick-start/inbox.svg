@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="520" viewBox="0 0 960 520" role="img" aria-label="FieldOS inbox screenshot reference">
+  <rect width="960" height="520" fill="#f8fafc"/>
+  <rect x="0" y="0" width="220" height="520" fill="#ffffff" stroke="#e2e8f0"/>
+  <text x="28" y="42" font-family="Arial" font-size="20" font-weight="700" fill="#020617">FieldOS</text>
+  <rect x="28" y="150" width="160" height="34" rx="6" fill="#020617"/>
+  <text x="48" y="173" font-family="Arial" font-size="13" fill="#ffffff">Inbox</text>
+  <text x="260" y="58" font-family="Arial" font-size="28" font-weight="700" fill="#020617">Inbox</text>
+  <rect x="260" y="94" width="360" height="40" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="282" y="119" font-family="Arial" font-size="13" fill="#64748b">Search conversations and messages</text>
+  <rect x="260" y="164" width="620" height="280" rx="6" fill="#ffffff" stroke="#e2e8f0"/>
+  <line x1="260" y1="216" x2="880" y2="216" stroke="#e2e8f0"/>
+  <line x1="260" y1="280" x2="880" y2="280" stroke="#e2e8f0"/>
+  <line x1="260" y1="344" x2="880" y2="344" stroke="#e2e8f0"/>
+  <text x="286" y="196" font-family="Arial" font-size="12" font-weight="700" fill="#64748b">Conversation</text>
+  <text x="520" y="196" font-family="Arial" font-size="12" font-weight="700" fill="#64748b">Channel</text>
+  <text x="650" y="196" font-family="Arial" font-size="12" font-weight="700" fill="#64748b">Last Message</text>
+  <text x="286" y="255" font-family="Arial" font-size="14" font-weight="700" fill="#020617">SIN-TWY-A7 Airside Coordination</text>
+  <text x="520" y="255" font-family="Arial" font-size="13" fill="#020617">WHATSAPP</text>
+  <text x="650" y="255" font-family="Arial" font-size="13" fill="#475569">Photo uploaded for taxiway lights...</text>
+</svg>

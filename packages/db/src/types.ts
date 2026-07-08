@@ -11,6 +11,7 @@ export type {
   Attachment,
   Event,
   EventSourceType,
+  FeedbackType,
   Membership,
   MembershipRole,
   MessageProcessingStatus,

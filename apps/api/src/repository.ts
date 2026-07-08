@@ -5,6 +5,7 @@ import type {
   ActionItemStatus,
   ActionItemType,
   EventSourceType,
+  FeedbackType,
   MembershipRole,
   MilestoneStatus,
   ProcessingJobStatus,
@@ -61,6 +62,7 @@ export type JobStatus = ProcessingJobStatus;
 export type WorkerHealthStatus = WorkerStatus;
 export type ReportType = ProjectReportType;
 export type ReportStatus = ProjectReportStatus;
+export type PilotFeedbackType = FeedbackType;
 
 export interface SafeUser {
   id: string;
@@ -76,6 +78,7 @@ export interface StoredUser extends SafeUser {
 
 export interface OrganizationRecord {
   id: string;
+  isDemo: boolean;
   name: string;
   slug: string;
   role: Role;
@@ -468,6 +471,55 @@ export interface AdminOperationsRecord {
   workers: WorkerHeartbeatRecord[];
 }
 
+export interface OnboardingStepRecord {
+  completed: boolean;
+  href: string;
+  key:
+    | "CREATE_ORGANIZATION"
+    | "CREATE_PROJECT"
+    | "CONNECT_WHATSAPP"
+    | "ACTIVATE_GROUP"
+    | "SEND_UPDATE"
+    | "OPEN_COMMAND_CENTER";
+  label: string;
+}
+
+export interface OnboardingStateRecord {
+  organizationId: string;
+  isDemo: boolean;
+  progress: number;
+  steps: OnboardingStepRecord[];
+}
+
+export interface UserFeedbackRecord {
+  id: string;
+  organizationId: string;
+  userId: string;
+  type: PilotFeedbackType;
+  message: string;
+  page: string | null;
+  status: string;
+  createdAt: Date;
+}
+
+export interface UserNotificationRecord {
+  id: string;
+  organizationId: string;
+  userId: string;
+  type: string;
+  title: string;
+  body: string | null;
+  href: string | null;
+  readAt: Date | null;
+  createdAt: Date;
+}
+
+export interface DemoWorkspaceRecord {
+  organization: OrganizationRecord;
+  projects: ProjectRecord[];
+  conversations: ConversationRecord[];
+}
+
 export interface AppRepository extends MessagingRepository {
   createOrganization(input: {
     name: string;
@@ -528,6 +580,37 @@ export interface AppRepository extends MessagingRepository {
     userId: string;
   }): Promise<OperationsDashboardRecord>;
   getAdminOperations(organizationId: string): Promise<AdminOperationsRecord>;
+  createFeedback(input: {
+    message: string;
+    organizationId: string;
+    page?: string;
+    type: PilotFeedbackType;
+    userId: string;
+  }): Promise<UserFeedbackRecord>;
+  createNotification(input: {
+    body?: string | null;
+    href?: string | null;
+    organizationId: string;
+    title: string;
+    type: string;
+    userId: string;
+  }): Promise<UserNotificationRecord>;
+  getOnboardingState(organizationId: string): Promise<OnboardingStateRecord>;
+  listNotifications(input: {
+    organizationId: string;
+    userId: string;
+  }): Promise<UserNotificationRecord[]>;
+  markNotificationRead(input: {
+    notificationId: string;
+    userId: string;
+  }): Promise<UserNotificationRecord | null>;
+  recordAnalyticsEvent(input: {
+    eventName: string;
+    metadata?: Prisma.InputJsonValue;
+    organizationId?: string | null;
+    userId?: string | null;
+  }): Promise<void>;
+  resetDemoWorkspace(userId: string): Promise<DemoWorkspaceRecord>;
   getProcessingJob(jobId: string): Promise<ProcessingJobRecord | null>;
   listProcessingJobs(organizationId: string): Promise<ProcessingJobRecord[]>;
   listWorkerHeartbeats(): Promise<WorkerHeartbeatRecord[]>;
@@ -1212,7 +1295,9 @@ export function createPrismaRepository(): AppRepository {
         (event) => event.occurredAt.getTime() >= todayStart.getTime()
       ).length;
       const myActionItems = actionItems.filter(
-        (actionItem) => actionItem.assignedToUserId === input.userId && isOpenActionItem(actionItem)
+        (actionItem) =>
+          (actionItem.assignedToUserId === input.userId || actionItem.assignedToUserId === null) &&
+          isOpenActionItem(actionItem)
       );
 
       const summary: DashboardSummaryRecord = {
@@ -1375,6 +1460,178 @@ export function createPrismaRepository(): AppRepository {
           status: getWorkerEffectiveStatus(worker)
         }))
       };
+    },
+
+    async createFeedback(input) {
+      const prisma = await getPrisma();
+      return prisma.userFeedback.create({
+        data: {
+          message: input.message,
+          organizationId: input.organizationId,
+          page: input.page ?? null,
+          type: input.type,
+          userId: input.userId
+        }
+      });
+    },
+
+    async createNotification(input) {
+      const prisma = await getPrisma();
+      return prisma.userNotification.create({
+        data: {
+          body: input.body ?? null,
+          href: input.href ?? null,
+          organizationId: input.organizationId,
+          title: input.title,
+          type: input.type,
+          userId: input.userId
+        }
+      });
+    },
+
+    async getOnboardingState(organizationId) {
+      const prisma = await getPrisma();
+      const [organization, projectCount, connectedAccountCount, activeChatCount, messageCount] =
+        await Promise.all([
+          prisma.organization.findUnique({
+            select: {
+              id: true,
+              isDemo: true
+            },
+            where: {
+              id: organizationId
+            }
+          }),
+          prisma.project.count({
+            where: {
+              organizationId
+            }
+          }),
+          prisma.whatsAppAccount.count({
+            where: {
+              organizationId,
+              status: "CONNECTED"
+            }
+          }),
+          prisma.whatsAppChatMapping.count({
+            where: {
+              organizationId,
+              status: "ACTIVE"
+            }
+          }),
+          prisma.message.count({
+            where: {
+              conversation: {
+                organizationId
+              }
+            }
+          })
+        ]);
+
+      if (!organization) {
+        throw new Error("Organization not found.");
+      }
+
+      const steps: OnboardingStepRecord[] = [
+        {
+          completed: true,
+          href: "/",
+          key: "CREATE_ORGANIZATION",
+          label: "Create organization"
+        },
+        {
+          completed: projectCount > 0,
+          href: "/projects",
+          key: "CREATE_PROJECT",
+          label: "Create first project"
+        },
+        {
+          completed: connectedAccountCount > 0,
+          href: "/settings",
+          key: "CONNECT_WHATSAPP",
+          label: "Connect WhatsApp"
+        },
+        {
+          completed: activeChatCount > 0,
+          href: "/settings",
+          key: "ACTIVATE_GROUP",
+          label: "Activate a chat or group"
+        },
+        {
+          completed: messageCount > 0,
+          href: "/inbox",
+          key: "SEND_UPDATE",
+          label: "Send a field update"
+        },
+        {
+          completed: projectCount > 0 && messageCount > 0,
+          href: "/",
+          key: "OPEN_COMMAND_CENTER",
+          label: "Open Project Command Center"
+        }
+      ];
+      const completedCount = steps.filter((step) => step.completed).length;
+
+      return {
+        isDemo: organization.isDemo,
+        organizationId,
+        progress: Math.round((completedCount / steps.length) * 100),
+        steps
+      };
+    },
+
+    async listNotifications(input) {
+      const prisma = await getPrisma();
+      return prisma.userNotification.findMany({
+        orderBy: {
+          createdAt: "desc"
+        },
+        take: 15,
+        where: {
+          organizationId: input.organizationId,
+          userId: input.userId
+        }
+      });
+    },
+
+    async markNotificationRead(input) {
+      const prisma = await getPrisma();
+      const notification = await prisma.userNotification.findFirst({
+        where: {
+          id: input.notificationId,
+          userId: input.userId
+        }
+      });
+
+      if (!notification) {
+        return null;
+      }
+
+      return prisma.userNotification.update({
+        data: {
+          readAt: new Date()
+        },
+        where: {
+          id: notification.id
+        }
+      });
+    },
+
+    async recordAnalyticsEvent(input) {
+      const prisma = await getPrisma();
+      await prisma.productAnalyticsEvent.create({
+        data: {
+          eventName: input.eventName,
+          metadata: input.metadata ?? Prisma.JsonNull,
+          organizationId: input.organizationId ?? null,
+          userId: input.userId ?? null
+        }
+      });
+    },
+
+    async resetDemoWorkspace(userId) {
+      const prisma = await getPrisma();
+      return resetDemoWorkspace(prisma, userId);
     },
 
     async listProcessingJobs(organizationId) {
@@ -2285,6 +2542,430 @@ function toSearchDocumentsResult(
 function createSnippet(content: string): string {
   const normalized = content.replace(/\s+/g, " ").trim();
   return normalized.length > 240 ? `${normalized.slice(0, 237)}...` : normalized;
+}
+
+async function resetDemoWorkspace(
+  prisma: PrismaClient,
+  userId: string
+): Promise<DemoWorkspaceRecord> {
+  const now = new Date();
+  const demoSlug = `fieldos-aviation-demo-${Date.now().toString(36)}`;
+  const demoProjects = [
+    {
+      code: "SIN-TWY-A7",
+      name: "Taxiway A7 Lighting Modernization",
+      status: "ACTIVE" as const
+    },
+    {
+      code: "SIN-RWY-09R",
+      name: "Runway 09R/27L Rehabilitation",
+      status: "ACTIVE" as const
+    },
+    {
+      code: "SIN-CCR-02",
+      name: "CCR Replacement and Commissioning",
+      status: "PAUSED" as const
+    }
+  ];
+
+  return prisma.$transaction(async (tx) => {
+    const demoMemberships = await tx.membership.findMany({
+      select: {
+        organizationId: true
+      },
+      where: {
+        organization: {
+          isDemo: true
+        },
+        userId
+      }
+    });
+    const demoOrganizationIds = demoMemberships.map((membership) => membership.organizationId);
+
+    if (demoOrganizationIds.length > 0) {
+      await tx.organization.deleteMany({
+        where: {
+          id: {
+            in: demoOrganizationIds
+          },
+          isDemo: true
+        }
+      });
+    }
+
+    const organization = await tx.organization.create({
+      data: {
+        isDemo: true,
+        name: "FieldOS Aviation Demo",
+        slug: demoSlug
+      }
+    });
+    const membership = await tx.membership.create({
+      data: {
+        organizationId: organization.id,
+        role: "OWNER",
+        userId
+      }
+    });
+
+    const whatsAppAccount = await tx.whatsAppAccount.create({
+      data: {
+        connectorType: "BAILEYS",
+        displayName: "Demo airport operations line",
+        lastConnectedAt: now,
+        organizationId: organization.id,
+        sessionKey: `demo/${organization.id}/${randomUUID()}`,
+        status: "CONNECTED"
+      }
+    });
+
+    const projects = [];
+    const conversations = [];
+
+    for (const [projectIndex, projectInput] of demoProjects.entries()) {
+      const project = await tx.project.create({
+        data: {
+          ...projectInput,
+          organizationId: organization.id
+        }
+      });
+      projects.push(project);
+
+      await tx.milestone.createMany({
+        data: [
+          {
+            dueDate: addDays(now, 3 + projectIndex),
+            organizationId: organization.id,
+            projectId: project.id,
+            status: projectIndex === 2 ? "DUE_SOON" : "UPCOMING",
+            title:
+              projectIndex === 0
+                ? "Night works inspection"
+                : projectIndex === 1
+                  ? "Asphalt coring review"
+                  : "Factory acceptance pack"
+          },
+          {
+            dueDate: addDays(now, 9 + projectIndex),
+            organizationId: organization.id,
+            projectId: project.id,
+            status: "UPCOMING",
+            title:
+              projectIndex === 0
+                ? "Cable continuity sign-off"
+                : projectIndex === 1
+                  ? "Runway marking handback"
+                  : "CCR commissioning window"
+          }
+        ]
+      });
+
+      const conversation = await tx.conversation.create({
+        data: {
+          channel: "WHATSAPP",
+          externalId: `demo:${project.code}:airside`,
+          isGroup: true,
+          lastMessageAt: addMinutes(now, -20 - projectIndex * 7),
+          organizationId: organization.id,
+          projectId: project.id,
+          title: `${project.code} Airside Coordination`
+        }
+      });
+      conversations.push(conversation);
+
+      await tx.whatsAppChatMapping.create({
+        data: {
+          activatedAt: now,
+          activatedByUserId: userId,
+          chatName: conversation.title,
+          conversationId: conversation.id,
+          isGroup: true,
+          jid: `${project.code.toLowerCase()}-airside@g.us`,
+          organizationId: organization.id,
+          projectId: project.id,
+          status: "ACTIVE",
+          whatsappAccountId: whatsAppAccount.id
+        }
+      });
+
+      const supervisor = await tx.participant.create({
+        data: {
+          conversationId: conversation.id,
+          displayName:
+            projectIndex === 0 ? "Aisha Tan" : projectIndex === 1 ? "Ravi Menon" : "Lina Koh",
+          externalIdentifier: `demo-supervisor-${project.code.toLowerCase()}`,
+          role: "site-supervisor"
+        }
+      });
+      const inspector = await tx.participant.create({
+        data: {
+          conversationId: conversation.id,
+          displayName: "Airport PMO",
+          externalIdentifier: `demo-pmo-${project.code.toLowerCase()}`,
+          role: "client"
+        }
+      });
+
+      const updates = buildDemoMessages(project.name, project.code, projectIndex);
+      for (const [messageIndex, update] of updates.entries()) {
+        const message = await tx.message.create({
+          data: {
+            body: update.body,
+            conversationId: conversation.id,
+            direction: "INBOUND",
+            externalMessageId: `demo:${project.code}:msg:${messageIndex}`,
+            occurredAt: addMinutes(now, -180 + projectIndex * 12 + messageIndex * 28),
+            processingStatus: "AI_COMPLETE",
+            senderParticipantId: messageIndex % 2 === 0 ? supervisor.id : inspector.id,
+            type: update.type
+          }
+        });
+
+        await tx.event.create({
+          data: {
+            description: update.body,
+            eventType: messageIndex === 1 ? "PHOTO_ANALYSIS_COMPLETE" : "MESSAGE_RECEIVED",
+            occurredAt: message.occurredAt,
+            organizationId: organization.id,
+            projectId: project.id,
+            sourceId: message.id,
+            sourceType: "MESSAGE",
+            title: update.title
+          }
+        });
+
+        await tx.searchDocument.create({
+          data: {
+            content: update.body ?? update.title,
+            metadata: {
+              demo: true
+            },
+            occurredAt: message.occurredAt,
+            organizationId: organization.id,
+            projectId: project.id,
+            sourceId: message.id,
+            sourceType: "MESSAGE",
+            title: update.title
+          }
+        });
+
+        if (update.attachment) {
+          const attachment = await tx.attachment.create({
+            data: {
+              conversationId: conversation.id,
+              filename: update.attachment.filename,
+              messageId: message.id,
+              mimeType: update.attachment.mimeType,
+              size: update.attachment.size,
+              storageKey: `demo/${organization.id}/${project.code}/${update.attachment.filename}`,
+              transcript: update.attachment.transcript ?? null,
+              transcriptionStatus: update.attachment.transcript ? "COMPLETED" : "NOT_REQUIRED",
+              transcriptionError: null
+            }
+          });
+
+          if (update.attachment.mimeType.startsWith("image/")) {
+            await tx.photoAnalysis.create({
+              data: {
+                confidence: 0.84,
+                conversationId: conversation.id,
+                detectedObjects: ["airfield lighting", "work crew", "temporary barrier"],
+                evidenceId: attachment.id,
+                messageId: message.id,
+                organizationId: organization.id,
+                possibleIssues:
+                  projectIndex === 1 ? ["standing water near work zone edge"] : ["none visible"],
+                projectId: project.id,
+                provider: "demo",
+                summary: `Demo photo shows ${project.name.toLowerCase()} progress with clear site context.`,
+                tags: ["demo", "aviation", "evidence"]
+              }
+            });
+          }
+        }
+      }
+
+      const anchorMessage = await tx.message.findFirstOrThrow({
+        orderBy: {
+          occurredAt: "desc"
+        },
+        where: {
+          conversationId: conversation.id
+        }
+      });
+
+      const actionItem = await tx.actionItem.create({
+        data: {
+          confidence: 0.82,
+          description:
+            projectIndex === 0
+              ? "Confirm night closure access before cable pull starts."
+              : projectIndex === 1
+                ? "Review inspection photos and confirm surface prep is acceptable."
+                : "Upload CCR commissioning certificates before approval meeting.",
+          messageId: anchorMessage.id,
+          organizationId: organization.id,
+          priority: projectIndex === 1 ? "HIGH" : "MEDIUM",
+          projectId: project.id,
+          status: "PENDING",
+          title:
+            projectIndex === 0
+              ? "Confirm night closure access"
+              : projectIndex === 1
+                ? "Review runway prep evidence"
+                : "Upload CCR commissioning certificates",
+          type: "FOLLOW_UP"
+        }
+      });
+
+      await tx.event.create({
+        data: {
+          description: actionItem.description,
+          eventType: "ACTION_ITEM_CREATED",
+          occurredAt: addMinutes(now, -15 - projectIndex),
+          organizationId: organization.id,
+          projectId: project.id,
+          sourceId: actionItem.id,
+          sourceType: "ACTION_ITEM",
+          title: actionItem.title
+        }
+      });
+
+      const report = await tx.projectReport.create({
+        data: {
+          content: {
+            demo: true,
+            highlights: [
+              "Evidence captured from field updates.",
+              "Open risks summarized for PM review.",
+              "Pilot data is safe to reset."
+            ]
+          },
+          generatedAt: now,
+          markdown: `# ${project.name} Weekly Progress\n\n- Field updates received\n- Evidence reviewed\n- Open action item created`,
+          organizationId: organization.id,
+          periodEnd: now,
+          periodStart: addDays(now, -7),
+          projectId: project.id,
+          status: "COMPLETED",
+          title: `${project.name} Weekly Progress Report`,
+          type: "WEEKLY_PROGRESS"
+        }
+      });
+
+      await tx.searchDocument.create({
+        data: {
+          content: report.markdown ?? report.title,
+          metadata: {
+            demo: true
+          },
+          occurredAt: report.generatedAt,
+          organizationId: organization.id,
+          projectId: project.id,
+          sourceId: report.id,
+          sourceType: "PROJECT_REPORT",
+          title: report.title
+        }
+      });
+    }
+
+    await tx.userNotification.create({
+      data: {
+        body: "A resettable aviation pilot workspace is ready to explore.",
+        href: "/",
+        organizationId: organization.id,
+        title: "Demo workspace created",
+        type: "DEMO_READY",
+        userId
+      }
+    });
+
+    await tx.productAnalyticsEvent.create({
+      data: {
+        eventName: "demo_workspace_reset",
+        metadata: {
+          projectCount: projects.length
+        },
+        organizationId: organization.id,
+        userId
+      }
+    });
+
+    const hydratedConversations = await tx.conversation.findMany({
+      include: conversationInclude(),
+      orderBy: {
+        updatedAt: "desc"
+      },
+      where: {
+        organizationId: organization.id
+      }
+    });
+
+    return {
+      conversations: hydratedConversations.map(toConversationRecord),
+      organization: {
+        ...organization,
+        role: membership.role
+      },
+      projects
+    };
+  });
+}
+
+function buildDemoMessages(projectName: string, projectCode: string, projectIndex: number) {
+  const projectFocus =
+    projectIndex === 0
+      ? "taxiway edge lights"
+      : projectIndex === 1
+        ? "runway pavement bay"
+        : "constant current regulator room";
+
+  return [
+    {
+      body: `${projectCode}: Day shift completed work on ${projectFocus}. Request PMO inspection before night closure.`,
+      title: `${projectName} field update`,
+      type: "TEXT" as const
+    },
+    {
+      attachment: {
+        filename: `${projectCode.toLowerCase()}-progress-photo.jpg`,
+        mimeType: "image/jpeg",
+        size: 184_200
+      },
+      body: `Photo uploaded for ${projectFocus}. Please review the marked area before handback.`,
+      title: `${projectName} photo evidence`,
+      type: "IMAGE" as const
+    },
+    {
+      attachment: {
+        filename: `${projectCode.toLowerCase()}-voice-note.ogg`,
+        mimeType: "audio/ogg",
+        size: 92_400,
+        transcript: `Supervisor update for ${projectName}: work is tracking, one inspection decision remains open.`
+      },
+      body: "Voice note transcribed by demo mode.",
+      title: `${projectName} voice transcript`,
+      type: "VOICE" as const
+    },
+    {
+      attachment: {
+        filename: `${projectCode.toLowerCase()}-inspection-request.pdf`,
+        mimeType: "application/pdf",
+        size: 214_000
+      },
+      body: `Inspection request PDF uploaded for ${projectName}.`,
+      title: `${projectName} inspection document`,
+      type: "DOCUMENT" as const
+    }
+  ];
+}
+
+function addDays(date: Date, days: number): Date {
+  return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
+}
+
+function addMinutes(date: Date, minutes: number): Date {
+  return new Date(date.getTime() + minutes * 60 * 1000);
 }
 
 const openActionItemStatuses = new Set<ActionStatus>(["PENDING"]);

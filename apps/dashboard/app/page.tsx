@@ -1,7 +1,7 @@
 "use client";
 
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@fieldos/ui";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import * as React from "react";
 
@@ -32,6 +32,12 @@ function DashboardContent() {
     organizations.find((organization) => organization.id === activeOrganizationId) ??
     organizations[0];
   const dashboardQuery = useOperationsDashboard(selectedOrganization?.id ?? null);
+  const onboardingQuery = useQuery({
+    enabled: Boolean(selectedOrganization?.id),
+    queryFn: () => api.getOnboardingState(selectedOrganization?.id ?? ""),
+    queryKey: ["onboarding", selectedOrganization?.id],
+    retry: false
+  });
   const dashboard = dashboardQuery.data?.dashboard;
   const queryClient = useQueryClient();
 
@@ -90,12 +96,23 @@ function DashboardContent() {
         <OrganizationSelector organizations={organizations} />
       </div>
 
+      {selectedOrganization ? (
+        <PilotReadinessPanel
+          isLoading={onboardingQuery.isLoading}
+          progress={onboardingQuery.data?.onboarding.progress ?? 0}
+          steps={onboardingQuery.data?.onboarding.steps ?? []}
+        />
+      ) : null}
+
       {dashboardQuery.isLoading ? (
-        <p className="text-sm text-slate-600">Loading operations...</p>
+        <DashboardLoadingState />
       ) : dashboardQuery.isError || !dashboard ? (
         <Card>
           <CardContent>
-            <p className="text-sm text-slate-600">Unable to load operations data.</p>
+            <p className="text-sm font-medium text-slate-950">Unable to load operations data.</p>
+            <p className="mt-1 text-sm text-slate-600">
+              Refresh the page or check the API health panel if this continues.
+            </p>
           </CardContent>
         </Card>
       ) : (
@@ -300,6 +317,161 @@ function DashboardContent() {
           </section>
         </>
       )}
+    </div>
+  );
+}
+
+function PilotReadinessPanel({
+  isLoading,
+  progress,
+  steps
+}: Readonly<{
+  isLoading: boolean;
+  progress: number;
+  steps: Array<{
+    completed: boolean;
+    href: string;
+    key: string;
+    label: string;
+  }>;
+}>) {
+  const [tourIndex, setTourIndex] = React.useState(0);
+  const queryClient = useQueryClient();
+  const setActiveOrganizationId = useActiveOrganizationStore(
+    (state) => state.setActiveOrganizationId
+  );
+  const demoMutation = useMutation({
+    mutationFn: api.resetDemoWorkspace,
+    onSuccess: async ({ demo }) => {
+      setActiveOrganizationId(demo.organization.id);
+      await queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      await queryClient.invalidateQueries({ queryKey: ["operations-dashboard"] });
+      await queryClient.invalidateQueries({ queryKey: ["onboarding"] });
+    }
+  });
+  const tour = [
+    { href: "/", label: "Dashboard" },
+    { href: "/projects", label: "Project Command Center" },
+    { href: "/inbox", label: "Inbox" },
+    { href: "/search", label: "AI Search" },
+    { href: "/projects", label: "Reports" }
+  ];
+  const currentTour = tour[tourIndex] ?? { href: "/", label: "Dashboard" };
+
+  return (
+    <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(300px,0.8fr)]">
+      <Card>
+        <CardHeader>
+          <CardTitle>Pilot Setup</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="space-y-3">
+              <div className="h-2 rounded bg-slate-200" />
+              <div className="h-16 rounded bg-slate-100" />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium text-slate-700">Progress</span>
+                  <span className="text-slate-500">{progress}%</span>
+                </div>
+                <div className="mt-2 h-2 rounded-full bg-slate-200">
+                  <div
+                    className="h-2 rounded-full bg-slate-950"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+              </div>
+              <Button
+                className="h-9 px-3 text-xs"
+                disabled={demoMutation.isPending}
+                onClick={() => demoMutation.mutate()}
+                type="button"
+                variant="secondary"
+              >
+                {demoMutation.isPending ? "Resetting..." : "Reset demo workspace"}
+              </Button>
+              {demoMutation.isError ? (
+                <p className="text-sm text-red-600">
+                  Demo reset failed. Please check API health and try again.
+                </p>
+              ) : null}
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                {steps.map((step) => (
+                  <Link
+                    key={step.key}
+                    className="rounded-md border border-slate-200 p-3 text-sm hover:bg-slate-50"
+                    href={step.href}
+                  >
+                    <span
+                      className={
+                        step.completed
+                          ? "font-semibold text-emerald-700"
+                          : "font-semibold text-slate-500"
+                      }
+                    >
+                      {step.completed ? "Complete" : "Open"}
+                    </span>
+                    <div className="mt-1 font-medium text-slate-950">{step.label}</div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Pilot Tour</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-sm font-medium text-slate-950">{currentTour.label}</div>
+          <div className="mt-3 flex gap-2">
+            <Button
+              className="h-9 px-3 text-xs"
+              disabled={tourIndex === 0}
+              onClick={() => setTourIndex((value) => Math.max(0, value - 1))}
+              variant="secondary"
+            >
+              Previous
+            </Button>
+            <Button
+              className="h-9 px-3 text-xs"
+              onClick={() => setTourIndex((value) => (value + 1) % tour.length)}
+              variant="secondary"
+            >
+              Next
+            </Button>
+            <Link
+              className="inline-flex h-9 items-center justify-center rounded-md bg-slate-950 px-3 text-xs font-medium text-white"
+              href={currentTour.href}
+            >
+              Open
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
+    </section>
+  );
+}
+
+function DashboardLoadingState() {
+  return (
+    <div className="space-y-6">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 8 }, (_, index) => (
+          <Card key={index}>
+            <CardContent>
+              <div className="h-4 w-24 rounded bg-slate-200" />
+              <div className="mt-3 h-8 w-14 rounded bg-slate-100" />
+            </CardContent>
+          </Card>
+        ))}
+      </section>
+      <div className="h-72 rounded-md border border-slate-200 bg-white" />
     </div>
   );
 }

@@ -5,7 +5,7 @@
 | Purpose      | Track known technical debt, deferred features, risks, and next-sprint recommendations. |
 | Owner        | Engineering                                                                            |
 | Status       | Active                                                                                 |
-| Last Updated | 2026-07-03                                                                             |
+| Last Updated | 2026-07-08                                                                             |
 
 ## Table of Contents
 
@@ -18,10 +18,11 @@
 
 ## High Priority
 
-- Move WhatsApp auth state and media from local `.storage` to managed secret and object storage before production customer use.
+- Move WhatsApp auth state from local `.storage` to managed secret or durable state storage before broader production customer use.
 - Add server-side session revocation, password reset, and email verification before broad external testing.
 - Formalize pagination contracts for conversations, messages, and chat mappings before importing large tenants.
 - Add production observability around worker retries, WhatsApp disconnect reasons, AI provider failures, and queue lag.
+- Replace placeholder quick-start screenshots with production screenshots after the pilot deployment is live.
 
 ## Medium Priority
 
@@ -34,6 +35,7 @@
 
 - Reduce noisy request logging in API tests.
 - Add screenshots or Playwright smoke coverage for confidence states and ActionItem flows.
+- Add a product analytics dashboard for the new internal analytics event stream.
 - Backfill `Event` records for historical messages and ActionItems when the timeline UI is ready.
 - Add richer UI affordances for numeric confidence details.
 
@@ -42,6 +44,7 @@
 - Official Meta WhatsApp Cloud API connector.
 - First-class operational task model and conversion from accepted ActionItems.
 - Activity Timeline UI.
+- Full interactive product tour overlay.
 - Invite, membership administration, role management, and organization settings.
 - Real-time inbox updates.
 - Full text or semantic search.
@@ -52,10 +55,11 @@
 - Active unmapped WhatsApp chats now ingest content after explicit activation; admins must understand activation scope.
 - Deterministic project suggestions are conservative and will miss ambiguous references until richer project context is added.
 - AI classification depends on provider availability and configured production credentials.
+- Demo evidence uses metadata records and placeholder storage keys; it is sufficient for walkthroughs but not a substitute for live media validation.
 
 ## Recommended Next Sprint
 
-- Build Task 008 on top of the `Event` model.
-- Add timeline read APIs with pagination from the start.
-- Add audit coverage for ActionItem and project suggestion decisions.
-- Keep the dashboard presentation-oriented and preserve the API as the authorization and business logic boundary.
+- Run a production pilot smoke test after deployment.
+- Capture real quick-start screenshots from production.
+- Add audit coverage for ActionItem, feedback, demo reset, and project suggestion decisions.
+- Prioritize official customer feedback from the first pilot before adding major features.

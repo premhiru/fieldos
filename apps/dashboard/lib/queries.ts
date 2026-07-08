@@ -36,6 +36,25 @@ export function useOperationsDashboard(organizationId: string | null) {
   });
 }
 
+export function useOnboardingState(organizationId: string | null) {
+  return useQuery({
+    enabled: Boolean(organizationId),
+    queryFn: () => api.getOnboardingState(organizationId ?? ""),
+    queryKey: ["onboarding", organizationId],
+    retry: false
+  });
+}
+
+export function useNotifications(organizationId: string | null) {
+  return useQuery({
+    enabled: Boolean(organizationId),
+    queryFn: () => api.listNotifications(organizationId ?? ""),
+    queryKey: ["notifications", organizationId],
+    refetchInterval: 15_000,
+    retry: false
+  });
+}
+
 export function useConversations(organizationId: string | null, search: string) {
   return useQuery({
     enabled: Boolean(organizationId),

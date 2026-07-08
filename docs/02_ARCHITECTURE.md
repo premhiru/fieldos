@@ -24,6 +24,7 @@
 - [Operations Command Center](#operations-command-center)
 - [Background Processing and Operations Health](#background-processing-and-operations-health)
 - [AI Search](#ai-search)
+- [Pilot Readiness](#pilot-readiness)
 - [Event Model](#event-model)
 - [Evolution Path](#evolution-path)
 
@@ -290,6 +291,16 @@ The answer flow is:
 5. Return the answer, confidence, and cited source records.
 
 The dashboard consumes this contract through a global Search page and a project-scoped ask panel. It does not build prompts or perform search ranking locally.
+
+## Pilot Readiness
+
+Sprint 14 adds pilot-readiness primitives without changing core domain boundaries.
+
+- The API owns demo reset, onboarding state, feedback, notification, and analytics routes.
+- The dashboard renders pilot setup progress, feedback, notifications, mobile navigation, and demo reset controls.
+- Demo data is realistic aviation data but remains isolated through `Organization.isDemo`.
+- Product analytics are database events for internal review, not a replacement for an analytics warehouse.
+- Notifications are lightweight and user-scoped. They can later evolve into email, push, or team notifications.
 
 ## Event Model
 

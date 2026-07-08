@@ -10,6 +10,7 @@
 ## Table of Contents
 
 - [Task 013B: Cloudflare R2 Durable Storage](#task-013b-cloudflare-r2-durable-storage)
+- [Sprint 14: Pilot Readiness](#sprint-14-pilot-readiness)
 - [Task 013: Project Intelligence and Automated Reporting](#task-013-project-intelligence-and-automated-reporting)
 - [Task 012: Photo Intelligence](#task-012-photo-intelligence)
 - [Task 011: Unified Evidence Processing](#task-011-unified-evidence-processing)
@@ -40,6 +41,28 @@ How to test:
 Current limitation:
 
 - Existing evidence that was stored only on local Railway files before this change is not automatically migrated to R2.
+
+## Sprint 14: Pilot Readiness
+
+What changed:
+
+- First-run onboarding now supports either real organization creation or Demo Workspace launch.
+- Demo Workspace creates resettable aviation pilot data.
+- Dashboard shows pilot setup progress and a lightweight page tour.
+- Notifications and feedback are available from the app shell.
+- Product analytics events are recorded for key pilot actions.
+
+How to test:
+
+1. Sign in.
+2. Click `Launch demo workspace` or `Reset demo workspace`.
+3. Confirm the Operations Command Center loads with active projects and action items.
+4. Open Inbox, Search, and Project Intelligence.
+5. Submit feedback and confirm a notification appears.
+
+Current limitation:
+
+- Demo screenshots in `QUICK_START.md` are static in-repo references and should be replaced with production captures after deployment.
 
 ## Task 013: Project Intelligence and Automated Reporting
 

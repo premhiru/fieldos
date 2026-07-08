@@ -1,6 +1,7 @@
 import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
 import { RedisWhatsAppQrStore, type WhatsAppQrStore } from "@fieldos/baileys-whatsapp/qr-store";
+import { Prisma } from "@fieldos/db";
 import {
   AUTH_COOKIE_NAME,
   hashPassword,
@@ -60,10 +61,13 @@ import {
   createWhatsAppAccountSchema,
   dashboardQuerySchema,
   evidenceParamsSchema,
+  feedbackSchema,
   generateProjectReportSchema,
   mediaParamsSchema,
   mediaQuerySchema,
   messageParamsSchema,
+  notificationParamsSchema,
+  notificationsQuerySchema,
   organizationParamsSchema,
   paginationQuerySchema,
   photoAnalysisParamsSchema,
@@ -262,13 +266,22 @@ export function buildServer(options: BuildServerOptions = {}) {
   server.post("/organizations", { preHandler: requireAuth }, async (request) => {
     const body = createOrganizationSchema.parse(request.body);
     const user = requireCurrentUser(request);
+    const organization = await repository.createOrganization({
+      name: body.name,
+      ownerUserId: user.id,
+      slug: body.slug
+    });
+    await trackProductEvent({
+      eventName: "organization_created",
+      metadata: {
+        isDemo: organization.isDemo
+      },
+      organizationId: organization.id,
+      userId: user.id
+    });
 
     return {
-      organization: await repository.createOrganization({
-        name: body.name,
-        ownerUserId: user.id,
-        slug: body.slug
-      })
+      organization
     };
   });
 
@@ -285,6 +298,91 @@ export function buildServer(options: BuildServerOptions = {}) {
 
     return {
       organization
+    };
+  });
+
+  server.get(
+    "/organizations/:organizationId/onboarding",
+    { preHandler: requireAuth },
+    async (request) => {
+      const params = organizationParamsSchema.parse(request.params);
+      await requireOrganizationMembership(requireCurrentUser(request).id, params.organizationId);
+
+      return {
+        onboarding: await repository.getOnboardingState(params.organizationId)
+      };
+    }
+  );
+
+  server.post("/demo/reset", { preHandler: requireAuth }, async (request) => {
+    const user = requireCurrentUser(request);
+    const demo = await repository.resetDemoWorkspace(user.id);
+
+    return {
+      demo
+    };
+  });
+
+  server.post("/feedback", { preHandler: requireAuth }, async (request) => {
+    const body = feedbackSchema.parse(request.body);
+    const user = requireCurrentUser(request);
+    await requireOrganizationMembership(user.id, body.organizationId);
+    const feedback = await repository.createFeedback({
+      message: body.message,
+      organizationId: body.organizationId,
+      page: body.page,
+      type: body.type,
+      userId: user.id
+    });
+    await trackProductEvent({
+      eventName: "feedback_submitted",
+      metadata: {
+        type: body.type
+      },
+      organizationId: body.organizationId,
+      userId: user.id
+    });
+    await createUserNotification({
+      body: "Thank you. The FieldOS team can review this from the pilot feedback table.",
+      href: body.page ?? "/",
+      organizationId: body.organizationId,
+      title: "Feedback received",
+      type: "FEEDBACK_RECEIVED",
+      userId: user.id
+    });
+
+    return {
+      feedback
+    };
+  });
+
+  server.get("/notifications", { preHandler: requireAuth }, async (request) => {
+    const query = notificationsQuerySchema.parse(request.query);
+    const user = requireCurrentUser(request);
+    await requireOrganizationMembership(user.id, query.organizationId);
+
+    return {
+      notifications: await repository.listNotifications({
+        organizationId: query.organizationId,
+        userId: user.id
+      })
+    };
+  });
+
+  server.post("/notifications/:id/read", { preHandler: requireAuth }, async (request) => {
+    const params = notificationParamsSchema.parse(request.params);
+    const user = requireCurrentUser(request);
+    const notification = await repository.markNotificationRead({
+      notificationId: params.id,
+      userId: user.id
+    });
+
+    if (!notification) {
+      throw notFound("Notification not found.");
+    }
+
+    return {
+      notification
     };
   });
 
@@ -403,6 +501,15 @@ export function buildServer(options: BuildServerOptions = {}) {
       query: query.q,
       sourceType: query.type ?? null
     });
+    await trackProductEvent({
+      eventName: "search_performed",
+      metadata: {
+        hasQuery: Boolean(query.q.trim()),
+        sourceType: query.type ?? null
+      },
+      organizationId: query.organizationId,
+      userId: user.id
+    });
 
     return results;
   });
@@ -412,6 +519,14 @@ export function buildServer(options: BuildServerOptions = {}) {
     const user = requireCurrentUser(request);
     await requireOrganizationMembership(user.id, body.organizationId);
     await validateMappingProject(user.id, body.organizationId, body.projectId ?? null);
+    await trackProductEvent({
+      eventName: "search_answer_requested",
+      metadata: {
+        projectScoped: Boolean(body.projectId)
+      },
+      organizationId: body.organizationId,
+      userId: user.id
+    });
 
     return answerSearchQuestion({
       organizationId: body.organizationId,
@@ -454,14 +569,32 @@ export function buildServer(options: BuildServerOptions = {}) {
       if (!writableRoles.has(membership.role)) {
         throw forbidden();
       }
+      const project = await repository.createProject({
+        code: body.code,
+        name: body.name,
+        organizationId: params.organizationId,
+        status: body.status
+      });
+      await trackProductEvent({
+        eventName: "project_created",
+        metadata: {
+          projectId: project.id,
+          status: project.status
+        },
+        organizationId: params.organizationId,
+        userId: user.id
+      });
+      await createUserNotification({
+        body: `${project.code} is ready for field updates.`,
+        href: `/projects/${project.id}`,
+        organizationId: params.organizationId,
+        title: "Project created",
+        type: "PROJECT_CREATED",
+        userId: user.id
+      });
 
       return {
-        project: await repository.createProject({
-          code: body.code,
-          name: body.name,
-          organizationId: params.organizationId,
-          status: body.status
-        })
+        project
       };
     }
   );
@@ -663,13 +796,33 @@ export function buildServer(options: BuildServerOptions = {}) {
     async (request) => {
       const params = projectParamsSchema.parse(request.params);
       const body = generateProjectReportSchema.parse(request.body ?? {});
+      const user = requireCurrentUser(request);
       const project = await requireProjectForRequest(request, params.projectId);
+      const report = await repository.queueProjectReport({
+        projectId: project.id,
+        type: body.type
+      });
+      await trackProductEvent({
+        eventName: "report_generated",
+        metadata: {
+          projectId: project.id,
+          reportId: report.id,
+          type: body.type
+        },
+        organizationId: project.organizationId,
+        userId: user.id
+      });
+      await createUserNotification({
+        body: `${project.name} weekly report has been queued.`,
+        href: `/projects/${project.id}/intelligence`,
+        organizationId: project.organizationId,
+        title: "Report ready",
+        type: "REPORT_READY",
+        userId: user.id
+      });
 
       return {
-        report: await repository.queueProjectReport({
-          projectId: project.id,
-          type: body.type
-        })
+        report
       };
     }
   );
@@ -909,9 +1062,18 @@ export function buildServer(options: BuildServerOptions = {}) {
     const body = createWhatsAppAccountSchema.parse(request.body);
     const user = requireCurrentUser(request);
     await requireWritableOrganizationRole(user.id, body.organizationId);
+    const account = await repository.createWhatsAppAccount(body);
+    await trackProductEvent({
+      eventName: "whatsapp_account_created",
+      metadata: {
+        accountId: account.id
+      },
+      organizationId: body.organizationId,
+      userId: user.id
+    });
 
     return {
-      account: await repository.createWhatsAppAccount(body)
+      account
     };
   });
 
@@ -926,11 +1088,29 @@ export function buildServer(options: BuildServerOptions = {}) {
 
   server.post("/whatsapp/accounts/:id/connect", { preHandler: requireAuth }, async (request) => {
     const params = whatsappAccountParamsSchema.parse(request.params);
-    const account = await requireWhatsAppAccountAccess(requireCurrentUser(request).id, params.id);
-    await requireWritableOrganizationRole(requireCurrentUser(request).id, account.organizationId);
+    const user = requireCurrentUser(request);
+    const account = await requireWhatsAppAccountAccess(user.id, params.id);
+    await requireWritableOrganizationRole(user.id, account.organizationId);
+    const nextAccount = await repository.rotateWhatsAppAccountSession(account.id);
+    await trackProductEvent({
+      eventName: "whatsapp_connected",
+      metadata: {
+        accountId: account.id
+      },
+      organizationId: account.organizationId,
+      userId: user.id
+    });
+    await createUserNotification({
+      body: "Scan the QR code to finish pairing the field line.",
+      href: "/settings",
+      organizationId: account.organizationId,
+      title: "WhatsApp connection started",
+      type: "WHATSAPP_CONNECTED",
+      userId: user.id
+    });
 
     return {
-      account: await repository.rotateWhatsAppAccountSession(account.id)
+      account: nextAccount
     };
   });
 
@@ -998,12 +1178,32 @@ export function buildServer(options: BuildServerOptions = {}) {
       await requireWritableOrganizationRole(user.id, mapping.organizationId);
       await validateMappingProject(user.id, mapping.organizationId, body.projectId);
 
+      const chat = await repository.activateWhatsAppChatMapping({
+        activatedByUserId: user.id,
+        mappingId: params.id,
+        projectId: body.projectId
+      });
+      await trackProductEvent({
+        eventName: "whatsapp_group_activated",
+        metadata: {
+          isGroup: chat.isGroup,
+          mappingId: chat.id,
+          projectId: chat.projectId
+        },
+        organizationId: chat.organizationId,
+        userId: user.id
+      });
+      await createUserNotification({
+        body: `${chat.chatName ?? "WhatsApp chat"} is now active in FieldOS.`,
+        href: "/inbox",
+        organizationId: chat.organizationId,
+        title: "WhatsApp chat activated",
+        type: "WHATSAPP_CHAT_ACTIVATED",
+        userId: user.id
+      });
+
       return {
-        chat: await repository.activateWhatsAppChatMapping({
-          activatedByUserId: user.id,
-          mappingId: params.id,
-          projectId: body.projectId
-        })
+        chat
       };
     }
   );
@@ -1252,6 +1452,45 @@ export function buildServer(options: BuildServerOptions = {}) {
 
     if (!project || project.organizationId !== organizationId) {
       throw notFound("Project not found.");
+    }
+  }
+
+  async function trackProductEvent(input: {
+    eventName: string;
+    metadata?: Record<string, unknown>;
+    organizationId?: string | null;
+    userId?: string | null;
+  }) {
+    try {
+      await repository.recordAnalyticsEvent({
+        eventName: input.eventName,
+        metadata: input.metadata as Prisma.InputJsonValue | undefined,
+        organizationId: input.organizationId ?? null,
+        userId: input.userId ?? null
+      });
+    } catch (error) {
+      server.log.warn(
+        { error, eventName: input.eventName, organizationId: input.organizationId },
+        "product analytics event failed"
+      );
+    }
+  }
+
+  async function createUserNotification(input: {
+    body?: string | null;
+    href?: string | null;
+    organizationId: string;
+    title: string;
+    type: string;
+    userId: string;
+  }) {
+    try {
+      await repository.createNotification(input);
+    } catch (error) {
+      server.log.warn(
+        { error, organizationId: input.organizationId, type: input.type },
+        "user notification failed"
+      );
     }
   }
 

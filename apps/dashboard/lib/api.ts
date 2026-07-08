@@ -62,6 +62,7 @@ export interface User {
 
 export interface Organization {
   id: string;
+  isDemo: boolean;
   name: string;
   role: MembershipRole;
   slug: string;
@@ -507,6 +508,51 @@ export interface OperationsDashboard {
   brief: DashboardBrief;
 }
 
+export interface OnboardingStep {
+  completed: boolean;
+  href: string;
+  key:
+    | "CREATE_ORGANIZATION"
+    | "CREATE_PROJECT"
+    | "CONNECT_WHATSAPP"
+    | "ACTIVATE_GROUP"
+    | "SEND_UPDATE"
+    | "OPEN_COMMAND_CENTER";
+  label: string;
+}
+
+export interface OnboardingState {
+  organizationId: string;
+  isDemo: boolean;
+  progress: number;
+  steps: OnboardingStep[];
+}
+
+export type FeedbackType = "BUG" | "FEATURE" | "GENERAL";
+
+export interface UserFeedback {
+  id: string;
+  organizationId: string;
+  userId: string;
+  type: FeedbackType;
+  message: string;
+  page: string | null;
+  status: string;
+  createdAt: string;
+}
+
+export interface UserNotification {
+  id: string;
+  organizationId: string;
+  userId: string;
+  type: string;
+  title: string;
+  body: string | null;
+  href: string | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
 export interface SearchResult {
   id: string;
   organizationId: string;
@@ -747,6 +793,36 @@ export const api = {
     const params = new URLSearchParams({ organizationId });
     return apiRequest<{ dashboard: OperationsDashboard }>(`/dashboard?${params.toString()}`);
   },
+  getOnboardingState: (organizationId: string) =>
+    apiRequest<{ onboarding: OnboardingState }>(`/organizations/${organizationId}/onboarding`),
+  resetDemoWorkspace: () =>
+    apiRequest<{
+      demo: {
+        organization: Organization;
+        projects: Project[];
+        conversations: Conversation[];
+      };
+    }>("/demo/reset", {
+      method: "POST"
+    }),
+  submitFeedback: (body: {
+    message: string;
+    organizationId: string;
+    page?: string;
+    type: FeedbackType;
+  }) =>
+    apiRequest<{ feedback: UserFeedback }>("/feedback", {
+      body: JSON.stringify(body),
+      method: "POST"
+    }),
+  listNotifications: (organizationId: string) => {
+    const params = new URLSearchParams({ organizationId });
+    return apiRequest<{ notifications: UserNotification[] }>(`/notifications?${params.toString()}`);
+  },
+  markNotificationRead: (notificationId: string) =>
+    apiRequest<{ notification: UserNotification }>(`/notifications/${notificationId}/read`, {
+      method: "POST"
+    }),
   getAdminOperations: (organizationId: string) => {
     const params = new URLSearchParams({ organizationId });
     return apiRequest<{ operations: AdminOperations }>(`/admin/operations?${params.toString()}`);

@@ -1,11 +1,11 @@
 # Architecture Health Report
 
-| Field        | Value                                                                                |
-| ------------ | ------------------------------------------------------------------------------------ |
-| Purpose      | Summarize Sprint 1.5 architecture health, risks, and readiness for the next feature. |
-| Owner        | Engineering                                                                          |
-| Status       | Active                                                                               |
-| Last Updated | 2026-07-03                                                                           |
+| Field        | Value                                                      |
+| ------------ | ---------------------------------------------------------- |
+| Purpose      | Summarize architecture health, risks, and pilot readiness. |
+| Owner        | Engineering                                                |
+| Status       | Active                                                     |
+| Last Updated | 2026-07-08                                                 |
 
 ## Table of Contents
 
@@ -25,6 +25,8 @@
 - ActionItem terminology better matches the product and avoids prematurely committing recommendations to task semantics.
 - AI extraction is smaller, deterministic, and avoids raw model output or chain-of-thought storage.
 - The new `Event` model prepares the timeline without forcing the timeline feature into this sprint.
+- Pilot readiness primitives are small and tenant-scoped: demo data, feedback, notifications, and analytics stay behind existing auth boundaries.
+- Worker-owned jobs, R2 storage, and signed media URLs are aligned with the current production deployment model.
 
 ## Weaknesses
 
@@ -32,10 +34,12 @@
 - Some high-volume list endpoints use implicit limits or no explicit pagination contract.
 - API request logs are useful but noisy in tests and can obscure failures.
 - Production deployment still depends on environment configuration and managed storage work outside this sprint.
+- The product tour is intentionally lightweight and does not yet include a full guided overlay or per-user completion state.
 
 ## Technical Debt
 
 - WhatsApp media and auth storage are local filesystem-backed.
+- Baileys auth session storage remains filesystem-backed, although new media/report storage now uses R2 in production.
 - Server-side auth revocation and account recovery flows are missing.
 - Observability is basic and should include queue lag, retry counts, and connector session state.
 - Historical data is not backfilled into `Event` yet.
@@ -45,7 +49,8 @@
 - API routes consistently enforce authentication and organization membership for organization-owned resources reviewed in this sprint.
 - Project suggestions require explicit acceptance before changing conversation or connector project assignment.
 - The worker avoids logging message bodies, QR payloads, cookies, JWTs, and raw AI provider output.
-- Sensitive local storage paths remain a production blocker until replaced by managed services.
+- Sensitive media URLs are short-lived and authorized by the API before being returned to the dashboard.
+- Demo reset deletes only demo organizations owned by the signed-in user.
 
 ## Performance Review
 
@@ -58,6 +63,7 @@
 - The modular monolith remains appropriate for the current stage.
 - The package boundaries leave room to extract the worker, connector, AI processor, or API modules later if load requires it.
 - Pagination and observability should be strengthened before onboarding large organizations or importing large WhatsApp histories.
+- Product analytics are captured as internal events but do not yet have aggregation dashboards.
 
 ## Recommended Improvements
 
@@ -65,6 +71,7 @@
 - Add PostgreSQL-backed integration tests for ActionItem project suggestion acceptance.
 - Add timeline read APIs with pagination and organization scoping in Task 008.
 - Move connector state and media to production-grade storage.
+- Replace static quick-start screenshot references with live production captures after deployment.
 - Add audit events for sensitive admin decisions.
 
 ## Postponed Until After MVP
@@ -74,3 +81,4 @@
 - Official Meta WhatsApp Cloud API production path.
 - Real-time inbox and timeline streaming.
 - Historical Event backfills.
+- Full product analytics dashboard.

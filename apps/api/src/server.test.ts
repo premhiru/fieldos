@@ -41,6 +41,8 @@ import type {
   ProcessingJobRecord,
   SearchDocumentsResult,
   SearchSourceType,
+  UserFeedbackRecord,
+  UserNotificationRecord,
   WhatsAppAccountRecord,
   WhatsAppChatMappingRecord,
   WorkerHeartbeatRecord
@@ -1938,6 +1940,16 @@ class InMemoryRepository implements AppRepository {
   photoAnalyses: PhotoAnalysisRecord[] = [];
   projectReports: ProjectReportRecord[] = [];
   projects: ProjectRecord[] = [];
+  analyticsEvents: Array<{
+    id: string;
+    eventName: string;
+    metadata: unknown;
+    organizationId: string | null;
+    userId: string | null;
+    createdAt: Date;
+  }> = [];
+  feedback: UserFeedbackRecord[] = [];
+  notifications: UserNotificationRecord[] = [];
   classifications: AIMessageClassificationRecord[] = [];
   actionItems: ActionItemRecord[] = [];
   processingJobs: ProcessingJobRecord[] = [];
@@ -1966,6 +1978,7 @@ class InMemoryRepository implements AppRepository {
     const organization = {
       createdAt: now,
       id: nextId("organization"),
+      isDemo: false,
       name: input.name,
       slug: input.slug,
       updatedAt: now
@@ -2287,23 +2300,27 @@ class InMemoryRepository implements AppRepository {
   async activateWhatsAppChatMapping(input: {
     activatedByUserId: string;
     mappingId: string;
-    projectId: string;
+    projectId: string | null;
   }): Promise<WhatsAppChatMappingRecord> {
     const mapping = this.requireWhatsAppChatMapping(input.mappingId);
-    const project = this.projects.find((candidate) => candidate.id === input.projectId);
+    const project = input.projectId
+      ? this.projects.find((candidate) => candidate.id === input.projectId)
+      : null;
 
-    if (!project) {
+    if (input.projectId && !project) {
       throw new Error("project missing in test repository");
     }
 
     mapping.activatedAt = new Date();
     mapping.activatedByUserId = input.activatedByUserId;
     mapping.projectId = input.projectId;
-    mapping.project = {
-      code: project.code,
-      id: project.id,
-      name: project.name
-    };
+    mapping.project = project
+      ? {
+          code: project.code,
+          id: project.id,
+          name: project.name
+        }
+      : null;
     mapping.status = "ACTIVE";
     mapping.updatedAt = new Date();
 
@@ -2946,7 +2963,8 @@ class InMemoryRepository implements AppRepository {
       );
     const openActionItems = actionItems.filter((actionItem) => actionItem.status === "PENDING");
     const myActionItems = openActionItems.filter(
-      (actionItem) => actionItem.assignedToUserId === input.userId
+      (actionItem) =>
+        actionItem.assignedToUserId === input.userId || actionItem.assignedToUserId === null
     );
     const recentActivity = events.map((event) => {
       const project = this.projects.find((candidate) => candidate.id === event.projectId);
@@ -3032,6 +3050,224 @@ class InMemoryRepository implements AppRepository {
         qrPending: whatsappCount("PENDING_QR")
       },
       workers: this.workerHeartbeats
+    };
+  }
+
+  async createFeedback(input: {
+    message: string;
+    organizationId: string;
+    page?: string;
+    type: UserFeedbackRecord["type"];
+    userId: string;
+  }): Promise<UserFeedbackRecord> {
+    const feedback: UserFeedbackRecord = {
+      createdAt: new Date(),
+      id: nextId("feedback"),
+      message: input.message,
+      organizationId: input.organizationId,
+      page: input.page ?? null,
+      status: "OPEN",
+      type: input.type,
+      userId: input.userId
+    };
+    this.feedback.push(feedback);
+    return feedback;
+  }
+
+  async createNotification(input: {
+    body?: string | null;
+    href?: string | null;
+    organizationId: string;
+    title: string;
+    type: string;
+    userId: string;
+  }): Promise<UserNotificationRecord> {
+    const notification: UserNotificationRecord = {
+      body: input.body ?? null,
+      createdAt: new Date(),
+      href: input.href ?? null,
+      id: nextId("notification"),
+      organizationId: input.organizationId,
+      readAt: null,
+      title: input.title,
+      type: input.type,
+      userId: input.userId
+    };
+    this.notifications.push(notification);
+    return notification;
+  }
+
+  async getOnboardingState(organizationId: string) {
+    const organization = this.organizations.find((candidate) => candidate.id === organizationId);
+
+    if (!organization) {
+      throw new Error("Organization not found.");
+    }
+
+    const projectCount = this.projects.filter(
+      (project) => project.organizationId === organizationId
+    ).length;
+    const connectedAccountCount = this.whatsAppAccounts.filter(
+      (account) => account.organizationId === organizationId && account.status === "CONNECTED"
+    ).length;
+    const activeChatCount = this.whatsAppChatMappings.filter(
+      (mapping) => mapping.organizationId === organizationId && mapping.status === "ACTIVE"
+    ).length;
+    const messageCount = this.messages.filter((message) =>
+      this.conversations.some(
+        (conversation) =>
+          conversation.id === message.conversationId &&
+          conversation.organizationId === organizationId
+      )
+    ).length;
+    const steps = [
+      {
+        completed: true,
+        href: "/",
+        key: "CREATE_ORGANIZATION" as const,
+        label: "Create organization"
+      },
+      {
+        completed: projectCount > 0,
+        href: "/projects",
+        key: "CREATE_PROJECT" as const,
+        label: "Create first project"
+      },
+      {
+        completed: connectedAccountCount > 0,
+        href: "/settings",
+        key: "CONNECT_WHATSAPP" as const,
+        label: "Connect WhatsApp"
+      },
+      {
+        completed: activeChatCount > 0,
+        href: "/settings",
+        key: "ACTIVATE_GROUP" as const,
+        label: "Activate a chat or group"
+      },
+      {
+        completed: messageCount > 0,
+        href: "/inbox",
+        key: "SEND_UPDATE" as const,
+        label: "Send a field update"
+      },
+      {
+        completed: projectCount > 0 && messageCount > 0,
+        href: "/",
+        key: "OPEN_COMMAND_CENTER" as const,
+        label: "Open Project Command Center"
+      }
+    ];
+
+    return {
+      isDemo: organization.isDemo,
+      organizationId,
+      progress: Math.round((steps.filter((step) => step.completed).length / steps.length) * 100),
+      steps
+    };
+  }
+
+  async listNotifications(input: {
+    organizationId: string;
+    userId: string;
+  }): Promise<UserNotificationRecord[]> {
+    return this.notifications
+      .filter(
+        (notification) =>
+          notification.organizationId === input.organizationId &&
+          notification.userId === input.userId
+      )
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+      .slice(0, 15);
+  }
+
+  async markNotificationRead(input: {
+    notificationId: string;
+    userId: string;
+  }): Promise<UserNotificationRecord | null> {
+    const notification =
+      this.notifications.find(
+        (candidate) => candidate.id === input.notificationId && candidate.userId === input.userId
+      ) ?? null;
+
+    if (notification) {
+      notification.readAt = new Date();
+    }
+
+    return notification;
+  }
+
+  async recordAnalyticsEvent(input: {
+    eventName: string;
+    metadata?: unknown;
+    organizationId?: string | null;
+    userId?: string | null;
+  }): Promise<void> {
+    this.analyticsEvents.push({
+      createdAt: new Date(),
+      eventName: input.eventName,
+      id: nextId("analytics"),
+      metadata: input.metadata ?? null,
+      organizationId: input.organizationId ?? null,
+      userId: input.userId ?? null
+    });
+  }
+
+  async resetDemoWorkspace(userId: string) {
+    const existingDemoIds = new Set(
+      this.memberships
+        .filter(
+          (membership) =>
+            membership.userId === userId &&
+            this.organizations.some(
+              (organization) => organization.id === membership.organizationId && organization.isDemo
+            )
+        )
+        .map((membership) => membership.organizationId)
+    );
+    this.organizations = this.organizations.filter(
+      (organization) => !existingDemoIds.has(organization.id)
+    );
+    this.memberships = this.memberships.filter(
+      (membership) => !existingDemoIds.has(membership.organizationId)
+    );
+
+    const organization = await this.createOrganization({
+      name: "FieldOS Aviation Demo",
+      ownerUserId: userId,
+      slug: `fieldos-aviation-demo-${nextId("slug")}`
+    });
+    const storedOrganization = this.organizations.find(
+      (candidate) => candidate.id === organization.id
+    );
+
+    if (storedOrganization) {
+      storedOrganization.isDemo = true;
+    }
+
+    const project = await this.createProject({
+      code: "SIN-TWY-A7",
+      name: "Taxiway A7 Lighting Modernization",
+      organizationId: organization.id,
+      status: "ACTIVE"
+    });
+    const conversation = await this.createConversation({
+      channel: "WHATSAPP",
+      externalId: "demo:sin-twy-a7",
+      isGroup: true,
+      lastMessageAt: null,
+      organizationId: organization.id,
+      projectId: project.id,
+      title: "SIN-TWY-A7 Airside Coordination"
+    });
+
+    return {
+      conversations: [conversation],
+      organization: {
+        ...organization,
+        isDemo: true
+      },
+      projects: [project]
     };
   }
 

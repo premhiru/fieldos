@@ -20,6 +20,7 @@
 - [Unified Evidence Processing](#unified-evidence-processing)
 - [Photo Intelligence](#photo-intelligence)
 - [Project Intelligence and Reporting](#project-intelligence-and-reporting)
+- [Pilot Readiness](#pilot-readiness)
 - [Repository Layout](#repository-layout)
 - [Development Philosophy](#development-philosophy)
 - [Tech Stack](#tech-stack)
@@ -185,6 +186,18 @@ pnpm db:generate
 pnpm db:migrate
 pnpm db:seed
 ```
+
+## Pilot Readiness
+
+Sprint 14 prepares FieldOS for the first controlled customer pilot. The dashboard now includes a first-run path, a resettable aviation Demo Workspace, pilot setup progress, notifications, feedback capture, mobile navigation, and lightweight product tour controls.
+
+Pilot documents:
+
+- [QUICK_START.md](./QUICK_START.md)
+- [DEMO_SCRIPT.md](./DEMO_SCRIPT.md)
+- [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md)
+- [docs/PILOT_READINESS_REPORT.md](./docs/PILOT_READINESS_REPORT.md)
+- [docs/KNOWN_LIMITATIONS.md](./docs/KNOWN_LIMITATIONS.md)
 
 ## Repository Layout
 

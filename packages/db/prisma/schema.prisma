@@ -10,14 +10,18 @@ model Organization {
   id                       String                    @id @default(cuid())
   name                     String
   slug                     String                    @unique
+  isDemo                   Boolean                   @default(false)
   createdAt                DateTime                  @default(now())
   updatedAt                DateTime                  @updatedAt
   aiMessageClassifications AIMessageClassification[]
   actionItems              ActionItem[]
   conversations            Conversation[]
   events                   Event[]
+  feedback                 UserFeedback[]
+  analyticsEvents          ProductAnalyticsEvent[]
   milestones               Milestone[]
   memberships              Membership[]
+  notifications            UserNotification[]
   photoAnalyses            PhotoAnalysis[]
   processingJobs           ProcessingJob[]
   projectReports           ProjectReport[]
@@ -37,8 +41,11 @@ model User {
   activatedWhatsAppChatMappings WhatsAppChatMapping[]
   acceptedActionItems           ActionItem[]          @relation("ActionItemAcceptedBy")
   assignedActionItems           ActionItem[]          @relation("ActionItemAssignedTo")
+  analyticsEvents               ProductAnalyticsEvent[]
+  feedback                      UserFeedback[]
   ignoredActionItems            ActionItem[]          @relation("ActionItemIgnoredBy")
   memberships                   Membership[]
+  notifications                 UserNotification[]
 }
 
 model Membership {
@@ -338,6 +345,55 @@ model ProjectReport {
   @@index([status, createdAt])
 }
 
+model UserFeedback {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String
+  type           FeedbackType
+  message        String
+  page           String?
+  status         String       @default("OPEN")
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([userId, createdAt])
+  @@index([type, createdAt])
+}
+
+model ProductAnalyticsEvent {
+  id             String        @id @default(cuid())
+  organizationId String?
+  userId         String?
+  eventName      String
+  metadata       Json?
+  createdAt      DateTime      @default(now())
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, eventName, createdAt])
+  @@index([userId, createdAt])
+  @@index([eventName, createdAt])
+}
+
+model UserNotification {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String
+  type           String
+  title          String
+  body           String?
+  href           String?
+  readAt         DateTime?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, userId, createdAt])
+  @@index([userId, readAt, createdAt])
+}
+
 model ProcessingJob {
   id             String              @id @default(cuid())
   organizationId String
@@ -601,4 +657,10 @@ enum SearchDocumentSourceType {
   AI_CLASSIFICATION
   PHOTO_ANALYSIS
   PROJECT_REPORT
+}
+
+enum FeedbackType {
+  BUG
+  FEATURE
+  GENERAL
 }

@@ -5,7 +5,7 @@
 | Purpose      | Establish engineering practices, quality gates, repository operations, and delivery expectations. |
 | Owner        | Engineering                                                                                       |
 | Status       | Draft                                                                                             |
-| Last Updated | 2026-07-03                                                                                        |
+| Last Updated | 2026-07-08                                                                                        |
 
 ## Table of Contents
 
@@ -17,6 +17,7 @@
 - [Release Process](#release-process)
 - [Security](#security)
 - [Operational Readiness](#operational-readiness)
+- [Pilot Readiness](#pilot-readiness)
 
 ## Engineering Principles
 
@@ -72,3 +73,11 @@ See [Branch Strategy](./08_BRANCH_STRATEGY.md).
 - Ingestion must be idempotent by external message id.
 - Structured logs should include organization id, project id, request id, job id, and message id where relevant.
 - High-volume list routes should use pagination before large imports.
+
+## Pilot Readiness
+
+- Keep demo data isolated with `Organization.isDemo`.
+- Demo reset must never delete non-demo organizations.
+- Pilot-facing errors should be actionable and avoid raw provider or stack details.
+- Feedback and product analytics are internal pilot signals, not customer-visible commitments.
+- Update `PROJECT_STATUS.md`, `CHANGELOG.md`, and `PRODUCTION_READINESS.md` before marking a pilot-readiness task complete.

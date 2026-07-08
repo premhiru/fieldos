@@ -13,6 +13,15 @@
 
 ## Unreleased
 
+### Pilot Readiness
+
+- Added resettable aviation Demo Workspace with synthetic airport projects, WhatsApp-style conversations, messages, evidence metadata, reports, milestones, and Action Items.
+- Added first-run onboarding progress, demo reset, lightweight product tour, notifications, and feedback capture.
+- Added internal product analytics events for key pilot actions.
+- Added user-facing loading and error states on the Operations Command Center.
+- Added mobile dashboard navigation.
+- Added production readiness, quick start, demo script, pilot readiness report, and known limitations docs.
+
 ### Changed
 
 - Project detail pages now link to a dedicated Project Intelligence workspace.

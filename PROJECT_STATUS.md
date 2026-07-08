@@ -19,7 +19,7 @@
 
 ## Current Milestone
 
-Task 013B Cloudflare R2 Durable Storage is deployed to Railway production. New evidence media and generated report PDFs now use the shared Cloudflare R2 bucket through signed URLs.
+Sprint 14 Pilot Readiness is implemented, pushed to GitHub, migrated locally and in Railway production, and deployed to Railway API/worker. Dashboard production deployment should be confirmed through Vercel/GitHub integration because no Vercel token or local Vercel auth is available in this shell.
 
 ## Completed Tasks
 
@@ -173,6 +173,14 @@ Task 013B Cloudflare R2 Durable Storage is deployed to Railway production. New e
   - Evidence preview and report PDF API responses return signed URLs after authorization and do not return raw storage keys.
   - ADR 0013B documents the R2 storage decision.
   - Local validation passed for format, lint, typecheck, tests, and build.
+- Sprint 14: Pilot Readiness.
+  - First-run onboarding now supports organization creation and Demo Workspace launch.
+  - Resettable aviation demo data creates projects, WhatsApp-style conversations, messages, evidence metadata, reports, milestones, and Action Items.
+  - Dashboard now shows pilot setup progress, mobile navigation, lightweight tour controls, notifications, and feedback capture.
+  - API routes added for onboarding state, demo reset, feedback, notifications, and internal analytics events.
+  - Prisma migration `20260708030000_pilot_readiness` adds demo flags, feedback, analytics, and notifications.
+  - Pilot docs added: `QUICK_START.md`, `DEMO_SCRIPT.md`, `PRODUCTION_READINESS.md`, `docs/PILOT_READINESS_REPORT.md`, and `docs/KNOWN_LIMITATIONS.md`.
+  - Local validation passed for format, lint, typecheck, tests, build, and Prisma migration deploy.
 
 ## In-Progress Tasks
 
@@ -201,11 +209,15 @@ Task 013B Cloudflare R2 Durable Storage is deployed to Railway production. New e
 - Search uses PostgreSQL keyword search for the MVP; semantic/vector search is intentionally deferred until search telemetry proves the need.
 - Baileys auth session files are still filesystem-backed; media and report objects now use the configured storage provider.
 - OpenRouter free-tier AI requests are deliberately throttled in the worker; large WhatsApp media bursts will queue and retry instead of processing instantly.
+- Demo evidence uses metadata records and placeholder storage keys; live media verification still requires a real WhatsApp/R2 smoke test.
+- Product analytics events are captured in the database but do not yet have a dashboard.
+- Quick-start screenshots are static in-repo visual references and should be replaced with production screenshots after deployment.
 
 ## Upcoming Milestones
 
+- Confirm the Vercel dashboard deployment from the GitHub `main` push and capture production quick-start screenshots.
+- Reset the demo workspace in production through the dashboard after Vercel deployment is confirmed.
 - Pair the WhatsApp line again and validate live photo analysis, mixed-evidence ingestion, voice transcription, AI classification, project intelligence, evidence viewing, and search indexing.
-- Configure Cloudflare R2 variables in Railway for API and worker, then deploy and verify live evidence previews, voice note playback, PDF previews, and generated report PDF downloads.
 - Configure `OPENAI_API_KEY` for production voice transcription if voice transcript generation is required.
 - Configure branch protection for `main` and `develop`.
 - Create `develop` branch after remote setup.
@@ -235,6 +247,7 @@ Task 013B Cloudflare R2 Durable Storage is deployed to Railway production. New e
 - ADR 0012: Analyze image attachments asynchronously as advisory Photo Intelligence.
 - ADR 0013: Generate grounded project intelligence and reports from stored FieldOS records, with signed evidence media access.
 - ADR 0013B: Use Cloudflare R2 for production media and report storage through signed URLs.
+- Sprint 14 implementation decision: Keep pilot readiness primitives small, tenant-scoped, and API-owned rather than introducing a product analytics service or tour framework before the first pilot.
 
 ## Deployment Status
 
@@ -340,3 +353,10 @@ Task 013B Cloudflare R2 Durable Storage is deployed to Railway production. New e
   - API health verified at `https://fieldos-api-production.up.railway.app/health`.
   - Worker startup verified in Railway logs.
   - Existing pre-R2 local media can still fail with `NoSuchKey` and requires migration or re-ingestion if it must be previewed.
+- Sprint 14 Pilot Readiness is deployed to Railway backend.
+  - Migration `20260708030000_pilot_readiness` applied to Railway PostgreSQL.
+  - API deployment `193a7ccb-1545-45ac-a4e2-d0428900a2c1` succeeded.
+  - Worker deployment `a01c0bf8-0863-49a1-8342-15c068c867f1` succeeded.
+  - API health verified at `https://fieldos-api-production.up.railway.app/health`.
+  - Worker startup verified in Railway logs with `worker started and waiting for jobs`.
+  - Vercel CLI/auth is unavailable in this shell; dashboard production deployment should be verified through the connected Vercel project or GitHub auto-deploy.
