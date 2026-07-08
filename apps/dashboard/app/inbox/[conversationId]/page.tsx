@@ -350,13 +350,42 @@ function AttachmentRow({
   onOpenEvidence: (evidenceId: string) => void;
 }) {
   const analysis = attachment.photoAnalysis;
+  const isImage = attachment.mimeType.toLowerCase().startsWith("image/");
+  const evidenceQuery = useQuery({
+    enabled: isImage,
+    queryFn: () => api.getEvidenceView(attachment.id),
+    queryKey: ["evidence-thumbnail", attachment.id],
+    retry: false,
+    staleTime: 60_000
+  });
+  const imageUrl = evidenceQuery.data?.evidence.signedUrl;
 
   return (
     <div className="rounded-md border border-slate-200 p-3">
-      {attachment.mimeType.toLowerCase().startsWith("image/") ? (
-        <div className="mb-3 flex h-24 items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 text-xs font-medium text-slate-500">
-          Photo
-        </div>
+      {isImage ? (
+        <button
+          className="mb-3 block w-full overflow-hidden rounded-md border border-slate-200 bg-slate-50 text-left"
+          onClick={() => onOpenEvidence(attachment.id)}
+          type="button"
+        >
+          {imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              alt={attachment.filename}
+              className="h-56 w-full object-contain sm:h-72"
+              loading="lazy"
+              src={imageUrl}
+            />
+          ) : evidenceQuery.isError ? (
+            <div className="flex h-40 items-center justify-center px-4 text-center text-xs font-medium text-slate-500">
+              Image preview unavailable. Open evidence to retry.
+            </div>
+          ) : (
+            <div className="flex h-40 items-center justify-center text-xs font-medium text-slate-500">
+              Loading photo...
+            </div>
+          )}
+        </button>
       ) : null}
       <div className="font-medium text-slate-950">{attachment.filename}</div>
       <div className="mt-1 text-xs text-slate-500">
@@ -403,7 +432,7 @@ function AttachmentRow({
             Open Full Analysis
           </button>
         </div>
-      ) : attachment.mimeType.toLowerCase().startsWith("image/") ? (
+      ) : isImage ? (
         <p className="mt-2 text-xs text-slate-500">Visual analysis pending.</p>
       ) : null}
       {attachment.transcript ? (
