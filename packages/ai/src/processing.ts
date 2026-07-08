@@ -8,6 +8,7 @@ import {
 import { createLogger } from "@fieldos/shared";
 
 import { AIConfigurationError, MessageClassifier } from "./message-classifier.js";
+import { isAIProviderRateLimitError } from "./provider-errors.js";
 import type { ClassifyMessageResult } from "./types.js";
 
 interface ProjectCandidate {
@@ -138,6 +139,18 @@ export class AIClassificationProcessor {
         result
       });
     } catch (error: unknown) {
+      if (isAIProviderRateLimitError(error)) {
+        this.logger.warn(
+          {
+            classificationId: classification.id,
+            retryAfterMs: error.retryAfterMs,
+            status: error.status
+          },
+          "AI classification rate limited; keeping classification pending"
+        );
+        throw error;
+      }
+
       const errorMessage =
         error instanceof AIConfigurationError
           ? "AI not configured."

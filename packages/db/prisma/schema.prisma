@@ -350,6 +350,7 @@ model ProcessingJob {
   maxAttempts    Int                 @default(3)
   errorMessage   String?
   correlationId  String
+  nextRunAt      DateTime?
   startedAt      DateTime?
   completedAt    DateTime?
   failedAt       DateTime?
@@ -362,6 +363,7 @@ model ProcessingJob {
   @@index([organizationId, type, status])
   @@index([projectId, status, createdAt])
   @@index([status, createdAt])
+  @@index([status, nextRunAt, createdAt])
 }
 
 model WorkerHeartbeat {

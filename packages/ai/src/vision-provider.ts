@@ -7,6 +7,7 @@ import {
   type VisionRequest,
   type VisionResult
 } from "./types.js";
+import { createAIProviderRequestError } from "./provider-errors.js";
 
 const defaultVisionBaseUrl = "https://openrouter.ai/api/v1";
 const defaultVisionModel = "openrouter/free";
@@ -107,7 +108,11 @@ export class OpenAICompatibleVisionProvider implements VisionProvider {
     });
 
     if (!response.ok) {
-      throw new Error(`Vision provider request failed with status ${response.status}.`);
+      throw createAIProviderRequestError({
+        label: "Vision provider",
+        retryAfterHeader: response.headers.get("retry-after"),
+        status: response.status
+      });
     }
 
     const payload = openAiVisionResponseSchema.parse(await response.json());

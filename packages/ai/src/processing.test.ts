@@ -2,6 +2,7 @@ import type { PrismaClient } from "@fieldos/db";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { AIOutputValidationError, type MessageClassifier } from "./message-classifier.js";
+import { AIProviderRateLimitError } from "./provider-errors.js";
 import { AIClassificationProcessor } from "./processing.js";
 import type { ClassifyMessageResult } from "./types.js";
 
@@ -80,6 +81,23 @@ describe("AIClassificationProcessor", () => {
     expect(prisma.messages[0]?.processingStatus).toBe("FAILED");
     expect(prisma.actionItems).toHaveLength(0);
   });
+
+  it("keeps classifications pending when the provider rate limits", async () => {
+    const processor = new AIClassificationProcessor(prisma.client, {
+      classifier: new RateLimitedClassifier()
+    });
+    await processor.enqueueMessage("message_1");
+
+    await expect(processor.processPending()).rejects.toMatchObject({
+      name: "AIProviderRateLimitError",
+      retryAfterMs: 60_000,
+      status: 429
+    });
+
+    expect(prisma.classifications[0]?.status).toBe("PENDING");
+    expect(prisma.classifications[0]?.errorMessage).toBeNull();
+    expect(prisma.messages[0]?.processingStatus).toBe("AI_PENDING");
+  });
 });
 
 function validResult(overrides: Partial<ClassifyMessageResult> = {}): ClassifyMessageResult {
@@ -105,6 +123,16 @@ class FakeClassifier implements Pick<MessageClassifier, "classifyMessage"> {
 class FailingClassifier implements Pick<MessageClassifier, "classifyMessage"> {
   async classifyMessage(): Promise<ClassifyMessageResult> {
     throw new AIOutputValidationError("Invalid AI JSON.");
+  }
+}
+
+class RateLimitedClassifier implements Pick<MessageClassifier, "classifyMessage"> {
+  async classifyMessage(): Promise<ClassifyMessageResult> {
+    throw new AIProviderRateLimitError({
+      message: "AI provider rate limited the request with status 429.",
+      retryAfterMs: 60_000,
+      status: 429
+    });
   }
 }
 

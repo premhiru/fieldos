@@ -11,6 +11,7 @@ import {
   type ClassifyMessageInput,
   type ClassifyMessageResult
 } from "./types.js";
+import { createAIProviderRequestError } from "./provider-errors.js";
 
 const openAiChatResponseSchema = z.object({
   choices: z
@@ -122,7 +123,11 @@ class OpenAICompatibleProvider implements AIProvider {
     });
 
     if (!response.ok) {
-      throw new Error(`AI provider request failed with status ${response.status}.`);
+      throw createAIProviderRequestError({
+        label: "AI provider",
+        retryAfterHeader: response.headers.get("retry-after"),
+        status: response.status
+      });
     }
 
     const payload = openAiChatResponseSchema.parse(await response.json());

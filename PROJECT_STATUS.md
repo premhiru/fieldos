@@ -193,6 +193,7 @@ Task 013 Project Intelligence and Automated Reporting is deployed. Live WhatsApp
 - WhatsApp media is still filesystem-backed, so Railway worker redeploys may lose local media unless object storage is added.
 - Search uses PostgreSQL keyword search for the MVP; semantic/vector search is intentionally deferred until search telemetry proves the need.
 - Production media and worker-generated report PDF serving needs object storage or a genuinely shared volume because separate Railway API and worker services should not be assumed to share local files.
+- OpenRouter free-tier AI requests are deliberately throttled in the worker; large WhatsApp media bursts will queue and retry instead of processing instantly.
 
 ## Upcoming Milestones
 

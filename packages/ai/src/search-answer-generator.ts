@@ -12,6 +12,7 @@ import {
   type SearchAnswerResult
 } from "./types.js";
 import { AIConfigurationError, AIOutputValidationError } from "./message-classifier.js";
+import { createAIProviderRequestError } from "./provider-errors.js";
 
 const openAiChatResponseSchema = z.object({
   choices: z
@@ -108,7 +109,11 @@ class SearchOpenAICompatibleProvider implements AIProvider {
     });
 
     if (!response.ok) {
-      throw new Error(`AI provider request failed with status ${response.status}.`);
+      throw createAIProviderRequestError({
+        label: "AI provider",
+        retryAfterHeader: response.headers.get("retry-after"),
+        status: response.status
+      });
     }
 
     const payload = openAiChatResponseSchema.parse(await response.json());

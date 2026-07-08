@@ -4,12 +4,14 @@ import {
   AIClassificationProcessor,
   MessageClassifier,
   OpenAICompatibleVisionProvider,
+  isAIProviderRateLimitError,
   type VisionResult
 } from "@fieldos/ai";
 import { BaileysWhatsAppSessionManager, RedisWhatsAppQrStore } from "@fieldos/baileys-whatsapp";
 import {
   claimNextProcessingJob,
   buildProjectIntelligenceContext,
+  deferProcessingJob,
   heartbeatWorker,
   markProcessingJobComplete,
   markProcessingJobFailed,
@@ -29,6 +31,27 @@ import { createLogger, LocalStorageProvider } from "@fieldos/shared";
 import { workerEnv } from "./env.js";
 import { PhotoAnalysisService } from "./photo-analysis.js";
 import { VoiceTranscriptionService } from "./voice-transcription.js";
+
+class ProviderRequestThrottle {
+  private nextAvailableAt = 0;
+
+  constructor(private readonly minIntervalMs: number) {}
+
+  defer(delayMs: number): void {
+    this.nextAvailableAt = Math.max(this.nextAvailableAt, Date.now() + delayMs);
+  }
+
+  async wait(): Promise<void> {
+    const waitMs = Math.max(this.nextAvailableAt - Date.now(), 0);
+
+    if (waitMs > 0) {
+      logger.info({ waitMs }, "waiting before AI provider request");
+      await sleep(waitMs);
+    }
+
+    this.nextAvailableAt = Date.now() + this.minIntervalMs;
+  }
+}
 
 const logger = createLogger("fieldos-worker");
 const redis = new Redis(workerEnv.REDIS_URL, {
@@ -68,6 +91,7 @@ const storageProvider = new LocalStorageProvider({
   signingSecret: workerEnv.MEDIA_SIGNING_SECRET
 });
 const projectIntelligenceService = new ProjectIntelligenceService();
+const aiProviderThrottle = new ProviderRequestThrottle(workerEnv.AI_PROVIDER_MIN_INTERVAL_MS);
 const workerName = process.env.WORKER_NAME ?? "fieldos-worker";
 const workerVersion =
   process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) ?? process.env.npm_package_version ?? "0.0.0";
@@ -115,10 +139,14 @@ async function start() {
 
 async function processBackgroundJobs(): Promise<void> {
   const voiceProcessed = await processJobsOfType("VOICE_TRANSCRIPTION", processVoiceJob);
-  const photoProcessed = await processJobsOfType("PHOTO_ANALYSIS", processPhotoJob);
+  const photoProcessed = await processJobsOfType("PHOTO_ANALYSIS", processPhotoJob, {
+    limit: workerEnv.AI_PROVIDER_JOBS_PER_POLL
+  });
   const reportProcessed = await processJobsOfType("REPORT_GENERATION", processReportJob);
   const searchProcessed = await processJobsOfType("SEARCH_INDEX", processSearchJob);
-  const aiProcessed = await processJobsOfType("AI_CLASSIFICATION", processAIJob);
+  const aiProcessed = await processJobsOfType("AI_CLASSIFICATION", processAIJob, {
+    limit: workerEnv.AI_PROVIDER_JOBS_PER_POLL
+  });
   const processed =
     searchProcessed + aiProcessed + voiceProcessed + photoProcessed + reportProcessed;
 
@@ -162,11 +190,13 @@ async function processJobsOfType(
     | "REPORT_GENERATION"
     | "SEARCH_INDEX"
     | "VOICE_TRANSCRIPTION",
-  processor: (job: ProcessingJob) => Promise<void>
+  processor: (job: ProcessingJob) => Promise<void>,
+  options: { limit?: number } = {}
 ): Promise<number> {
   let processed = 0;
+  const limit = options.limit ?? 10;
 
-  for (let index = 0; index < 10; index += 1) {
+  for (let index = 0; index < limit; index += 1) {
     const job = await claimNextProcessingJob(prisma, type);
 
     if (!job) {
@@ -202,6 +232,35 @@ async function processClaimedJob(
       "background job completed"
     );
   } catch (error: unknown) {
+    if (isAIProviderRateLimitError(error)) {
+      const retryAfterMs =
+        error.retryAfterMs && error.retryAfterMs > 0
+          ? error.retryAfterMs
+          : workerEnv.AI_PROVIDER_RATE_LIMIT_RETRY_MS;
+      aiProviderThrottle.defer(retryAfterMs);
+      await deferProcessingJob(prisma, {
+        errorMessage: error.message,
+        job,
+        minimumMaxAttempts: workerEnv.AI_PROVIDER_MAX_ATTEMPTS,
+        retryAfterMs
+      });
+      logger.warn(
+        {
+          correlationId: job.correlationId,
+          durationMs: Date.now() - startedAt,
+          jobId: job.id,
+          jobType: job.type,
+          organizationId: job.organizationId,
+          projectId: job.projectId,
+          retryAfterMs,
+          result: "deferred",
+          status: error.status
+        },
+        "background job deferred after AI provider rate limit"
+      );
+      return;
+    }
+
     const errorMessage = error instanceof Error ? error.message : "Background job failed.";
     await markProcessingJobFailed(prisma, {
       errorMessage,
@@ -351,6 +410,7 @@ async function processPhotoJob(job: ProcessingJob): Promise<void> {
     return;
   }
 
+  await aiProviderThrottle.wait();
   const result = await photoAnalysisService.analyze({
     conversationTitle: attachment.message.conversation.title,
     filename: attachment.filename,
@@ -438,6 +498,7 @@ async function processPhotoJob(job: ProcessingJob): Promise<void> {
 }
 
 async function processAIJob(job: ProcessingJob): Promise<void> {
+  await aiProviderThrottle.wait();
   await aiClassificationProcessor.processClassification(job.sourceId);
   const classification = await prisma.aIMessageClassification.findUnique({
     select: {
@@ -452,6 +513,12 @@ async function processAIJob(job: ProcessingJob): Promise<void> {
   if (classification?.status === "FAILED") {
     throw new Error(classification.errorMessage ?? "AI classification failed.");
   }
+}
+
+function sleep(delayMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, delayMs);
+  });
 }
 
 async function processReportJob(job: ProcessingJob): Promise<void> {

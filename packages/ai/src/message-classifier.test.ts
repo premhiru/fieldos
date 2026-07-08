@@ -1,9 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { MessageClassifier } from "./message-classifier.js";
+import { AIProviderRateLimitError } from "./provider-errors.js";
 import type { AIProvider } from "./types.js";
 
 describe("MessageClassifier", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("uses the OpenRouter free router as the default model", async () => {
     const provider = new CapturingProvider();
     const classifier = new MessageClassifier({ provider });
@@ -25,6 +30,33 @@ describe("MessageClassifier", () => {
     await expect(classifier.classifyMessage(context)).resolves.toMatchObject({
       category: "GENERAL_NOTE"
     });
+  });
+
+  it("raises a retryable provider error when the provider returns 429", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        headers: {
+          get: (name: string) => (name.toLowerCase() === "retry-after" ? "2" : null)
+        },
+        ok: false,
+        status: 429
+      }))
+    );
+    const classifier = new MessageClassifier({
+      apiKey: "test-key",
+      baseUrl: "https://ai.example.test",
+      model: "test-model"
+    });
+
+    await expect(classifier.classifyMessage(classificationContext())).rejects.toMatchObject({
+      name: "AIProviderRateLimitError",
+      retryAfterMs: 2000,
+      status: 429
+    });
+    await expect(classifier.classifyMessage(classificationContext())).rejects.toBeInstanceOf(
+      AIProviderRateLimitError
+    );
   });
 });
 

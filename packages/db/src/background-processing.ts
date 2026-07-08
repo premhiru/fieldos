@@ -43,6 +43,7 @@ export async function queueProcessingJob(
     create: {
       correlationId,
       maxAttempts: input.maxAttempts ?? 3,
+      nextRunAt: null,
       organizationId: input.organizationId,
       projectId: input.projectId ?? null,
       sourceId: input.sourceId,
@@ -54,6 +55,8 @@ export async function queueProcessingJob(
       completedAt: null,
       errorMessage: null,
       failedAt: null,
+      maxAttempts: input.maxAttempts ?? 3,
+      nextRunAt: null,
       organizationId: input.organizationId,
       projectId: input.projectId ?? null,
       sourceId: input.sourceId,
@@ -89,6 +92,7 @@ export async function queueAIClassificationJob(
 ): Promise<ProcessingJob> {
   return queueProcessingJob(prisma, {
     ...input,
+    maxAttempts: input.maxAttempts ?? 10,
     sourceType: "AI_MESSAGE_CLASSIFICATION",
     type: "AI_CLASSIFICATION"
   });
@@ -100,6 +104,7 @@ export async function queueVoiceTranscriptionJob(
 ): Promise<ProcessingJob> {
   return queueProcessingJob(prisma, {
     ...input,
+    maxAttempts: input.maxAttempts ?? 5,
     sourceType: "ATTACHMENT",
     type: "VOICE_TRANSCRIPTION"
   });
@@ -111,6 +116,7 @@ export async function queuePhotoAnalysisJob(
 ): Promise<ProcessingJob> {
   return queueProcessingJob(prisma, {
     ...input,
+    maxAttempts: input.maxAttempts ?? 10,
     sourceType: "ATTACHMENT",
     type: "PHOTO_ANALYSIS"
   });
@@ -131,12 +137,23 @@ export async function claimNextProcessingJob(
   prisma: PrismaClient,
   type: ProcessingJobType
 ): Promise<ProcessingJob | null> {
+  const now = new Date();
   const jobs = await prisma.processingJob.findMany({
     orderBy: {
       createdAt: "asc"
     },
     take: 10,
     where: {
+      OR: [
+        {
+          nextRunAt: null
+        },
+        {
+          nextRunAt: {
+            lte: now
+          }
+        }
+      ],
       status: "PENDING",
       type
     }
@@ -154,6 +171,7 @@ export async function claimNextProcessingJob(
           increment: 1
         },
         errorMessage: null,
+        nextRunAt: null,
         startedAt: new Date(),
         status: "RUNNING"
       },
@@ -207,6 +225,34 @@ export async function markProcessingJobFailed(
     data: {
       errorMessage: input.errorMessage,
       failedAt: new Date(),
+      nextRunAt: null,
+      status: exhausted ? "FAILED" : "PENDING"
+    },
+    where: {
+      id: input.job.id
+    }
+  });
+}
+
+export async function deferProcessingJob(
+  prisma: PrismaClient | Prisma.TransactionClient,
+  input: {
+    errorMessage: string;
+    job: Pick<ProcessingJob, "attempts" | "id" | "maxAttempts">;
+    minimumMaxAttempts?: number;
+    retryAfterMs: number;
+  }
+): Promise<void> {
+  const maxAttempts = Math.max(input.job.maxAttempts, input.minimumMaxAttempts ?? 0);
+  const exhausted = input.job.attempts >= maxAttempts;
+
+  await prisma.processingJob.update({
+    data: {
+      errorMessage: input.errorMessage,
+      failedAt: exhausted ? new Date() : null,
+      maxAttempts,
+      nextRunAt: exhausted ? null : new Date(Date.now() + input.retryAfterMs),
+      startedAt: null,
       status: exhausted ? "FAILED" : "PENDING"
     },
     where: {
@@ -224,6 +270,7 @@ export async function retryProcessingJob(
       completedAt: null,
       errorMessage: null,
       failedAt: null,
+      nextRunAt: null,
       startedAt: null,
       status: "PENDING"
     },
@@ -249,6 +296,7 @@ export async function retryFailedProcessingJobs(
       completedAt: null,
       errorMessage: null,
       failedAt: null,
+      nextRunAt: null,
       startedAt: null,
       status: "PENDING"
     },
