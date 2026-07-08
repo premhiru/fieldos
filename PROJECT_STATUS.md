@@ -19,7 +19,7 @@
 
 ## Current Milestone
 
-Task 013B Cloudflare R2 Durable Storage is implemented and validated locally. Production R2 deployment is blocked until Railway API and worker services receive the required Cloudflare R2 environment variables.
+Task 013B Cloudflare R2 Durable Storage is deployed to Railway production. New evidence media and generated report PDFs now use the shared Cloudflare R2 bucket through signed URLs.
 
 ## Completed Tasks
 
@@ -176,8 +176,7 @@ Task 013B Cloudflare R2 Durable Storage is implemented and validated locally. Pr
 
 ## In-Progress Tasks
 
-- Task 013B production deployment.
-  - Blocked until Railway API and worker services have `STORAGE_PROVIDER=r2` plus all required Cloudflare R2 variables configured.
+- None.
 
 ## Known Technical Debt
 
@@ -332,7 +331,12 @@ Task 013B Cloudflare R2 Durable Storage is implemented and validated locally. Pr
   - Worker deployment `a2e2d112-38b1-4597-bcbf-081d4d11a77b` succeeded.
   - API health verified at `https://fieldos-api-production.up.railway.app/health`.
   - Worker throttling configured for one AI-provider job per poll, twelve seconds between provider calls, sixty-second default 429 retries, and ten max attempts.
-- Task 013B R2 storage deployment is blocked pending Railway variables.
-  - API service currently has no `STORAGE_PROVIDER` value and is missing `R2_ACCOUNT_ID`, `R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_REGION`, `R2_FORCE_PATH_STYLE`, and `SIGNED_URL_TTL_SECONDS`.
-  - Worker service currently has no `STORAGE_PROVIDER` value and is missing `R2_ACCOUNT_ID`, `R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_REGION`, `R2_FORCE_PATH_STYLE`, and `SIGNED_URL_TTL_SECONDS`.
-  - Production deployment and live upload/download verification should run after those values are configured.
+- Task 013B R2 storage is deployed.
+  - Railway API and worker are configured with `STORAGE_PROVIDER=r2`.
+  - API and worker use shared R2 bucket `fieldos-api`.
+  - R2 smoke test passed: worker uploaded an object, API downloaded it, generated a 900-second signed URL, and deleted the object.
+  - API deployment `5bc65a45-56ec-43e4-b603-caeb199637a7` succeeded.
+  - Worker deployment `dfb56e97-999b-48c0-ba38-4cbb797634a9` succeeded.
+  - API health verified at `https://fieldos-api-production.up.railway.app/health`.
+  - Worker startup verified in Railway logs.
+  - Existing pre-R2 local media can still fail with `NoSuchKey` and requires migration or re-ingestion if it must be previewed.
