@@ -19,7 +19,7 @@
 
 ## Current Milestone
 
-Task 013 Project Intelligence and Automated Reporting is implemented locally. Production deployment and live media/report verification are in progress.
+Task 013 Project Intelligence and Automated Reporting is deployed. Live WhatsApp evidence previews and worker-generated PDF links still require shared durable object storage before they can be fully verified across separate Railway services.
 
 ## Completed Tasks
 
@@ -168,7 +168,7 @@ Task 013 Project Intelligence and Automated Reporting is implemented locally. Pr
 
 ## In-Progress Tasks
 
-- Task 013 deployment verification.
+- None.
 
 ## Known Technical Debt
 
@@ -196,8 +196,8 @@ Task 013 Project Intelligence and Automated Reporting is implemented locally. Pr
 
 ## Upcoming Milestones
 
-- Deploy Task 013, apply the `20260708010000_project_intelligence_reporting` migration, and verify project intelligence exports in production.
 - Pair the WhatsApp line again and validate live photo analysis, mixed-evidence ingestion, voice transcription, AI classification, project intelligence, evidence viewing, and search indexing.
+- Add shared object storage, such as S3, R2, or MinIO, for production media previews and worker-generated report PDFs.
 - Configure `OPENAI_API_KEY` for production voice transcription if voice transcript generation is required.
 - Configure branch protection for `main` and `develop`.
 - Create `develop` branch after remote setup.
@@ -304,8 +304,15 @@ Task 013 Project Intelligence and Automated Reporting is implemented locally. Pr
   - Railway worker has `VISION_MODEL=openrouter/free` configured.
   - Live WhatsApp photo analysis verification is pending because the WhatsApp line must be paired and sent a real image from an active chat.
   - Production object storage/media serving is still pending; original image previews remain placeholder-based until storage is added.
-- Task 013 implementation is pending production deployment verification.
+- Task 013 is deployed.
+  - Migration `20260708010000_project_intelligence_reporting` applied to Railway PostgreSQL.
+  - API deployment `b388d092-58c0-4dc4-ab4d-f3408fd6bd09` succeeded.
+  - Worker deployment `4a27c72c-08a4-4631-a782-c8a1931f0b7d` succeeded.
+  - Dashboard deployment `dpl_82ojuXmR7Yi1jzXsyCzxYcLTE9jC` deployed and aliased to `https://fieldos-sand.vercel.app`.
+  - API health verified at `https://fieldos-api-production.up.railway.app/health`.
+  - Worker startup verified in Railway logs with `worker started and waiting for jobs`.
+  - Dashboard route `/projects/[projectId]/intelligence` verified deployed on Vercel.
+  - `MEDIA_SIGNING_SECRET` configured for API and worker.
   - Local API tests cover project intelligence, report export, queued report generation, signed evidence views, and cross-organization evidence isolation.
   - Local dashboard tests cover Evidence Viewer rendering from signed evidence responses.
-  - Production deployment must configure `MEDIA_SIGNING_SECRET` for API and worker.
   - Live WhatsApp media previews and worker-generated PDF links require shared durable storage before they can be fully verified across separate Railway services.
