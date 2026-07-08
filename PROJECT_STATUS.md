@@ -19,7 +19,7 @@
 
 ## Current Milestone
 
-Task 013 Project Intelligence and Automated Reporting is deployed. Live WhatsApp evidence previews and worker-generated PDF links still require shared durable object storage before they can be fully verified across separate Railway services.
+Task 013B Cloudflare R2 Durable Storage is implemented and validated locally. Production R2 deployment is blocked until Railway API and worker services receive the required Cloudflare R2 environment variables.
 
 ## Completed Tasks
 
@@ -165,10 +165,19 @@ Task 013 Project Intelligence and Automated Reporting is deployed. Live WhatsApp
   - Dashboard Project Intelligence page added with report export, generated report status, evidence gallery, and reusable Evidence Viewer.
   - Search supports generated project reports.
   - ADR 0013 documents the grounded project intelligence and reporting decision.
+- Task 013B: Cloudflare R2 Durable Storage implementation.
+  - `R2StorageProvider` added with S3-compatible upload, download, signed URL generation, delete, and exists support.
+  - Local development remains supported through `LocalStorageProvider`.
+  - API and worker now validate shared storage environment configuration.
+  - WhatsApp evidence media, photo analysis reads, voice transcription reads, and worker-generated report PDFs use the configured storage provider.
+  - Evidence preview and report PDF API responses return signed URLs after authorization and do not return raw storage keys.
+  - ADR 0013B documents the R2 storage decision.
+  - Local validation passed for format, lint, typecheck, tests, and build.
 
 ## In-Progress Tasks
 
-- None.
+- Task 013B production deployment.
+  - Blocked until Railway API and worker services have `STORAGE_PROVIDER=r2` plus all required Cloudflare R2 variables configured.
 
 ## Known Technical Debt
 
@@ -180,7 +189,7 @@ Task 013 Project Intelligence and Automated Reporting is deployed. Live WhatsApp
 - Messaging is not real-time yet.
 - Message sending is internal/development-only until channel adapters exist.
 - Baileys is a WhatsApp Web adapter and should be used only with dedicated business test numbers until official Meta Cloud API support is implemented.
-- WhatsApp media storage is local filesystem-backed under `.storage` and needs object storage before production deployment.
+- Existing WhatsApp media rows that point to local filesystem-backed objects need migration or re-ingestion before they can be served from R2.
 - Existing WhatsApp message rows created before this fix may need data cleanup if unsupported placeholders were already stored.
 - AI Action Items are not converted into first-class project tasks yet; accepted follow-up Action Items only record human approval.
 - Milestones are lightweight command-center records; full scheduling dependencies and recurrence are intentionally deferred.
@@ -190,15 +199,14 @@ Task 013 Project Intelligence and Automated Reporting is deployed. Live WhatsApp
 - API route response envelopes are improved but not yet generated from a shared OpenAPI contract.
 - Production environments must set `OPENROUTER_API_KEY` and confirm the intended `AI_MODEL` before AI classification can run. `VISION_MODEL` must point to a multimodal model before production photo analysis can be considered fully verified. `OPENAI_API_KEY` remains a fallback for OpenAI-compatible providers.
 - Voice transcription uses OpenAI audio transcription when `OPENAI_API_KEY` is configured; OpenRouter chat keys do not provide audio transcription.
-- WhatsApp media is still filesystem-backed, so Railway worker redeploys may lose local media unless object storage is added.
 - Search uses PostgreSQL keyword search for the MVP; semantic/vector search is intentionally deferred until search telemetry proves the need.
-- Production media and worker-generated report PDF serving needs object storage or a genuinely shared volume because separate Railway API and worker services should not be assumed to share local files.
+- Baileys auth session files are still filesystem-backed; media and report objects now use the configured storage provider.
 - OpenRouter free-tier AI requests are deliberately throttled in the worker; large WhatsApp media bursts will queue and retry instead of processing instantly.
 
 ## Upcoming Milestones
 
 - Pair the WhatsApp line again and validate live photo analysis, mixed-evidence ingestion, voice transcription, AI classification, project intelligence, evidence viewing, and search indexing.
-- Add shared object storage, such as S3, R2, or MinIO, for production media previews and worker-generated report PDFs.
+- Configure Cloudflare R2 variables in Railway for API and worker, then deploy and verify live evidence previews, voice note playback, PDF previews, and generated report PDF downloads.
 - Configure `OPENAI_API_KEY` for production voice transcription if voice transcript generation is required.
 - Configure branch protection for `main` and `develop`.
 - Create `develop` branch after remote setup.
@@ -227,6 +235,7 @@ Task 013 Project Intelligence and Automated Reporting is deployed. Live WhatsApp
 - ADR 0011: Use runtime unified evidence context for grouped operational updates.
 - ADR 0012: Analyze image attachments asynchronously as advisory Photo Intelligence.
 - ADR 0013: Generate grounded project intelligence and reports from stored FieldOS records, with signed evidence media access.
+- ADR 0013B: Use Cloudflare R2 for production media and report storage through signed URLs.
 
 ## Deployment Status
 
@@ -323,3 +332,7 @@ Task 013 Project Intelligence and Automated Reporting is deployed. Live WhatsApp
   - Worker deployment `a2e2d112-38b1-4597-bcbf-081d4d11a77b` succeeded.
   - API health verified at `https://fieldos-api-production.up.railway.app/health`.
   - Worker throttling configured for one AI-provider job per poll, twelve seconds between provider calls, sixty-second default 429 retries, and ten max attempts.
+- Task 013B R2 storage deployment is blocked pending Railway variables.
+  - API service currently has no `STORAGE_PROVIDER` value and is missing `R2_ACCOUNT_ID`, `R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_REGION`, `R2_FORCE_PATH_STYLE`, and `SIGNED_URL_TTL_SECONDS`.
+  - Worker service currently has no `STORAGE_PROVIDER` value and is missing `R2_ACCOUNT_ID`, `R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_REGION`, `R2_FORCE_PATH_STYLE`, and `SIGNED_URL_TTL_SECONDS`.
+  - Production deployment and live upload/download verification should run after those values are configured.

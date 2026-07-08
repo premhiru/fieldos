@@ -14,6 +14,12 @@ import type {
 import type { WhatsAppQrStore } from "@fieldos/baileys-whatsapp/qr-store";
 import type { EvidenceSummary, UnifiedEvidenceContext } from "@fieldos/db";
 import type { ProjectIntelligenceContext } from "@fieldos/intelligence";
+import type {
+  SignedUrlInput,
+  StorageObjectInput,
+  StorageProvider,
+  StoredObject
+} from "@fieldos/shared";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
@@ -1070,6 +1076,117 @@ describe("FieldOS API auth and tenancy", () => {
     expect(ownerResponse.json().evidence.storageKey).toBeUndefined();
     expect(ownerResponse.json().evidence.actionItems).toHaveLength(1);
     expect(outsiderResponse.statusCode).toBe(404);
+  });
+
+  it("uses authorized provider-signed evidence URLs without returning raw storage keys", async () => {
+    const storageProvider = new InMemoryStorageProvider();
+    const r2Server = buildServer({
+      qrStore: new InMemoryQrStore(),
+      repository,
+      storageProvider
+    });
+    const ownerCookie = await signup(r2Server, "owner-r2-evidence@example.com");
+    const organization = await createOrganization(r2Server, ownerCookie);
+    const project = await repository.createProject({
+      code: "R2EV",
+      name: "R2 evidence project",
+      organizationId: organization.id,
+      status: "ACTIVE"
+    });
+    const message = await createProjectMessage(repository, organization.id, project.id);
+    const conversation = repository.conversations.find(
+      (candidate) => candidate.id === message.conversationId
+    );
+
+    if (!conversation) {
+      throw new Error("conversation missing");
+    }
+
+    const attachment = await repository.createAttachment({
+      conversationId: conversation.id,
+      filename: "evidence.jpg",
+      messageId: message.id,
+      mimeType: "image/jpeg",
+      size: 1024,
+      storageKey: "organizations/org/projects/project/evidence/evidence/evidence.jpg"
+    });
+    const outsiderCookie = await signup(r2Server, "outsider-r2-evidence@example.com");
+
+    const outsiderResponse = await r2Server.inject({
+      headers: {
+        cookie: outsiderCookie
+      },
+      method: "GET",
+      url: `/evidence/${attachment.id}/view`
+    });
+    expect(outsiderResponse.statusCode).toBe(404);
+    expect(storageProvider.signedUrlRequests).toHaveLength(0);
+
+    const ownerResponse = await r2Server.inject({
+      headers: {
+        cookie: ownerCookie
+      },
+      method: "GET",
+      url: `/evidence/${attachment.id}/view`
+    });
+
+    expect(ownerResponse.statusCode).toBe(200);
+    expect(ownerResponse.json().evidence.signedUrl).toBe(
+      "https://r2.example.test/organizations/org/projects/project/evidence/evidence/evidence.jpg?expires=900"
+    );
+    expect(ownerResponse.json().evidence.storageKey).toBeUndefined();
+    expect(JSON.stringify(ownerResponse.json())).not.toContain("C:\\");
+    expect(storageProvider.signedUrlRequests).toHaveLength(1);
+  });
+
+  it("returns provider-signed report PDF URLs", async () => {
+    const storageProvider = new InMemoryStorageProvider();
+    const r2Server = buildServer({
+      qrStore: new InMemoryQrStore(),
+      repository,
+      storageProvider
+    });
+    const cookie = await signup(r2Server, "owner-r2-report@example.com");
+    const organization = await createOrganization(r2Server, cookie);
+    const project = await repository.createProject({
+      code: "R2REP",
+      name: "R2 report project",
+      organizationId: organization.id,
+      status: "ACTIVE"
+    });
+    const now = new Date();
+    repository.projectReports.push({
+      content: null,
+      contentHash: "hash",
+      createdAt: now,
+      errorMessage: null,
+      generatedAt: now,
+      id: "report_r2",
+      markdown: "# Report",
+      organizationId: organization.id,
+      pdfStorageKey: "organizations/org/projects/project/reports/report_r2.pdf",
+      periodEnd: now,
+      periodStart: now,
+      projectId: project.id,
+      status: "COMPLETED",
+      title: "R2 Weekly Report",
+      type: "WEEKLY_PROGRESS",
+      updatedAt: now
+    });
+
+    const response = await r2Server.inject({
+      headers: {
+        cookie
+      },
+      method: "GET",
+      url: `/projects/${project.id}/weekly-report`
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().latestReport.pdfUrl).toBe(
+      "https://r2.example.test/organizations/org/projects/project/reports/report_r2.pdf?expires=900"
+    );
+    expect(JSON.stringify(response.json())).not.toContain("C:\\");
   });
 
   it("lists project AI classifications and Action Items", async () => {
@@ -3503,6 +3620,46 @@ class InMemoryRepository implements AppRepository {
 }
 
 let idCounter = 0;
+
+class InMemoryStorageProvider implements StorageProvider {
+  readonly signedUrlRequests: SignedUrlInput[] = [];
+  private readonly objects = new Map<string, Buffer>();
+
+  async upload(input: StorageObjectInput): Promise<StoredObject> {
+    const data = Buffer.isBuffer(input.data) ? input.data : Buffer.from(input.data);
+    this.objects.set(input.key, data);
+
+    return {
+      contentType: input.contentType ?? null,
+      key: input.key,
+      size: data.byteLength
+    };
+  }
+
+  async download(key: string): Promise<Buffer> {
+    const object = this.objects.get(key);
+
+    if (!object) {
+      throw new Error("object not found");
+    }
+
+    return object;
+  }
+
+  async getSignedUrl(input: SignedUrlInput): Promise<string> {
+    this.signedUrlRequests.push(input);
+
+    return `https://r2.example.test/${input.key}?expires=${input.expiresInSeconds}`;
+  }
+
+  async delete(key: string): Promise<void> {
+    this.objects.delete(key);
+  }
+
+  async exists(key: string): Promise<boolean> {
+    return this.objects.has(key);
+  }
+}
 
 function nextId(prefix: string): string {
   idCounter += 1;

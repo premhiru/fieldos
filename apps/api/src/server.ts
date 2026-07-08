@@ -35,7 +35,12 @@ import {
 import fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import { Redis } from "ioredis";
 import { ZodError } from "zod";
-import { LocalStorageProvider, StorageAccessError, type StorageProvider } from "@fieldos/shared";
+import {
+  createStorageProvider,
+  LocalStorageProvider,
+  StorageAccessError,
+  type StorageProvider
+} from "@fieldos/shared";
 
 import { apiEnv } from "./env.js";
 import { conflict, forbidden, HttpError, notFound, unauthorized } from "./http.js";
@@ -101,9 +106,12 @@ export function buildServer(options: BuildServerOptions = {}) {
   const projectIntelligenceService = new ProjectIntelligenceService();
   const storageProvider =
     options.storageProvider ??
-    new LocalStorageProvider({
-      rootPath: apiEnv.WHATSAPP_STORAGE_PATH,
-      signingSecret: apiEnv.MEDIA_SIGNING_SECRET ?? apiEnv.JWT_SECRET
+    createStorageProvider({
+      local: {
+        rootPath: apiEnv.WHATSAPP_STORAGE_PATH,
+        signingSecret: apiEnv.MEDIA_SIGNING_SECRET ?? apiEnv.JWT_SECRET
+      },
+      storage: apiEnv
     });
   const qrRedis = options.qrStore ? null : new Redis(apiEnv.REDIS_URL, { lazyConnect: true });
   const qrStore = options.qrStore ?? new RedisWhatsAppQrStore(qrRedis as Redis);
@@ -819,7 +827,7 @@ export function buildServer(options: BuildServerOptions = {}) {
     await requireOrganizationMembership(requireCurrentUser(request).id, evidence.organizationId);
     const signedUrl = await storageProvider.getSignedUrl({
       baseUrl: getRequestBaseUrl(request),
-      expiresInSeconds: 15 * 60,
+      expiresInSeconds: apiEnv.SIGNED_URL_TTL_SECONDS,
       key: evidence.storageKey
     });
     const publicEvidence: Partial<typeof evidence> = { ...evidence };
@@ -1168,7 +1176,7 @@ export function buildServer(options: BuildServerOptions = {}) {
       pdfUrl: report.pdfStorageKey
         ? await storageProvider.getSignedUrl({
             baseUrl: getRequestBaseUrl(request),
-            expiresInSeconds: 15 * 60,
+            expiresInSeconds: apiEnv.SIGNED_URL_TTL_SECONDS,
             key: report.pdfStorageKey
           })
         : null

@@ -17,7 +17,7 @@ import {
   type Attachment,
   type PrismaClient
 } from "@fieldos/db";
-import { createLogger } from "@fieldos/shared";
+import { buildEvidenceObjectKey, createLogger } from "@fieldos/shared";
 import { randomUUID } from "node:crypto";
 import pino from "pino";
 
@@ -42,6 +42,21 @@ interface ManagedSession {
   socket: WASocket;
 }
 
+function buildFallbackEvidenceKey(input: {
+  evidenceId: string;
+  filename: string;
+  messageId: string;
+  organizationId: string;
+  projectId: string | null;
+}): string {
+  return buildEvidenceObjectKey({
+    evidenceId: input.evidenceId,
+    filename: `${input.messageId}-${input.filename}`,
+    organizationId: input.organizationId,
+    projectId: input.projectId
+  });
+}
+
 export class BaileysWhatsAppSessionManager {
   private readonly logger = createLogger("baileys-whatsapp");
   private readonly sessions = new Map<string, ManagedSession>();
@@ -53,7 +68,10 @@ export class BaileysWhatsAppSessionManager {
     private readonly qrStore: WhatsAppQrStore,
     options: BaileysSessionManagerOptions = {}
   ) {
-    this.storage = new BaileysFilesystemStorage(options.rootStoragePath);
+    this.storage = new BaileysFilesystemStorage(
+      options.rootStoragePath,
+      options.mediaStorageProvider
+    );
     this.pollIntervalMs = options.pollIntervalMs ?? 10_000;
   }
 
@@ -578,7 +596,8 @@ export class BaileysWhatsAppSessionManager {
           rawMessage,
           normalized,
           message.id,
-          conversation.id
+          conversation.id,
+          activeMapping.projectId
         )
       : null;
 
@@ -641,13 +660,21 @@ export class BaileysWhatsAppSessionManager {
     rawMessage: WAMessage,
     normalized: NormalizedWhatsAppMessage,
     messageId: string,
-    conversationId: string
+    conversationId: string,
+    projectId: string | null
   ): Promise<Attachment | null> {
     if (!normalized.media) {
       return null;
     }
 
-    let storageKey = `whatsapp-media/${account.organizationId}/${account.id}/${messageId}-${normalized.media.filename}`;
+    const evidenceId = randomUUID();
+    let storageKey = buildFallbackEvidenceKey({
+      evidenceId,
+      filename: normalized.media.filename,
+      messageId,
+      organizationId: account.organizationId,
+      projectId
+    });
     let size = normalized.media.size ?? 0;
 
     try {
@@ -663,9 +690,12 @@ export class BaileysWhatsAppSessionManager {
       const stored = await this.storage.writeMedia({
         accountId: account.id,
         buffer,
+        evidenceId,
         filename: normalized.media.filename,
         messageId,
-        organizationId: account.organizationId
+        mimeType: normalized.media.mimeType,
+        organizationId: account.organizationId,
+        projectId
       });
       storageKey = stored.storageKey;
       size = stored.size;
@@ -678,6 +708,7 @@ export class BaileysWhatsAppSessionManager {
 
     return this.prisma.attachment.create({
       data: {
+        id: evidenceId,
         conversationId,
         filename: normalized.media.filename,
         messageId,

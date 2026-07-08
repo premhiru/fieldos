@@ -1,11 +1,9 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-
 import type { VisionProvider, VisionResult } from "@fieldos/ai";
+import type { StorageProvider } from "@fieldos/shared";
 
 export interface PhotoAnalysisServiceOptions {
   provider: VisionProvider;
-  storageRootPath: string;
+  storageProvider: StorageProvider;
 }
 
 export interface AnalyzePhotoInput {
@@ -19,16 +17,15 @@ export interface AnalyzePhotoInput {
 
 export class PhotoAnalysisService {
   private readonly provider: VisionProvider;
-  private readonly storageRootPath: string;
+  private readonly storageProvider: StorageProvider;
 
   constructor(options: PhotoAnalysisServiceOptions) {
     this.provider = options.provider;
-    this.storageRootPath = path.resolve(options.storageRootPath);
+    this.storageProvider = options.storageProvider;
   }
 
   async analyze(input: AnalyzePhotoInput): Promise<VisionResult> {
-    const imagePath = this.resolveStoragePath(input.storageKey);
-    const image = await readFile(imagePath);
+    const image = await this.storageProvider.download(input.storageKey);
 
     return this.provider.analyze({
       context: {
@@ -42,16 +39,5 @@ export class PhotoAnalysisService {
         mimeType: input.mimeType
       }
     });
-  }
-
-  private resolveStoragePath(storageKey: string): string {
-    const resolved = path.resolve(this.storageRootPath, storageKey);
-    const relative = path.relative(this.storageRootPath, resolved);
-
-    if (relative.startsWith("..") || path.isAbsolute(relative)) {
-      throw new Error("Attachment storage key resolves outside the configured media root.");
-    }
-
-    return resolved;
   }
 }

@@ -1,10 +1,9 @@
-import { access, readFile } from "node:fs/promises";
-import path from "node:path";
+import type { StorageProvider } from "@fieldos/shared";
 
 interface VoiceTranscriberOptions {
   apiKey?: string;
   model: string;
-  storageRootPath: string;
+  storageProvider: StorageProvider;
 }
 
 export class VoiceTranscriptionConfigurationError extends Error {
@@ -15,11 +14,7 @@ export class VoiceTranscriptionConfigurationError extends Error {
 }
 
 export class VoiceTranscriptionService {
-  private readonly storageRootPath: string;
-
-  constructor(private readonly options: VoiceTranscriberOptions) {
-    this.storageRootPath = path.resolve(options.storageRootPath);
-  }
+  constructor(private readonly options: VoiceTranscriberOptions) {}
 
   async transcribe(input: {
     filename: string;
@@ -30,12 +25,14 @@ export class VoiceTranscriptionService {
       throw new VoiceTranscriptionConfigurationError();
     }
 
-    const mediaPath = this.resolveStoragePath(input.storageKey);
-    await access(mediaPath);
-    const buffer = await readFile(mediaPath);
+    const buffer = await this.options.storageProvider.download(input.storageKey);
+    const fileData = buffer.buffer.slice(
+      buffer.byteOffset,
+      buffer.byteOffset + buffer.byteLength
+    ) as ArrayBuffer;
     const formData = new FormData();
     formData.set("model", this.options.model);
-    formData.set("file", new Blob([buffer], { type: input.mimeType }), input.filename);
+    formData.set("file", new Blob([fileData], { type: input.mimeType }), input.filename);
 
     const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
       body: formData,
@@ -56,17 +53,6 @@ export class VoiceTranscriptionService {
     }
 
     return payload.text.trim();
-  }
-
-  private resolveStoragePath(storageKey: string): string {
-    const mediaPath = path.resolve(this.storageRootPath, storageKey);
-    const relative = path.relative(this.storageRootPath, mediaPath);
-
-    if (relative.startsWith("..") || path.isAbsolute(relative)) {
-      throw new Error("Attachment storage key resolves outside the configured media root.");
-    }
-
-    return mediaPath;
   }
 }
 

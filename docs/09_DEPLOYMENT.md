@@ -74,6 +74,15 @@ CORS_ORIGIN=https://fieldos-sand.vercel.app
 WHATSAPP_STORAGE_PATH=/data/whatsapp
 MEDIA_SIGNING_SECRET=<generated secret shared by API and worker>
 WHATSAPP_SESSION_POLL_INTERVAL_MS=10000
+STORAGE_PROVIDER=r2
+R2_ACCOUNT_ID=<Cloudflare account ID>
+R2_ENDPOINT=https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+R2_BUCKET=<R2 bucket name>
+R2_ACCESS_KEY_ID=<R2 access key ID>
+R2_SECRET_ACCESS_KEY=<R2 secret access key>
+R2_REGION=auto
+R2_FORCE_PATH_STYLE=true
+SIGNED_URL_TTL_SECONDS=900
 ```
 
 Worker service:
@@ -93,6 +102,15 @@ AI_PROVIDER_RATE_LIMIT_RETRY_MS=60000
 WHATSAPP_STORAGE_PATH=/data/whatsapp
 MEDIA_SIGNING_SECRET=<generated secret shared by API and worker>
 WHATSAPP_SESSION_POLL_INTERVAL_MS=10000
+STORAGE_PROVIDER=r2
+R2_ACCOUNT_ID=<Cloudflare account ID>
+R2_ENDPOINT=https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+R2_BUCKET=<R2 bucket name>
+R2_ACCESS_KEY_ID=<R2 access key ID>
+R2_SECRET_ACCESS_KEY=<R2 secret access key>
+R2_REGION=auto
+R2_FORCE_PATH_STYLE=true
+SIGNED_URL_TTL_SECONDS=900
 ```
 
 Vercel dashboard:
@@ -121,10 +139,11 @@ NEXT_PUBLIC_API_URL=https://fieldos-api-production.up.railway.app
 - The worker should restart on failure.
 - Keep Postgres and Redis private to Railway services where possible.
 - Use a dedicated business WhatsApp test number before live pairing.
-- Use durable object storage or a truly shared volume for production media and generated report PDFs. Railway API and worker services should not be assumed to share local filesystem state.
+- API and worker should use the same R2 bucket and credentials for production evidence and generated report PDFs.
+- R2 credentials must stay in Railway environment variables and must not be committed or logged.
 
 ## Open Items
 
 - Baileys session files need a persistent Railway volume or object storage before live WhatsApp pairing.
-- Production media previews and worker-generated report PDFs need object storage such as S3, R2, or MinIO if API and worker run as separate services.
+- Existing media that was stored only on local Railway files before R2 needs migration or re-ingestion before it can be served from R2.
 - Railway config-as-code was not adopted because the generated TypeScript SDK import failed on Windows in this environment.

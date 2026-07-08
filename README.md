@@ -122,7 +122,22 @@ pnpm db:seed
 
 Configure AI classification and photo intelligence by setting `OPENROUTER_API_KEY`. `AI_BASE_URL` defaults to `https://openrouter.ai/api/v1`, `AI_MODEL` defaults to `openrouter/free`, and `VISION_MODEL` defaults to `openrouter/free`. `OPENAI_API_KEY` remains supported as a fallback for OpenAI-compatible providers and is used for voice transcription when available.
 
-Configure local signed media serving with `MEDIA_SIGNING_SECRET`. In production, API and worker media paths must point at the same durable storage backend or be replaced by an object-storage provider implementation.
+Configure local signed media serving with `MEDIA_SIGNING_SECRET`. Local development defaults to `STORAGE_PROVIDER=local` and stores media under `WHATSAPP_STORAGE_PATH`.
+
+Production media and generated report PDFs should use Cloudflare R2:
+
+```bash
+STORAGE_PROVIDER=r2
+R2_ENDPOINT=https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+R2_BUCKET=<bucket>
+R2_ACCESS_KEY_ID=<access-key>
+R2_SECRET_ACCESS_KEY=<secret-key>
+R2_REGION=auto
+R2_FORCE_PATH_STYLE=true
+SIGNED_URL_TTL_SECONDS=900
+```
+
+The API authorizes evidence/report access before returning short-lived signed URLs. The dashboard must never receive local filesystem paths or raw storage keys.
 
 Test the auth flow:
 
@@ -255,7 +270,7 @@ Supported channel values are `WHATSAPP`, `EMAIL`, `SLACK`, `TEAMS`, and `SMS`.
 
 ## WhatsApp Connector
 
-The current WhatsApp connector uses the maintained Baileys package for WhatsApp Web pairing. Accounts are created and managed from dashboard settings. QR payloads are exchanged through Redis, session files and media are stored under `.storage`, and inbound messages are normalized into the generic messaging tables only after an admin activates the chat or group.
+The current WhatsApp connector uses the maintained Baileys package for WhatsApp Web pairing. Accounts are created and managed from dashboard settings. QR payloads are exchanged through Redis, Baileys auth session files are stored under `.storage`, and inbound messages are normalized into the generic messaging tables only after an admin activates the chat or group. Media evidence uses the configured `StorageProvider`, which is local in development and R2 in production.
 
 FieldOS discovers WhatsApp chat and group metadata first. Discovered, ignored, and archived chats are not shown in the Inbox and do not store message bodies or attachments. Admins must explicitly activate a chat/group before new incoming messages are ingested. A project mapping is recommended, but active unmapped chats may ingest messages so FieldOS can create human-reviewed project suggestion Action Items.
 

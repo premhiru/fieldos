@@ -115,7 +115,7 @@ The ingestion privacy gate is:
 
 If any condition fails, the worker skips the message before reading or storing message body content.
 
-Session files and downloaded media are currently stored under `.storage`. This is acceptable for local development and must move to production object storage before deployment.
+Baileys auth session files remain under `.storage`. Downloaded WhatsApp evidence media is written through `StorageProvider`, using local filesystem storage in development and Cloudflare R2 in production.
 
 ## AI Classification
 
@@ -204,11 +204,16 @@ Dashboard intelligence surfaces must remain presentation-oriented. They call API
 
 ## Media Serving
 
-FieldOS now uses a `StorageProvider` abstraction with `upload()`, `download()`, `getSignedUrl()`, and `delete()` methods. `LocalStorageProvider` is the local implementation and signs API media URLs with `MEDIA_SIGNING_SECRET`.
+FieldOS uses a `StorageProvider` abstraction with `upload()`, `download()`, `getSignedUrl()`, `delete()`, and `exists()` methods. `LocalStorageProvider` is the local implementation and signs API media URLs with `MEDIA_SIGNING_SECRET`. `R2StorageProvider` is the production implementation and uses Cloudflare R2 through the S3-compatible API.
 
-The dashboard never receives raw storage keys. It requests evidence through `GET /evidence/:id/view`, receives a short-lived signed URL, and previews media through `GET /media/:token`.
+The dashboard never receives raw storage keys. It requests evidence through `GET /evidence/:id/view`, receives a short-lived signed URL, and previews media from that URL. Local development URLs point back through `GET /media/:token`; production URLs point at R2 signed URLs.
 
-Production deployments should replace or back `LocalStorageProvider` with durable shared object storage such as S3, R2, or MinIO. Separate API and worker services cannot reliably share local files unless the platform provides a shared volume.
+Production deployments set `STORAGE_PROVIDER=r2`. API and worker validate the required R2 environment variables at startup and fail fast if the provider is incomplete.
+
+Object keys are safe and tenant-namespaced:
+
+- `organizations/{organizationId}/projects/{projectId}/evidence/{evidenceId}/{filename}`
+- `organizations/{organizationId}/projects/{projectId}/reports/{reportId}.pdf`
 
 ## Operations Command Center
 

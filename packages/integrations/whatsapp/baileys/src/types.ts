@@ -1,4 +1,5 @@
 import type { MessageDirection, MessageType } from "@fieldos/messaging";
+import type { StorageProvider } from "@fieldos/shared";
 
 export interface WhatsAppAccountRecord {
   id: string;
@@ -60,6 +61,7 @@ export interface NormalizedWhatsAppMessage {
 }
 
 export interface BaileysSessionManagerOptions {
+  mediaStorageProvider?: StorageProvider;
   pollIntervalMs?: number;
   rootStoragePath?: string;
 }

@@ -9,10 +9,37 @@
 
 ## Table of Contents
 
+- [Task 013B: Cloudflare R2 Durable Storage](#task-013b-cloudflare-r2-durable-storage)
 - [Task 013: Project Intelligence and Automated Reporting](#task-013-project-intelligence-and-automated-reporting)
 - [Task 012: Photo Intelligence](#task-012-photo-intelligence)
 - [Task 011: Unified Evidence Processing](#task-011-unified-evidence-processing)
 - [Task 010B: Operations Health](#task-010b-operations-health)
+
+## Task 013B: Cloudflare R2 Durable Storage
+
+What changed:
+
+- Production storage can now use Cloudflare R2 through `R2StorageProvider`.
+- WhatsApp evidence files, voice notes, photo evidence, PDFs, and generated report PDFs use the configured `StorageProvider`.
+- API evidence and report routes authorize the user before returning expiring signed URLs.
+- Local development still uses `STORAGE_PROVIDER=local` and `WHATSAPP_STORAGE_PATH`.
+- Production startup fails fast when `STORAGE_PROVIDER=r2` is selected without complete R2 environment variables.
+
+How to test:
+
+1. Configure Railway API and worker with the R2 environment variables from `.env.example`.
+2. Deploy API and worker.
+3. Pair a WhatsApp test line.
+4. Activate a chat/group and map it to a project.
+5. Send a photo, voice note, and PDF into the active chat.
+6. Open the inbox evidence viewer and confirm image preview, audio playback, and PDF preview use signed URLs.
+7. Open Project Intelligence and generate a report.
+8. Confirm the report PDF link opens a signed R2 URL.
+9. Confirm API responses do not include `storageKey`, `.storage`, or local filesystem paths.
+
+Current limitation:
+
+- Existing evidence that was stored only on local Railway files before this change is not automatically migrated to R2.
 
 ## Task 013: Project Intelligence and Automated Reporting
 
@@ -38,7 +65,7 @@ How to test:
 
 Current limitation:
 
-- Local signed media URLs work when the API can read the stored file. Production API and worker services need shared object storage, such as S3, R2, or MinIO, before live WhatsApp media previews and worker-generated PDF links are fully reliable across separate services.
+- Existing locally stored evidence still requires migration or re-ingestion before it can be served from R2.
 
 ## Task 012: Photo Intelligence
 
@@ -67,7 +94,6 @@ How to test:
 
 Current limitation:
 
-- Original image preview uses the stored attachment metadata and placeholder UI until production object storage and media-serving are added.
 - Vision results are advisory and require human review before operational decisions.
 
 ## Task 011: Unified Evidence Processing

@@ -4,10 +4,10 @@ export const nodeEnvSchema = z.enum(["development", "test", "production"]).defau
 
 export type NodeEnv = z.infer<typeof nodeEnvSchema>;
 
-export function createEnv<TSchema extends z.ZodRawShape>(
-  schema: z.ZodObject<TSchema>,
+export function createEnv<TSchema extends z.ZodType>(
+  schema: TSchema,
   source: NodeJS.ProcessEnv = process.env
-): z.infer<z.ZodObject<TSchema>> {
+): z.infer<TSchema> {
   const parsed = schema.safeParse(source);
 
   if (!parsed.success) {

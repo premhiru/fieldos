@@ -26,7 +26,7 @@ import {
   weeklyReportToPdfBuffer
 } from "@fieldos/intelligence";
 
-import { createLogger, LocalStorageProvider } from "@fieldos/shared";
+import { buildProjectReportObjectKey, createLogger, createStorageProvider } from "@fieldos/shared";
 
 import { workerEnv } from "./env.js";
 import { PhotoAnalysisService } from "./photo-analysis.js";
@@ -58,10 +58,18 @@ const redis = new Redis(workerEnv.REDIS_URL, {
   lazyConnect: true,
   maxRetriesPerRequest: 3
 });
+const storageProvider = createStorageProvider({
+  local: {
+    rootPath: workerEnv.WHATSAPP_STORAGE_PATH,
+    signingSecret: workerEnv.MEDIA_SIGNING_SECRET
+  },
+  storage: workerEnv
+});
 const whatsappSessionManager = new BaileysWhatsAppSessionManager(
   prisma,
   new RedisWhatsAppQrStore(redis),
   {
+    mediaStorageProvider: storageProvider,
     pollIntervalMs: workerEnv.WHATSAPP_SESSION_POLL_INTERVAL_MS,
     rootStoragePath: workerEnv.WHATSAPP_STORAGE_PATH
   }
@@ -76,7 +84,7 @@ const aiClassificationProcessor = new AIClassificationProcessor(prisma, {
 const voiceTranscriptionService = new VoiceTranscriptionService({
   apiKey: workerEnv.OPENAI_API_KEY,
   model: workerEnv.VOICE_TRANSCRIPTION_MODEL,
-  storageRootPath: workerEnv.WHATSAPP_STORAGE_PATH
+  storageProvider
 });
 const photoAnalysisService = new PhotoAnalysisService({
   provider: new OpenAICompatibleVisionProvider({
@@ -84,11 +92,7 @@ const photoAnalysisService = new PhotoAnalysisService({
     baseUrl: workerEnv.AI_BASE_URL,
     model: workerEnv.VISION_MODEL
   }),
-  storageRootPath: workerEnv.WHATSAPP_STORAGE_PATH
-});
-const storageProvider = new LocalStorageProvider({
-  rootPath: workerEnv.WHATSAPP_STORAGE_PATH,
-  signingSecret: workerEnv.MEDIA_SIGNING_SECRET
+  storageProvider
 });
 const projectIntelligenceService = new ProjectIntelligenceService();
 const aiProviderThrottle = new ProviderRequestThrottle(workerEnv.AI_PROVIDER_MIN_INTERVAL_MS);
@@ -556,7 +560,11 @@ async function processReportJob(job: ProcessingJob): Promise<void> {
     const markdown = weeklyReportToMarkdown(weeklyReport);
     const pdf = weeklyReportToPdfBuffer(weeklyReport);
     const contentHash = createHash("sha256").update(markdown).digest("hex");
-    const pdfStorageKey = `reports/${report.organizationId}/${report.projectId}/${report.id}.pdf`;
+    const pdfStorageKey = buildProjectReportObjectKey({
+      organizationId: report.organizationId,
+      projectId: report.projectId,
+      reportId: report.id
+    });
 
     await storageProvider.upload({
       contentType: "application/pdf",

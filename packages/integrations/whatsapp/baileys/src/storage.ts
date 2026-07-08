@@ -1,8 +1,24 @@
-import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import {
+  buildEvidenceObjectKey,
+  LocalStorageProvider,
+  type StorageProvider
+} from "@fieldos/shared";
 
 export class BaileysFilesystemStorage {
-  constructor(private readonly rootPath = path.join(process.cwd(), ".storage")) {}
+  private readonly mediaStorageProvider: StorageProvider;
+
+  constructor(
+    private readonly rootPath = path.join(process.cwd(), ".storage"),
+    mediaStorageProvider?: StorageProvider
+  ) {
+    this.mediaStorageProvider =
+      mediaStorageProvider ??
+      new LocalStorageProvider({
+        rootPath: this.rootPath,
+        signingSecret: "local-whatsapp-media-signing-secret"
+      });
+  }
 
   getSessionPath(sessionKey: string): string {
     return path.join(this.rootPath, sessionKey);
@@ -12,27 +28,27 @@ export class BaileysFilesystemStorage {
     organizationId: string;
     accountId: string;
     messageId: string;
+    projectId: string | null;
+    evidenceId: string;
     filename: string;
     buffer: Buffer;
+    mimeType: string;
   }): Promise<{ storageKey: string; size: number }> {
-    const relativeKey = path.join(
-      "whatsapp-media",
-      input.organizationId,
-      input.accountId,
-      `${input.messageId}-${sanitizeFilename(input.filename)}`
-    );
-    const absolutePath = path.join(this.rootPath, relativeKey);
-
-    await mkdir(path.dirname(absolutePath), { recursive: true });
-    await writeFile(absolutePath, input.buffer);
+    const storageKey = buildEvidenceObjectKey({
+      evidenceId: input.evidenceId,
+      filename: `${input.messageId}-${input.filename}`,
+      organizationId: input.organizationId,
+      projectId: input.projectId
+    });
+    const stored = await this.mediaStorageProvider.upload({
+      contentType: input.mimeType,
+      data: input.buffer,
+      key: storageKey
+    });
 
     return {
-      size: input.buffer.byteLength,
-      storageKey: relativeKey.replaceAll("\\", "/")
+      size: stored.size,
+      storageKey: stored.key
     };
   }
-}
-
-function sanitizeFilename(filename: string): string {
-  return filename.replace(/[^a-zA-Z0-9._-]/g, "_");
 }

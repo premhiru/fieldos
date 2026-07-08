@@ -134,11 +134,13 @@ Key attachment indexes:
 
 The database keeps media metadata independent:
 
-- Photos use `Attachment` filename, MIME type, storage key, size, and timestamps.
+- Photos use `Attachment` filename, MIME type, storage provider key, size, and timestamps.
 - Photo visual summaries use `PhotoAnalysis` when the worker has processed the image.
 - PDFs/documents use the same `Attachment` metadata.
 - Voice notes use `Attachment` metadata plus transcript status and transcript text when available.
 - Videos remain metadata-only for the MVP.
+
+Attachment `storageKey` values are object keys, not local filesystem paths. Production keys are namespaced as `organizations/{organizationId}/projects/{projectId}/evidence/{evidenceId}/{filename}` and are resolved through the configured storage provider.
 
 This avoids duplicating media metadata while allowing AI classification, search indexing, inbox display, and command-center recent evidence to consume the same runtime context.
 
@@ -201,7 +203,7 @@ Key constraints and indexes:
 - `projectId, type, status, createdAt` supports project intelligence lookups.
 - `status, createdAt` supports worker polling and operations health.
 
-Completed reports are indexed as `SearchDocument` records with source type `PROJECT_REPORT`.
+Completed reports are indexed as `SearchDocument` records with source type `PROJECT_REPORT`. Worker-generated PDF keys use `organizations/{organizationId}/projects/{projectId}/reports/{reportId}.pdf`.
 
 ## WhatsApp Connector Model
 
@@ -466,5 +468,5 @@ Placeholder.
 
 - Invite flow and membership management are not implemented yet.
 - Session revocation and password reset tables are not implemented yet.
-- Production object storage tables or metadata are not implemented yet.
+- Production object storage is provider-backed and uses `Attachment.storageKey` and `ProjectReport.pdfStorageKey`; a separate object metadata table is not implemented yet.
 - Project report caching exists, but retention, scheduled report generation, and multi-format storage policy are not implemented yet.
