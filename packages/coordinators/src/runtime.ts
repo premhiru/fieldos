@@ -1,5 +1,6 @@
 import {
   Prisma,
+  queueWhatsAppDraftSendJob,
   queueProjectCoordinatorJob,
   queueReportGenerationJob,
   type CoordinatorRun,
@@ -77,6 +78,24 @@ interface ProjectCoordinatorContext {
 export class NoopWhatsAppDraftSender implements WhatsAppDraftSender {
   async send(): Promise<{ externalMessageId?: string | null }> {
     throw new Error("WhatsApp draft sending is not configured for this deployment.");
+  }
+}
+
+export class QueuedWhatsAppDraftSender implements WhatsAppDraftSender {
+  constructor(private readonly prisma: PrismaClient) {}
+
+  async send(input: {
+    draftId: string;
+    organizationId: string;
+    projectId: string;
+  }): Promise<{ queued: true }> {
+    await queueWhatsAppDraftSendJob(this.prisma, {
+      organizationId: input.organizationId,
+      projectId: input.projectId,
+      sourceId: input.draftId
+    });
+
+    return { queued: true };
   }
 }
 
@@ -432,7 +451,7 @@ export class ProjectCoordinatorRuntime {
     }
 
     try {
-      await this.draftSender.send({
+      const sendResult = await this.draftSender.send({
         conversationId: draft.conversationId,
         draftId: draft.id,
         messageBody: draft.messageBody,
@@ -440,6 +459,21 @@ export class ProjectCoordinatorRuntime {
         projectId: draft.projectId,
         whatsappAccountId: draft.whatsappAccountId
       });
+
+      if (sendResult.queued) {
+        const queuedDraft = await this.prisma.whatsAppDraft.update({
+          data: {
+            approvedByUserId: input.userId,
+            status: "APPROVED"
+          },
+          where: {
+            id: draft.id
+          }
+        });
+
+        return { draft: queuedDraft, queued: true, sent: false };
+      }
+
       const sentDraft = await this.prisma.whatsAppDraft.update({
         data: {
           approvedByUserId: input.userId,

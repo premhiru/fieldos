@@ -5,7 +5,7 @@
 | Purpose      | Track production readiness for the first FieldOS pilot. |
 | Owner        | Principal Engineering                                   |
 | Status       | Active                                                  |
-| Last Updated | 2026-07-08                                              |
+| Last Updated | 2026-07-10                                              |
 
 ## Table of Contents
 
@@ -16,13 +16,13 @@
 
 ## Readiness Score
 
-Overall readiness: 82%.
+Overall readiness: 88%.
 
-- Product demo readiness: 88%.
-- Backend reliability: 82%.
-- Data safety: 85%.
-- Observability: 78%.
-- Deployment confidence: 78%.
+- Product demo readiness: 92%.
+- Backend reliability: 88%.
+- Data safety: 88%.
+- Observability: 86%.
+- Deployment confidence: 86%.
 
 ## Verified
 
@@ -30,21 +30,24 @@ Overall readiness: 82%.
 - Worker heartbeat and job monitoring exist.
 - Coordinator run metrics and pending recommendation metrics exist in Operations Health.
 - AI Recommendations and Project Coordinator panels are implemented with human approval controls.
+- WhatsApp draft sends are queued by the API and delivered by the worker through the active Baileys session.
 - R2-backed durable storage is configured for production media and reports.
 - Demo workspace data is tenant-scoped and marked as demo.
 - Feedback, notifications, onboarding, and analytics primitives are implemented.
+- Local validation covers format, lint, typecheck, tests, build, and Prisma migrations before deployment.
 
 ## Checks Required Before Pilot
 
-- Apply the pilot readiness migration in production.
+- Apply the go-live QA migration in production.
 - Deploy API, worker, and dashboard after this commit.
 - Verify `GET /health`.
 - Verify Railway worker heartbeat on `/admin/operations`.
 - Verify coordinator scheduled scan queues `PROJECT_COORDINATOR` jobs at most hourly.
 - Verify a project state rebuild and recommendation approval flow in production.
-- Wire and verify a real outbound WhatsApp sender before relying on draft send in pilot operations.
+- Pair the dedicated WhatsApp pilot line and verify one `WHATSAPP_DRAFT_SEND` job succeeds.
 - Reset demo workspace in production and confirm dashboard data loads.
 - Confirm no sensitive tokens are printed in logs.
+- Confirm Vercel has deployed the latest GitHub `main` commit.
 
 ## Operational Runbook
 

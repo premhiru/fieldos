@@ -5,7 +5,7 @@
 | Purpose      | Track FieldOS milestone progress, task completion, technical debt, architecture decisions, and deployment readiness. |
 | Owner        | Founding Engineering                                                                                                 |
 | Status       | Active                                                                                                               |
-| Last Updated | 2026-07-08                                                                                                           |
+| Last Updated | 2026-07-10                                                                                                           |
 
 ## Table of Contents
 
@@ -19,7 +19,7 @@
 
 ## Current Milestone
 
-Milestone 2 AI Project Coordinators is implemented, validated locally, and deployed to the Railway backend.
+Go-Live QA Sprint is implemented, validated locally, and deployed to the Railway backend for pilot release verification.
 
 ## Completed Tasks
 
@@ -194,6 +194,16 @@ Milestone 2 AI Project Coordinators is implemented, validated locally, and deplo
   - Local validation passed for format, lint, typecheck, tests, build, and Prisma migration deploy.
   - Railway API deployment applied migration `20260708040000_ai_project_coordinators`.
   - Railway worker deployment verified coordinator startup scan and processed `PROJECT_COORDINATOR` jobs.
+- Go-Live QA Sprint: FieldOS Pilot Release.
+  - `PILOT_QA_REPORT.md` added with readiness score, issue review, recommended pilot scope, smoke test, known limitations, and rollback plan.
+  - WhatsApp draft sending hardened for production: the API queues `WHATSAPP_DRAFT_SEND` jobs and the worker sends through the active Baileys session.
+  - Recommendation detail page now requires explicit confirmation before draft send and distinguishes queued, sent, and failed states.
+  - API tests cover admin draft-send queueing and viewer permission blocking.
+  - Pilot docs updated: `QUICK_START.md`, `DEMO_NOTES.md`, `PRODUCTION_READINESS.md`, `PROJECT_STATUS.md`, and `CHANGELOG.md`.
+  - Prisma migration `20260708050000_pilot_qa_whatsapp_draft_send_jobs` adds worker-owned WhatsApp draft-send jobs.
+  - Local validation passed for format, lint, typecheck, tests, build, and Prisma migration deploy.
+  - Railway API deployment applied migration `20260708050000_pilot_qa_whatsapp_draft_send_jobs`.
+  - Railway worker deployment verified startup and scheduled coordinator scan.
 
 ## In-Progress Tasks
 
@@ -225,13 +235,13 @@ Milestone 2 AI Project Coordinators is implemented, validated locally, and deplo
 - Demo evidence uses metadata records and placeholder storage keys; live media verification still requires a real WhatsApp/R2 smoke test.
 - Product analytics events are captured in the database but do not yet have a dashboard.
 - Quick-start screenshots are static in-repo visual references and should be replaced with production screenshots after deployment.
-- WhatsApp draft sending has a safe sender interface, but the current Baileys package does not expose an outbound send adapter yet; unconfigured sends fail clearly instead of being marked sent.
+- WhatsApp draft sending now runs through worker-owned Baileys jobs, but live success still requires the dedicated WhatsApp line to be paired and connected.
 - Running `railway run pnpm deploy:migrate` from the local shell currently returns a generic Prisma schema engine error, even though the API service startup migration path succeeds in Railway logs.
 
 ## Upcoming Milestones
 
 - Confirm the Vercel dashboard deployment from the GitHub `main` push and capture production quick-start screenshots.
-- Wire a real outbound WhatsApp sender into the `WhatsAppDraftSender` interface before piloting draft sends.
+- Pair the dedicated pilot WhatsApp line and verify one live `WHATSAPP_DRAFT_SEND` job reaches `COMPLETED`.
 - Reset the demo workspace in production through the dashboard after Vercel deployment is confirmed.
 - Pair the WhatsApp line again and validate live photo analysis, mixed-evidence ingestion, voice transcription, AI classification, project intelligence, evidence viewing, and search indexing.
 - Configure `OPENAI_API_KEY` for production voice transcription if voice transcript generation is required.
@@ -282,6 +292,13 @@ Milestone 2 AI Project Coordinators is implemented, validated locally, and deplo
   - Production migration `20260708040000_ai_project_coordinators` applied during API startup.
   - API health returned `{"status":"ok"}` after deployment.
   - Worker logs show scheduled coordinator scans and completed `PROJECT_COORDINATOR` jobs.
+- Go-Live QA Sprint deployed to Railway backend.
+  - API deployment `9de13606-eb97-46f9-9999-21e3cb3d082f` completed successfully.
+  - Worker deployment `c13594dd-c50d-43ef-95fd-a22adb13f3b0` completed successfully.
+  - Production migration `20260708050000_pilot_qa_whatsapp_draft_send_jobs` applied during API startup.
+  - API health returned `{"status":"ok"}` after deployment.
+  - Worker startup verified with `worker started and waiting for jobs`.
+  - Worker logs show scheduled coordinator scan queued after deployment.
 - Production login cookie fix completed.
   - Cross-origin auth cookies now use `SameSite=None; Secure` in production.
   - API tests assert production cookie attributes.

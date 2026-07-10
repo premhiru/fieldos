@@ -46,7 +46,7 @@ export interface WhatsAppDraftSender {
     organizationId: string;
     projectId: string;
     whatsappAccountId: string | null;
-  }): Promise<{ externalMessageId?: string | null }>;
+  }): Promise<{ externalMessageId?: string | null; queued?: boolean }>;
 }
 
 export interface ProjectCoordinatorRuntimeOptions {
@@ -79,7 +79,9 @@ export interface CoordinatorOperationsMetrics {
 }
 
 export type DraftSendResult =
-  { draft: WhatsAppDraft; sent: true } | { draft: WhatsAppDraft; sent: false; error: string };
+  | { draft: WhatsAppDraft; sent: true }
+  | { draft: WhatsAppDraft; queued: true; sent: false }
+  | { draft: WhatsAppDraft; sent: false; error: string };
 
 export interface RecommendationApprovalResult {
   actionItemId?: string;

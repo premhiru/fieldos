@@ -144,6 +144,18 @@ export async function queueProjectCoordinatorJob(
   });
 }
 
+export async function queueWhatsAppDraftSendJob(
+  prisma: PrismaClient | Prisma.TransactionClient,
+  input: Omit<QueueProcessingJobInput, "sourceType" | "type">
+): Promise<ProcessingJob> {
+  return queueProcessingJob(prisma, {
+    ...input,
+    maxAttempts: input.maxAttempts ?? 5,
+    sourceType: "WHATSAPP_DRAFT",
+    type: "WHATSAPP_DRAFT_SEND"
+  });
+}
+
 export async function claimNextProcessingJob(
   prisma: PrismaClient,
   type: ProcessingJobType
@@ -454,7 +466,9 @@ export async function getJobMetrics(
     "VOICE_TRANSCRIPTION",
     "PHOTO_ANALYSIS",
     "REPORT_GENERATION",
-    "MEDIA_DOWNLOAD"
+    "MEDIA_DOWNLOAD",
+    "PROJECT_COORDINATOR",
+    "WHATSAPP_DRAFT_SEND"
   ] as const) {
     ensure(type);
   }

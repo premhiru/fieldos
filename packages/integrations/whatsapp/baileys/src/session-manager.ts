@@ -98,6 +98,142 @@ export class BaileysWhatsAppSessionManager {
     this.sessions.clear();
   }
 
+  async sendDraft(input: {
+    conversationId: string;
+    draftId: string;
+    messageBody: string;
+    organizationId: string;
+    whatsappAccountId: string | null;
+  }): Promise<{ externalMessageId?: string | null }> {
+    const conversation = await this.prisma.conversation.findFirst({
+      include: {
+        whatsAppMapping: true
+      },
+      where: {
+        channel: "WHATSAPP",
+        id: input.conversationId,
+        organizationId: input.organizationId
+      }
+    });
+
+    if (!conversation) {
+      throw new Error("WhatsApp conversation was not found for this organization.");
+    }
+
+    if (conversation.whatsAppMapping?.status !== "ACTIVE") {
+      throw new Error("WhatsApp conversation is not active.");
+    }
+
+    const whatsappAccountId =
+      input.whatsappAccountId ?? conversation.whatsAppMapping.whatsappAccountId;
+
+    if (conversation.whatsAppMapping.whatsappAccountId !== whatsappAccountId) {
+      throw new Error("WhatsApp draft account does not match the active conversation mapping.");
+    }
+
+    const account = await this.prisma.whatsAppAccount.findFirst({
+      where: {
+        id: whatsappAccountId,
+        organizationId: input.organizationId,
+        status: "CONNECTED"
+      }
+    });
+
+    if (!account) {
+      throw new Error("WhatsApp account is not connected.");
+    }
+
+    const session = this.sessions.get(account.id);
+
+    if (!session) {
+      throw new Error("WhatsApp session is not active in the worker.");
+    }
+
+    const sent = await session.socket.sendMessage(conversation.externalId, {
+      text: input.messageBody
+    });
+    const externalMessageId = sent?.key.id ?? `fieldos-draft-${input.draftId}`;
+    const occurredAt = new Date();
+    const participant = await this.prisma.participant.upsert({
+      create: {
+        conversationId: conversation.id,
+        displayName: "FieldOS",
+        externalIdentifier: `fieldos:${account.id}`,
+        role: "fieldos"
+      },
+      update: {
+        displayName: "FieldOS"
+      },
+      where: {
+        conversationId_externalIdentifier: {
+          conversationId: conversation.id,
+          externalIdentifier: `fieldos:${account.id}`
+        }
+      }
+    });
+
+    let outboundMessageId: string | null = null;
+
+    try {
+      const outboundMessage = await this.prisma.message.create({
+        data: {
+          body: input.messageBody,
+          conversationId: conversation.id,
+          direction: "OUTBOUND",
+          externalMessageId,
+          occurredAt,
+          processingStatus: "SEARCH_PENDING",
+          senderParticipantId: participant.id,
+          type: "TEXT"
+        }
+      });
+      outboundMessageId = outboundMessage.id;
+    } catch (error: unknown) {
+      if (!isUniqueConstraintViolation(error)) {
+        throw error;
+      }
+
+      const existingMessage = await this.prisma.message.findUnique({
+        where: {
+          conversationId_externalMessageId: {
+            conversationId: conversation.id,
+            externalMessageId
+          }
+        }
+      });
+      outboundMessageId = existingMessage?.id ?? null;
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.conversation.update({
+        data: {
+          lastMessageAt: occurredAt
+        },
+        where: {
+          id: conversation.id
+        }
+      });
+      await tx.whatsAppAccount.update({
+        data: {
+          lastMessageAt: occurredAt
+        },
+        where: {
+          id: account.id
+        }
+      });
+      if (outboundMessageId) {
+        await queueSearchIndexJob(tx, {
+          organizationId: input.organizationId,
+          projectId: conversation.projectId,
+          sourceId: outboundMessageId,
+          sourceType: "MESSAGE"
+        });
+      }
+    });
+
+    return { externalMessageId };
+  }
+
   private async reconcileSessions(): Promise<void> {
     const accounts = await this.prisma.whatsAppAccount.findMany({
       where: {

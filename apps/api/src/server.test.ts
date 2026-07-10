@@ -1517,6 +1517,81 @@ describe("FieldOS API auth and tenancy", () => {
     expect(repository.processingJobs.every((job) => job.status === "PENDING")).toBe(true);
   });
 
+  it("queues WhatsApp draft sends for admins and blocks viewers", async () => {
+    const ownerCookie = await signup(server, "draft-owner@example.com");
+    const organization = await createOrganization(server, ownerCookie);
+    const project = await repository.createProject({
+      code: "DRAFT-001",
+      name: "Draft pilot project",
+      organizationId: organization.id,
+      status: "ACTIVE"
+    });
+    const draft = {
+      approvedByUserId: null,
+      conversationId: "conversation_1",
+      createdAt: new Date(),
+      createdByUserId: null,
+      id: "draft_1",
+      messageBody: "Please send a progress update.",
+      organizationId: organization.id,
+      projectId: project.id,
+      recommendationId: "recommendation_1",
+      sentAt: null,
+      status: "DRAFT",
+      updatedAt: new Date(),
+      whatsappAccountId: "whatsapp_1"
+    };
+    const sendWhatsAppDraft = vi.fn().mockResolvedValue({
+      draft: {
+        ...draft,
+        status: "APPROVED"
+      },
+      queued: true,
+      sent: false
+    });
+
+    server = buildServer({
+      coordinatorRuntime: {
+        getWhatsAppDraft: vi.fn().mockResolvedValue(draft),
+        sendWhatsAppDraft
+      } as never,
+      qrStore: new InMemoryQrStore(),
+      repository
+    });
+
+    const ownerResponse = await server.inject({
+      headers: {
+        cookie: ownerCookie
+      },
+      method: "POST",
+      url: "/whatsapp/drafts/draft_1/send"
+    });
+
+    expect(ownerResponse.statusCode).toBe(200);
+    expect(ownerResponse.json().result.queued).toBe(true);
+    expect(sendWhatsAppDraft).toHaveBeenCalledOnce();
+
+    const viewerCookie = await signup(server, "draft-viewer@example.com");
+    const viewer = repository.users.find((user) => user.email === "draft-viewer@example.com");
+
+    if (!viewer) {
+      throw new Error("viewer user was not created");
+    }
+
+    repository.addMembership(viewer.id, organization.id, "VIEWER");
+
+    const viewerResponse = await server.inject({
+      headers: {
+        cookie: viewerCookie
+      },
+      method: "POST",
+      url: "/whatsapp/drafts/draft_1/send"
+    });
+
+    expect(viewerResponse.statusCode).toBe(403);
+    expect(sendWhatsAppDraft).toHaveBeenCalledOnce();
+  });
+
   it("searches messages, timeline events, Action Items, projects, and AI classifications", async () => {
     const cookie = await signup(server);
     const organization = await createOrganization(server, cookie);

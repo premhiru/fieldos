@@ -97,7 +97,11 @@ const photoAnalysisService = new PhotoAnalysisService({
   storageProvider
 });
 const projectIntelligenceService = new ProjectIntelligenceService();
-const coordinatorRuntime = new ProjectCoordinatorRuntime(prisma);
+const coordinatorRuntime = new ProjectCoordinatorRuntime(prisma, {
+  draftSender: {
+    send: (input) => whatsappSessionManager.sendDraft(input)
+  }
+});
 const aiProviderThrottle = new ProviderRequestThrottle(workerEnv.AI_PROVIDER_MIN_INTERVAL_MS);
 const workerName = process.env.WORKER_NAME ?? "fieldos-worker";
 const workerVersion =
@@ -156,6 +160,10 @@ async function processBackgroundJobs(): Promise<void> {
     "PROJECT_COORDINATOR",
     processCoordinatorJob
   );
+  const draftSendProcessed = await processJobsOfType(
+    "WHATSAPP_DRAFT_SEND",
+    processWhatsAppDraftSendJob
+  );
   const searchProcessed = await processJobsOfType("SEARCH_INDEX", processSearchJob);
   const aiProcessed = await processJobsOfType("AI_CLASSIFICATION", processAIJob, {
     limit: workerEnv.AI_PROVIDER_JOBS_PER_POLL
@@ -166,13 +174,15 @@ async function processBackgroundJobs(): Promise<void> {
     voiceProcessed +
     photoProcessed +
     reportProcessed +
-    coordinatorProcessed;
+    coordinatorProcessed +
+    draftSendProcessed;
 
   if (processed > 0) {
     logger.info(
       {
         aiProcessed,
         coordinatorProcessed,
+        draftSendProcessed,
         photoProcessed,
         processed,
         reportProcessed,
@@ -216,6 +226,7 @@ async function processJobsOfType(
     | "PROJECT_COORDINATOR"
     | "REPORT_GENERATION"
     | "SEARCH_INDEX"
+    | "WHATSAPP_DRAFT_SEND"
     | "VOICE_TRANSCRIPTION",
   processor: (job: ProcessingJob) => Promise<void>,
   options: { limit?: number } = {}
@@ -561,6 +572,35 @@ async function processAIJob(job: ProcessingJob): Promise<void> {
 
 async function processCoordinatorJob(job: ProcessingJob): Promise<void> {
   await coordinatorRuntime.runProjectCoordinators(job.sourceId);
+}
+
+async function processWhatsAppDraftSendJob(job: ProcessingJob): Promise<void> {
+  const draft = await prisma.whatsAppDraft.findUnique({
+    select: {
+      approvedByUserId: true,
+      status: true
+    },
+    where: {
+      id: job.sourceId
+    }
+  });
+
+  if (!draft || draft.status === "SENT" || draft.status === "CANCELLED") {
+    return;
+  }
+
+  if (!draft.approvedByUserId) {
+    throw new Error("WhatsApp draft has not been approved by a user.");
+  }
+
+  const result = await coordinatorRuntime.sendWhatsAppDraft({
+    draftId: job.sourceId,
+    userId: draft.approvedByUserId
+  });
+
+  if (!result.sent) {
+    throw new Error("error" in result ? result.error : "WhatsApp draft send was not completed.");
+  }
 }
 
 async function queueCoordinatorScanIfDue(): Promise<void> {

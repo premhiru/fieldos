@@ -5,7 +5,7 @@
 | Purpose      | Track notable FieldOS product and platform work. |
 | Owner        | Engineering                                      |
 | Status       | Active                                           |
-| Last Updated | 2026-07-08                                       |
+| Last Updated | 2026-07-10                                       |
 
 ## Table of Contents
 
@@ -22,8 +22,15 @@
 - Added AI Recommendations to the Operations Command Center.
 - Added Project Coordinator state, run-now action, pending recommendations, and run history to project pages.
 - Added recommendation detail pages with evidence/source references, proposed action payload, approval controls, and draft editing.
+- Added worker-owned `WHATSAPP_DRAFT_SEND` jobs so approved WhatsApp drafts are delivered through the active Baileys session.
 - Added coordinator metrics to Operations Health.
 - Added ADR 0014 and `COORDINATOR_DEMO_SCRIPT.md`.
+
+### Go-Live QA
+
+- Added `PILOT_QA_REPORT.md` with readiness score, issue severity review, recommended pilot scope, smoke test, and rollback plan.
+- Updated pilot quick start, demo notes, production readiness, and project status for the first customer pilot.
+- Added explicit WhatsApp draft send confirmation and queued-send UI states.
 
 ### Pilot Readiness
 

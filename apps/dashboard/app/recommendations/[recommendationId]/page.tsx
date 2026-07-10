@@ -193,17 +193,36 @@ function RecommendationDetailContent() {
                 </Button>
                 <Button
                   disabled={sendDraftMutation.isPending || draft.status === "SENT"}
-                  onClick={() => sendDraftMutation.mutate()}
+                  onClick={() => {
+                    const confirmed = window.confirm(
+                      "Send this WhatsApp draft to the active project conversation?"
+                    );
+
+                    if (confirmed) {
+                      sendDraftMutation.mutate();
+                    }
+                  }}
                   type="button"
                 >
-                  Send
+                  {draft.status === "APPROVED" ? "Send Again" : "Send"}
                 </Button>
                 <Badge variant={draft.status === "FAILED" ? "warning" : "muted"}>
-                  {formatStatus(draft.status)}
+                  {formatDraftStatus(draft.status)}
                 </Badge>
               </div>
-              {sendDraftMutation.data?.result.sent === false ? (
+              {sendDraftMutation.data?.result.sent === false &&
+              "queued" in sendDraftMutation.data.result ? (
+                <p className="text-sm text-slate-600">
+                  Draft approved and queued. The FieldOS worker will send it through the connected
+                  WhatsApp line.
+                </p>
+              ) : null}
+              {sendDraftMutation.data?.result.sent === false &&
+              "error" in sendDraftMutation.data.result ? (
                 <p className="text-sm text-red-600">{sendDraftMutation.data.result.error}</p>
+              ) : null}
+              {sendDraftMutation.data?.result.sent === true ? (
+                <p className="text-sm text-emerald-700">Draft sent and recommendation completed.</p>
               ) : null}
             </div>
           </CardContent>
@@ -231,4 +250,12 @@ function formatConfidence(value: string): string {
   }
 
   return "Low Confidence";
+}
+
+function formatDraftStatus(value: string): string {
+  if (value === "APPROVED") {
+    return "Queued For Send";
+  }
+
+  return formatStatus(value);
 }

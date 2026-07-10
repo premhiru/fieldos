@@ -184,6 +184,53 @@ describe("ProjectCoordinatorRuntime", () => {
       })
     );
   });
+
+  it("marks draft sends approved when the API queues worker delivery", async () => {
+    const prisma = createPrismaStub();
+    const runtime = new ProjectCoordinatorRuntime(prisma as never, {
+      draftSender: {
+        send: vi.fn().mockResolvedValue({ queued: true })
+      },
+      now: () => now
+    });
+
+    prisma.whatsAppDraft.findUnique.mockResolvedValue({
+      conversationId: "conversation_1",
+      id: "draft_1",
+      messageBody: "Can we get an update?",
+      organizationId: "org_1",
+      projectId: "project_1",
+      recommendationId: "recommendation_1",
+      whatsappAccountId: "whatsapp_1"
+    });
+    prisma.whatsAppDraft.update.mockResolvedValue({
+      id: "draft_1",
+      status: "APPROVED"
+    });
+
+    const result = await runtime.sendWhatsAppDraft({
+      draftId: "draft_1",
+      userId: "user_1"
+    });
+
+    expect(result.sent).toBe(false);
+    expect("queued" in result && result.queued).toBe(true);
+    expect(prisma.whatsAppDraft.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          approvedByUserId: "user_1",
+          status: "APPROVED"
+        })
+      })
+    );
+    expect(prisma.recommendation.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: "COMPLETED"
+        })
+      })
+    );
+  });
 });
 
 function createPrismaStub() {

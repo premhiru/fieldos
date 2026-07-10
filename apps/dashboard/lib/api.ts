@@ -39,7 +39,8 @@ export type ProcessingJobType =
   | "PHOTO_ANALYSIS"
   | "REPORT_GENERATION"
   | "MEDIA_DOWNLOAD"
-  | "PROJECT_COORDINATOR";
+  | "PROJECT_COORDINATOR"
+  | "WHATSAPP_DRAFT_SEND";
 export type ProcessingJobStatus = "PENDING" | "RUNNING" | "FAILED" | "COMPLETED";
 export type WorkerStatus = "ONLINE" | "OFFLINE" | "STARTING" | "STOPPING";
 export type ProjectStateHealth = "HEALTHY" | "NEEDS_ATTENTION" | "CRITICAL" | "UNKNOWN";
@@ -1036,7 +1037,9 @@ export const api = {
   sendWhatsAppDraft: (draftId: string) =>
     apiRequest<{
       result:
-        { draft: WhatsAppDraft; sent: true } | { draft: WhatsAppDraft; sent: false; error: string };
+        | { draft: WhatsAppDraft; sent: true }
+        | { draft: WhatsAppDraft; queued: true; sent: false }
+        | { draft: WhatsAppDraft; sent: false; error: string };
     }>(`/whatsapp/drafts/${draftId}/send`, {
       method: "POST"
     }),

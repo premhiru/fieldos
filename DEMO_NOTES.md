@@ -5,7 +5,7 @@
 | Purpose      | Capture demo steps and verification notes for FieldOS changes. |
 | Owner        | Product Engineering                                            |
 | Status       | Active                                                         |
-| Last Updated | 2026-07-08                                                     |
+| Last Updated | 2026-07-10                                                     |
 
 ## Table of Contents
 
@@ -51,6 +51,7 @@ What changed:
 - Project pages now show Project Coordinator state, recent summaries, pending recommendations, run-now control, and coordinator history.
 - FieldOS can approve recommendations into Action Items, report-generation jobs, or WhatsApp drafts.
 - WhatsApp drafts are editable and require a final explicit send action.
+- WhatsApp draft sends are queued by the API and delivered by the worker through the active Baileys session.
 - Operations Health includes coordinator run and recommendation metrics.
 
 How to test:
@@ -61,12 +62,14 @@ How to test:
 4. Open a recommendation detail page and review evidence/source references.
 5. Approve a follow-up recommendation and confirm a WhatsApp draft appears.
 6. Edit the draft and save it.
-7. Approve a report recommendation and confirm a `REPORT_GENERATION` job is queued.
-8. Open `/admin/operations` and confirm coordinator metrics update.
+7. Confirm sending the draft asks for final confirmation and queues a `WHATSAPP_DRAFT_SEND` job.
+8. Confirm the worker marks the draft `SENT` when the connected WhatsApp session accepts the message.
+9. Approve a report recommendation and confirm a `REPORT_GENERATION` job is queued.
+10. Open `/admin/operations` and confirm coordinator and draft-send metrics update.
 
 Current limitation:
 
-- The current Baileys package does not expose a production outbound send adapter yet. Draft send fails clearly unless a real `WhatsAppDraftSender` is wired in.
+- Draft sending requires the dedicated WhatsApp account to be actively connected in the worker. If the line is disconnected, the job fails visibly and can be retried after pairing.
 
 ## Sprint 14: Pilot Readiness
 

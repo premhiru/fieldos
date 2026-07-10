@@ -1,7 +1,7 @@
 import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
 import { RedisWhatsAppQrStore, type WhatsAppQrStore } from "@fieldos/baileys-whatsapp/qr-store";
-import { NoopWhatsAppDraftSender, ProjectCoordinatorRuntime } from "@fieldos/coordinators";
+import { ProjectCoordinatorRuntime, QueuedWhatsAppDraftSender } from "@fieldos/coordinators";
 import { Prisma, prisma } from "@fieldos/db";
 import {
   AUTH_COOKIE_NAME,
@@ -140,7 +140,7 @@ export function buildServer(options: BuildServerOptions = {}) {
     (options.repository
       ? createNoopCoordinatorRuntime()
       : new ProjectCoordinatorRuntime(prisma, {
-          draftSender: new NoopWhatsAppDraftSender()
+          draftSender: new QueuedWhatsAppDraftSender(prisma)
         }));
   const storageProvider =
     options.storageProvider ??

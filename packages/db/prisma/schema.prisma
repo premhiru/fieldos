@@ -668,6 +668,7 @@ enum ProcessingJobType {
   REPORT_GENERATION
   MEDIA_DOWNLOAD
   PROJECT_COORDINATOR
+  WHATSAPP_DRAFT_SEND
 }
 
 enum ProcessingJobStatus {
