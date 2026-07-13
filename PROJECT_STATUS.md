@@ -304,11 +304,13 @@ Go-Live QA Sprint is implemented, validated locally, and deployed to the Railway
 ## Deployment Status
 
 - Dashboard deployed to Vercel production: `https://fieldos-sand.vercel.app`.
+- Team and invitations dashboard deployment `5yh73KxFC5QvKbSjBqUJkPAeABqX` completed and was aliased to the production domain.
 - Password security dashboard deployment `83dYcTzEgZ9uQbKR82VEAnKvDmo4` completed and was aliased to the production domain.
 - Project detail activity dashboard deployment `7zxFHD7SJAqNVhYdQVRQ99vDTHwv` completed and was aliased to the production domain.
 - Latest Vercel deployment URL: `https://fieldos-ac8n40gez-premhirus-projects.vercel.app`.
 - Backend deployed to Railway.
   - API deployed at `https://fieldos-api-production.up.railway.app`.
+  - Team and invitations API deployment `8e4542d6-a552-428e-832a-fb7be4039810` completed successfully.
   - API health verified at `https://fieldos-api-production.up.railway.app/health`.
   - Hardened Resend SDK API deployment `f4274313-c94c-45fa-bf59-894eb600c531` completed successfully.
   - Resend credential rotation deployment `03b33533-46c8-49f5-8c38-8818477d2e43` completed successfully; a controlled production send was accepted.
