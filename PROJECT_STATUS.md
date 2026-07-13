@@ -218,10 +218,11 @@ Go-Live QA Sprint is implemented, validated locally, and deployed to the Railway
   - Password changes and resets revoke all existing sessions through `User.sessionVersion`.
   - Production email delivery uses a small Resend-compatible API adapter without adding an email framework.
   - API and dashboard auth tests cover password changes, reset-link privacy, token reuse prevention, session revocation, and recovery UI states.
+  - Deployed to Vercel and Railway on 2026-07-13; production migration `20260713010000_password_security` is applied.
 
 ## In-Progress Tasks
 
-- Password security and recovery implementation is complete locally; production email delivery awaits Resend configuration and deployment.
+- None.
 
 ## Known Technical Debt
 
@@ -230,7 +231,7 @@ Go-Live QA Sprint is implemented, validated locally, and deployed to the Railway
 - Vitest is configured with `--passWithNoTests`; real tests should be added with the first product and infrastructure behavior.
 - Invite, membership administration, and email verification flows are not implemented yet.
 - Password-reset request rate limiting is not yet implemented.
-- Production forgot-password email delivery requires `RESEND_API_KEY`, `EMAIL_FROM`, and `WEB_APP_URL` on the Railway API service.
+- Production password email delivery currently uses Resend's testing sender and is limited to the Resend account owner's address until a FieldOS sending domain is verified.
 - Messaging is not real-time yet.
 - Message sending is internal/development-only until channel adapters exist.
 - Baileys is a WhatsApp Web adapter and should be used only with dedicated business test numbers until official Meta Cloud API support is implemented.
@@ -255,7 +256,7 @@ Go-Live QA Sprint is implemented, validated locally, and deployed to the Railway
 
 ## Upcoming Milestones
 
-- Configure password-reset email delivery and deploy migration `20260713010000_password_security`.
+- Verify a FieldOS sending domain in Resend and replace the testing sender before onboarding users with other email addresses.
 - Confirm the Vercel dashboard deployment from the GitHub `main` push and capture production quick-start screenshots.
 - Pair the dedicated pilot WhatsApp line and verify one live `WHATSAPP_DRAFT_SEND` job reaches `COMPLETED`.
 - Reset the demo workspace in production through the dashboard after Vercel deployment is confirmed.
@@ -295,11 +296,14 @@ Go-Live QA Sprint is implemented, validated locally, and deployed to the Railway
 ## Deployment Status
 
 - Dashboard deployed to Vercel production: `https://fieldos-sand.vercel.app`.
+- Password security dashboard deployment `83dYcTzEgZ9uQbKR82VEAnKvDmo4` completed and was aliased to the production domain.
 - Project detail activity dashboard deployment `7zxFHD7SJAqNVhYdQVRQ99vDTHwv` completed and was aliased to the production domain.
-- Latest Vercel deployment URL: `https://fieldos-kpnhaa7ph-premhirus-projects.vercel.app`.
+- Latest Vercel deployment URL: `https://fieldos-ac8n40gez-premhirus-projects.vercel.app`.
 - Backend deployed to Railway.
   - API deployed at `https://fieldos-api-production.up.railway.app`.
   - API health verified at `https://fieldos-api-production.up.railway.app/health`.
+  - Password security API deployment `d42055a6-78ec-4f06-bacc-08c362ef4066` completed successfully.
+  - Production migration `20260713010000_password_security` applied during API startup.
   - Project detail activity API deployment `1a9b67a5-3a87-4489-9cc4-fd0b7e1478d2` completed successfully.
   - Worker deployed and verified running with startup log: `worker started and waiting for jobs`.
   - Railway PostgreSQL service `Postgres` is deployed and migrations are applied.
