@@ -53,6 +53,7 @@ import { apiEnv } from "./env.js";
 import { badRequest, conflict, forbidden, HttpError, notFound, unauthorized } from "./http.js";
 import {
   createPasswordResetEmailSender,
+  PasswordResetEmailDeliveryError,
   type PasswordResetEmailSender
 } from "./password-reset-email.js";
 import {
@@ -334,16 +335,18 @@ export function buildServer(options: BuildServerOptions = {}) {
 
     if (user) {
       const token = randomBytes(32).toString("base64url");
+      const tokenHash = hashResetToken(token);
       const resetUrl = `${apiEnv.WEB_APP_URL}/reset-password?token=${encodeURIComponent(token)}`;
       developmentResetUrl = resetUrl;
       await repository.createPasswordResetToken({
         expiresAt: new Date(Date.now() + passwordResetDurationMs),
-        tokenHash: hashResetToken(token),
+        tokenHash,
         userId: user.id
       });
 
       try {
         const delivery = await passwordResetEmailSender.send({
+          idempotencyKey: `password-reset/${tokenHash}`,
           recipient: user.email,
           resetUrl
         });
@@ -352,7 +355,18 @@ export function buildServer(options: BuildServerOptions = {}) {
           server.log.warn({ userId: user.id }, "password reset email delivery is not configured");
         }
       } catch (error) {
-        server.log.error({ error, userId: user.id }, "password reset email delivery failed");
+        if (error instanceof PasswordResetEmailDeliveryError) {
+          server.log.error(
+            {
+              providerCode: error.providerCode,
+              statusCode: error.statusCode,
+              userId: user.id
+            },
+            "password reset email delivery failed"
+          );
+        } else {
+          server.log.error({ err: error, userId: user.id }, "password reset email delivery failed");
+        }
       }
     }
 
