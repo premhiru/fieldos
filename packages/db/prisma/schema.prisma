@@ -36,24 +36,39 @@ model Organization {
 }
 
 model User {
-  id                            String                @id @default(cuid())
-  email                         String                @unique
+  id                            String                  @id @default(cuid())
+  email                         String                  @unique
   name                          String
   passwordHash                  String
-  createdAt                     DateTime              @default(now())
-  updatedAt                     DateTime              @updatedAt
+  sessionVersion                Int                     @default(0)
+  createdAt                     DateTime                @default(now())
+  updatedAt                     DateTime                @updatedAt
   activatedWhatsAppChatMappings WhatsAppChatMapping[]
-  acceptedActionItems           ActionItem[]          @relation("ActionItemAcceptedBy")
-  assignedActionItems           ActionItem[]          @relation("ActionItemAssignedTo")
+  acceptedActionItems           ActionItem[]            @relation("ActionItemAcceptedBy")
+  assignedActionItems           ActionItem[]            @relation("ActionItemAssignedTo")
   analyticsEvents               ProductAnalyticsEvent[]
   feedback                      UserFeedback[]
-  ignoredActionItems            ActionItem[]          @relation("ActionItemIgnoredBy")
+  ignoredActionItems            ActionItem[]            @relation("ActionItemIgnoredBy")
   memberships                   Membership[]
   notifications                 UserNotification[]
-  approvedRecommendations       Recommendation[]      @relation("RecommendationApprovedBy")
-  dismissedRecommendations      Recommendation[]      @relation("RecommendationDismissedBy")
-  createdWhatsAppDrafts         WhatsAppDraft[]       @relation("WhatsAppDraftCreatedBy")
-  approvedWhatsAppDrafts        WhatsAppDraft[]       @relation("WhatsAppDraftApprovedBy")
+  passwordResetTokens           PasswordResetToken[]
+  approvedRecommendations       Recommendation[]        @relation("RecommendationApprovedBy")
+  dismissedRecommendations      Recommendation[]        @relation("RecommendationDismissedBy")
+  createdWhatsAppDrafts         WhatsAppDraft[]         @relation("WhatsAppDraftCreatedBy")
+  approvedWhatsAppDrafts        WhatsAppDraft[]         @relation("WhatsAppDraftApprovedBy")
+}
+
+model PasswordResetToken {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
 }
 
 model Membership {
@@ -387,7 +402,7 @@ model ProjectState {
 }
 
 model Recommendation {
-  id                    String                       @id @default(cuid())
+  id                    String                   @id @default(cuid())
   organizationId        String
   projectId             String
   type                  RecommendationType
@@ -395,8 +410,8 @@ model Recommendation {
   description           String
   reason                String
   confidence            RecommendationConfidence
-  priority              RecommendationPriority       @default(MEDIUM)
-  status                RecommendationStatus         @default(PENDING)
+  priority              RecommendationPriority   @default(MEDIUM)
+  status                RecommendationStatus     @default(PENDING)
   sourceCoordinator     CoordinatorType
   sourceEntityType      String?
   sourceEntityId        String?
@@ -408,12 +423,12 @@ model Recommendation {
   dismissedByUserId     String?
   dismissReason         String?
   completedAt           DateTime?
-  createdAt             DateTime                     @default(now())
-  updatedAt             DateTime                     @updatedAt
-  approvedByUser        User?                        @relation("RecommendationApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
-  dismissedByUser       User?                        @relation("RecommendationDismissedBy", fields: [dismissedByUserId], references: [id], onDelete: SetNull)
-  organization          Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  project               Project                      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+  approvedByUser        User?                    @relation("RecommendationApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  dismissedByUser       User?                    @relation("RecommendationDismissedBy", fields: [dismissedByUserId], references: [id], onDelete: SetNull)
+  organization          Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project               Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   whatsAppDrafts        WhatsAppDraft[]
 
   @@index([organizationId, status, priority, createdAt])

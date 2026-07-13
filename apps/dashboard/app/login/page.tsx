@@ -20,6 +20,11 @@ export default function LoginPage() {
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [validationError, setValidationError] = React.useState<string | null>(null);
+  const [passwordChanged, setPasswordChanged] = React.useState(false);
+
+  React.useEffect(() => {
+    setPasswordChanged(new URLSearchParams(window.location.search).get("passwordChanged") === "1");
+  }, []);
 
   const mutation = useMutation({
     mutationFn: api.login,
@@ -61,7 +66,12 @@ export default function LoginPage() {
               />
             </label>
             <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
-              Password
+              <span className="flex items-center justify-between gap-3">
+                Password
+                <Link className="font-normal text-slate-600 underline" href="/forgot-password">
+                  Forgot password?
+                </Link>
+              </span>
               <input
                 className="h-10 rounded-md border border-slate-300 px-3 text-sm"
                 type="password"
@@ -70,6 +80,11 @@ export default function LoginPage() {
               />
             </label>
             {validationError ? <p className="text-sm text-red-600">{validationError}</p> : null}
+            {passwordChanged ? (
+              <p className="rounded-md border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">
+                Password updated. Log in with your new password.
+              </p>
+            ) : null}
             {mutation.isError ? (
               <p className="text-sm text-red-600">{(mutation.error as Error).message}</p>
             ) : null}

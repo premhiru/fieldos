@@ -74,6 +74,11 @@ export interface SafeUser {
 
 export interface StoredUser extends SafeUser {
   passwordHash: string;
+  sessionVersion: number;
+}
+
+export interface SessionUser extends SafeUser {
+  sessionVersion: number;
 }
 
 export interface OrganizationRecord {
@@ -555,11 +560,22 @@ export interface AppRepository extends MessagingRepository {
     status: Status;
   }): Promise<ProjectRecord>;
   createUser(input: { email: string; name: string; passwordHash: string }): Promise<SafeUser>;
+  createPasswordResetToken(input: {
+    expiresAt: Date;
+    tokenHash: string;
+    userId: string;
+  }): Promise<void>;
   disconnect(): Promise<void>;
   findMembership(userId: string, organizationId: string): Promise<MembershipRecord | null>;
   findProjectForUser(userId: string, projectId: string): Promise<ProjectRecord | null>;
   findUserByEmail(email: string): Promise<StoredUser | null>;
-  findUserById(id: string): Promise<SafeUser | null>;
+  findUserById(id: string): Promise<SessionUser | null>;
+  resetPasswordWithToken(input: {
+    now: Date;
+    passwordHash: string;
+    tokenHash: string;
+  }): Promise<boolean>;
+  updateUserPassword(input: { passwordHash: string; userId: string }): Promise<void>;
   getOrganizationForUser(
     userId: string,
     organizationId: string
@@ -734,6 +750,20 @@ export function createPrismaRepository(): AppRepository {
       return toSafeUser(user);
     },
 
+    async createPasswordResetToken(input) {
+      const prisma = await getPrisma();
+      await prisma.$transaction([
+        prisma.passwordResetToken.deleteMany({
+          where: {
+            userId: input.userId
+          }
+        }),
+        prisma.passwordResetToken.create({
+          data: input
+        })
+      ]);
+    },
+
     async disconnect() {
       const prisma = await getPrisma();
       await prisma.$disconnect();
@@ -830,7 +860,88 @@ export function createPrismaRepository(): AppRepository {
         }
       });
 
-      return user ? toSafeUser(user) : null;
+      return user
+        ? {
+            ...toSafeUser(user),
+            sessionVersion: user.sessionVersion
+          }
+        : null;
+    },
+
+    async resetPasswordWithToken(input) {
+      const prisma = await getPrisma();
+      return prisma.$transaction(async (tx) => {
+        const token = await tx.passwordResetToken.findUnique({
+          where: {
+            tokenHash: input.tokenHash
+          }
+        });
+
+        if (!token || token.consumedAt || token.expiresAt <= input.now) {
+          return false;
+        }
+
+        const consumed = await tx.passwordResetToken.updateMany({
+          data: {
+            consumedAt: input.now
+          },
+          where: {
+            consumedAt: null,
+            id: token.id
+          }
+        });
+
+        if (consumed.count !== 1) {
+          return false;
+        }
+
+        await tx.user.update({
+          data: {
+            passwordHash: input.passwordHash,
+            sessionVersion: {
+              increment: 1
+            }
+          },
+          where: {
+            id: token.userId
+          }
+        });
+        await tx.passwordResetToken.updateMany({
+          data: {
+            consumedAt: input.now
+          },
+          where: {
+            consumedAt: null,
+            userId: token.userId
+          }
+        });
+
+        return true;
+      });
+    },
+
+    async updateUserPassword(input) {
+      const prisma = await getPrisma();
+      await prisma.user.update({
+        data: {
+          passwordHash: input.passwordHash,
+          sessionVersion: {
+            increment: 1
+          }
+        },
+        where: {
+          id: input.userId
+        }
+      });
+      await prisma.passwordResetToken.updateMany({
+        data: {
+          consumedAt: new Date()
+        },
+        where: {
+          consumedAt: null,
+          userId: input.userId
+        }
+      });
     },
 
     async getOrganizationForUser(userId, organizationId) {

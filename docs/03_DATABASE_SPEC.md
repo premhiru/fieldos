@@ -5,12 +5,13 @@
 | Purpose      | Define the data model, ownership boundaries, migration policy, and database standards. |
 | Owner        | Engineering                                                                            |
 | Status       | Draft                                                                                  |
-| Last Updated | 2026-07-08                                                                             |
+| Last Updated | 2026-07-13                                                                             |
 
 ## Table of Contents
 
 - [Data Principles](#data-principles)
 - [Domain Model](#domain-model)
+- [Password Security Model](#password-security-model)
 - [Messaging Model](#messaging-model)
 - [Unified Evidence Processing](#unified-evidence-processing)
 - [Photo Intelligence Model](#photo-intelligence-model)
@@ -36,7 +37,8 @@ Placeholder.
 
 Current MVP models:
 
-- `User`: Authenticated product user with email, name, password hash, and timestamps.
+- `User`: Authenticated product user with email, name, password hash, session version, and timestamps.
+- `PasswordResetToken`: Hashed, expiring, single-use credential for password recovery.
 - `Organization`: Workspace boundary for projects and memberships.
 - `Membership`: Join model between users and organizations with a role.
 - `Project`: Work container belonging to an organization.
@@ -76,6 +78,19 @@ Project statuses:
 - `PAUSED`
 - `COMPLETED`
 - `ARCHIVED`
+
+## Password Security Model
+
+`User.sessionVersion` is copied into each signed session token. The API compares the token version with the database on every authenticated request. Password changes and resets increment the value, revoking all previously issued sessions without storing JWTs.
+
+`PasswordResetToken` contains:
+
+- `tokenHash`: Unique SHA-256 hash. The raw token is delivered to the user and is never persisted.
+- `expiresAt`: One-hour validity boundary.
+- `consumedAt`: Set during the password-update transaction to prevent reuse.
+- `userId`: Cascades on user deletion and is indexed with creation time.
+
+Issuing a new reset token removes older tokens for the same user. A successful password change or reset invalidates all outstanding reset tokens.
 
 ## Messaging Model
 
@@ -532,6 +547,6 @@ Placeholder.
 ## Open Questions
 
 - Invite flow and membership management are not implemented yet.
-- Session revocation and password reset tables are not implemented yet.
+- Password-reset request rate limiting should be added before broad public signup.
 - Production object storage is provider-backed and uses `Attachment.storageKey` and `ProjectReport.pdfStorageKey`; a separate object metadata table is not implemented yet.
 - Project report caching exists, but retention, scheduled report generation, and multi-format storage policy are not implemented yet.

@@ -289,6 +289,8 @@ Recommendations are first-class records. Users can approve, dismiss, complete, i
 
 FieldOS uses JWT session tokens stored in HTTP-only cookies for the MVP. Passwords are hashed with bcrypt. The API owns session validation and tenant authorization.
 
+Authenticated users can change their password from Settings. Password changes and password resets increment a server-side session version, invalidating existing login cookies on every device. Forgot-password requests create one-hour, single-use reset tokens; only SHA-256 token hashes are stored. Production reset email delivery uses Resend when `RESEND_API_KEY`, `EMAIL_FROM`, and `WEB_APP_URL` are configured.
+
 Organizations are workspaces. Users access organizations through memberships with one of four roles: `OWNER`, `ADMIN`, `MEMBER`, or `VIEWER`.
 
 Project creation is limited to `OWNER` and `ADMIN`. Project reads are scoped to organization membership.

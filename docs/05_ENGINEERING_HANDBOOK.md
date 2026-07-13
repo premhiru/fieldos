@@ -5,7 +5,7 @@
 | Purpose      | Establish engineering practices, quality gates, repository operations, and delivery expectations. |
 | Owner        | Engineering                                                                                       |
 | Status       | Draft                                                                                             |
-| Last Updated | 2026-07-08                                                                                        |
+| Last Updated | 2026-07-13                                                                                        |
 
 ## Table of Contents
 
@@ -66,6 +66,9 @@ See [Branch Strategy](./08_BRANCH_STRATEGY.md).
 - Every organization-owned route must authenticate the user and authorize organization membership.
 - WhatsApp sessions and local media under `.storage` are development storage only and must move to managed secret/object storage before production scale.
 - Project reassignment recommendations must require explicit human approval.
+- Never log passwords, session cookies, raw password reset tokens, or password reset URLs.
+- Password reset responses must not reveal whether an email address belongs to a user.
+- Production password recovery requires `RESEND_API_KEY`, `EMAIL_FROM`, and `WEB_APP_URL`.
 
 ## Operational Readiness
 

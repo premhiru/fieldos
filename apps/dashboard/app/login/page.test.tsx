@@ -32,5 +32,6 @@ describe("LoginPage", () => {
 
     expect(screen.getByText("Log in to FieldOS")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Log in" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Forgot password?" })).toBeTruthy();
   });
 });

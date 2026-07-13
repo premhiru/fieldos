@@ -5,8 +5,12 @@ import { ProjectCoordinatorRuntime, QueuedWhatsAppDraftSender } from "@fieldos/c
 import { Prisma, prisma } from "@fieldos/db";
 import {
   AUTH_COOKIE_NAME,
+  changePasswordSchema,
+  forgotPasswordSchema,
   hashPassword,
   loginSchema,
+  passwordResetDurationMs,
+  resetPasswordSchema,
   sessionDurationSeconds,
   signSessionToken,
   signupSchema,
@@ -36,6 +40,7 @@ import {
 } from "@fieldos/messaging";
 import fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import { Redis } from "ioredis";
+import { createHash, randomBytes } from "node:crypto";
 import { ZodError } from "zod";
 import {
   createStorageProvider,
@@ -45,7 +50,11 @@ import {
 } from "@fieldos/shared";
 
 import { apiEnv } from "./env.js";
-import { conflict, forbidden, HttpError, notFound, unauthorized } from "./http.js";
+import { badRequest, conflict, forbidden, HttpError, notFound, unauthorized } from "./http.js";
+import {
+  createPasswordResetEmailSender,
+  type PasswordResetEmailSender
+} from "./password-reset-email.js";
 import {
   createPrismaRepository,
   type AppRepository,
@@ -96,6 +105,7 @@ const writableRoles = new Set<Role>(["OWNER", "ADMIN"]);
 export interface BuildServerOptions {
   coordinatorRuntime?: CoordinatorRuntimePort;
   qrStore?: WhatsAppQrStore;
+  passwordResetEmailSender?: PasswordResetEmailSender;
   repository?: AppRepository;
   searchAnswerer?: {
     answer(input: SearchAnswerInput): Promise<SearchAnswerResult>;
@@ -130,6 +140,12 @@ declare module "fastify" {
 
 export function buildServer(options: BuildServerOptions = {}) {
   const repository = options.repository ?? createPrismaRepository();
+  const passwordResetEmailSender =
+    options.passwordResetEmailSender ??
+    createPasswordResetEmailSender({
+      apiKey: apiEnv.RESEND_API_KEY,
+      from: apiEnv.EMAIL_FROM
+    });
   const conversationService = new ConversationService(repository);
   const messageService = new MessageService(repository);
   const attachmentService = new AttachmentService(repository);
@@ -258,7 +274,7 @@ export function buildServer(options: BuildServerOptions = {}) {
       passwordHash: await hashPassword(body.password)
     });
 
-    setAuthCookie(reply, user);
+    setAuthCookie(reply, { ...user, sessionVersion: 0 });
 
     return {
       user
@@ -274,7 +290,7 @@ export function buildServer(options: BuildServerOptions = {}) {
     }
 
     const safeUser = toSafeUser(user);
-    setAuthCookie(reply, safeUser);
+    setAuthCookie(reply, user);
 
     return {
       user: safeUser
@@ -292,6 +308,78 @@ export function buildServer(options: BuildServerOptions = {}) {
   server.get("/auth/me", { preHandler: requireAuth }, async (request) => ({
     user: request.currentUser
   }));
+
+  server.post("/auth/change-password", { preHandler: requireAuth }, async (request, reply) => {
+    const body = changePasswordSchema.parse(request.body);
+    const currentUser = requireCurrentUser(request);
+    const storedUser = await repository.findUserByEmail(currentUser.email);
+
+    if (!storedUser || !(await verifyPassword(body.currentPassword, storedUser.passwordHash))) {
+      throw unauthorized("Current password is incorrect.");
+    }
+
+    await repository.updateUserPassword({
+      passwordHash: await hashPassword(body.newPassword),
+      userId: currentUser.id
+    });
+    reply.clearCookie(AUTH_COOKIE_NAME, getCookieBaseOptions());
+
+    return { ok: true };
+  });
+
+  server.post("/auth/forgot-password", async (request) => {
+    const body = forgotPasswordSchema.parse(request.body);
+    const user = await repository.findUserByEmail(normalizeEmail(body.email));
+    let developmentResetUrl: string | undefined;
+
+    if (user) {
+      const token = randomBytes(32).toString("base64url");
+      const resetUrl = `${apiEnv.WEB_APP_URL}/reset-password?token=${encodeURIComponent(token)}`;
+      developmentResetUrl = resetUrl;
+      await repository.createPasswordResetToken({
+        expiresAt: new Date(Date.now() + passwordResetDurationMs),
+        tokenHash: hashResetToken(token),
+        userId: user.id
+      });
+
+      try {
+        const delivery = await passwordResetEmailSender.send({
+          recipient: user.email,
+          resetUrl
+        });
+
+        if (delivery === "NOT_CONFIGURED") {
+          server.log.warn({ userId: user.id }, "password reset email delivery is not configured");
+        }
+      } catch (error) {
+        server.log.error({ error, userId: user.id }, "password reset email delivery failed");
+      }
+    }
+
+    return {
+      ...(apiEnv.NODE_ENV === "development" && developmentResetUrl
+        ? { resetUrl: developmentResetUrl }
+        : {}),
+      message: "If an account exists for that email, a password reset link has been sent.",
+      ok: true
+    };
+  });
+
+  server.post("/auth/reset-password", async (request, reply) => {
+    const body = resetPasswordSchema.parse(request.body);
+    const reset = await repository.resetPasswordWithToken({
+      now: new Date(),
+      passwordHash: await hashPassword(body.newPassword),
+      tokenHash: hashResetToken(body.token)
+    });
+
+    if (!reset) {
+      throw badRequest("This password reset link is invalid or has expired.");
+    }
+
+    reply.clearCookie(AUTH_COOKIE_NAME, getCookieBaseOptions());
+    return { ok: true };
+  });
 
   server.get("/organizations", { preHandler: requireAuth }, async (request) => ({
     organizations: await repository.listOrganizations(requireCurrentUser(request).id)
@@ -1494,17 +1582,17 @@ export function buildServer(options: BuildServerOptions = {}) {
       const payload = verifySessionToken(token, apiEnv.JWT_SECRET);
       const user = await repository.findUserById(payload.sub);
 
-      if (!user) {
+      if (!user || user.sessionVersion !== payload.sessionVersion) {
         throw unauthorized();
       }
 
-      request.currentUser = user;
+      request.currentUser = toSafeUser(user);
     } catch {
       throw unauthorized();
     }
   }
 
-  function setAuthCookie(reply: FastifyReply, user: SafeUser): void {
+  function setAuthCookie(reply: FastifyReply, user: SafeUser & { sessionVersion: number }): void {
     reply.setCookie(AUTH_COOKIE_NAME, signSessionToken(user, apiEnv.JWT_SECRET), {
       ...getCookieBaseOptions(),
       maxAge: sessionDurationSeconds
@@ -1855,6 +1943,10 @@ function requireCurrentUser(request: FastifyRequest): SafeUser {
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
+}
+
+function hashResetToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
 }
 
 function toSafeUser(user: SafeUser): SafeUser {

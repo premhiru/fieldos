@@ -64,10 +64,18 @@ beforeAll(async () => {
 describe("FieldOS API auth and tenancy", () => {
   let repository: InMemoryRepository;
   let server: FastifyInstance;
+  let passwordResetEmails: Array<{ recipient: string; resetUrl: string }>;
 
   beforeEach(() => {
     repository = new InMemoryRepository();
+    passwordResetEmails = [];
     server = buildServer({
+      passwordResetEmailSender: {
+        send: async (input) => {
+          passwordResetEmails.push(input);
+          return "SENT";
+        }
+      },
       qrStore: new InMemoryQrStore(),
       repository,
       searchAnswerer: {
@@ -112,6 +120,117 @@ describe("FieldOS API auth and tenancy", () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json().user.email).toBe("founder@example.com");
+  });
+
+  it("changes a password and revokes existing sessions", async () => {
+    const cookie = await signup(server);
+    const changeResponse = await server.inject({
+      headers: { cookie },
+      method: "POST",
+      payload: {
+        currentPassword: "password123",
+        newPassword: "new-password-456"
+      },
+      url: "/auth/change-password"
+    });
+
+    expect(changeResponse.statusCode).toBe(200);
+    expect(changeResponse.headers["set-cookie"]).toContain("fieldos_session=;");
+
+    const revokedSessionResponse = await server.inject({
+      headers: { cookie },
+      method: "GET",
+      url: "/auth/me"
+    });
+    expect(revokedSessionResponse.statusCode).toBe(401);
+
+    const oldPasswordResponse = await server.inject({
+      method: "POST",
+      payload: { email: "founder@example.com", password: "password123" },
+      url: "/auth/login"
+    });
+    expect(oldPasswordResponse.statusCode).toBe(401);
+
+    const newPasswordResponse = await server.inject({
+      method: "POST",
+      payload: { email: "founder@example.com", password: "new-password-456" },
+      url: "/auth/login"
+    });
+    expect(newPasswordResponse.statusCode).toBe(200);
+  }, 15_000);
+
+  it("rejects a password change when the current password is wrong", async () => {
+    const cookie = await signup(server);
+    const response = await server.inject({
+      headers: { cookie },
+      method: "POST",
+      payload: {
+        currentPassword: "incorrect-password",
+        newPassword: "new-password-456"
+      },
+      url: "/auth/change-password"
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json().error.message).toBe("Current password is incorrect.");
+  });
+
+  it("issues and consumes a single-use password reset link", async () => {
+    const cookie = await signup(server);
+    const forgotResponse = await server.inject({
+      method: "POST",
+      payload: { email: "FOUNDER@example.com" },
+      url: "/auth/forgot-password"
+    });
+
+    expect(forgotResponse.statusCode).toBe(200);
+    expect(forgotResponse.json()).not.toHaveProperty("resetUrl");
+    expect(passwordResetEmails).toHaveLength(1);
+    const resetUrl = new URL(passwordResetEmails[0]?.resetUrl ?? "");
+    const token = resetUrl.searchParams.get("token");
+    expect(token).toBeTruthy();
+
+    const resetResponse = await server.inject({
+      method: "POST",
+      payload: { newPassword: "reset-password-789", token },
+      url: "/auth/reset-password"
+    });
+    expect(resetResponse.statusCode).toBe(200);
+
+    const reusedResponse = await server.inject({
+      method: "POST",
+      payload: { newPassword: "another-password-012", token },
+      url: "/auth/reset-password"
+    });
+    expect(reusedResponse.statusCode).toBe(400);
+
+    const revokedSessionResponse = await server.inject({
+      headers: { cookie },
+      method: "GET",
+      url: "/auth/me"
+    });
+    expect(revokedSessionResponse.statusCode).toBe(401);
+
+    const loginResponse = await server.inject({
+      method: "POST",
+      payload: { email: "founder@example.com", password: "reset-password-789" },
+      url: "/auth/login"
+    });
+    expect(loginResponse.statusCode).toBe(200);
+  }, 15_000);
+
+  it("does not reveal whether a forgot-password email exists", async () => {
+    const response = await server.inject({
+      method: "POST",
+      payload: { email: "missing@example.com" },
+      url: "/auth/forgot-password"
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().message).toBe(
+      "If an account exists for that email, a password reset link has been sent."
+    );
+    expect(passwordResetEmails).toHaveLength(0);
   });
 
   it("creates an organization for an authenticated user", async () => {
@@ -187,7 +306,7 @@ describe("FieldOS API auth and tenancy", () => {
     });
 
     expect(response.statusCode).toBe(403);
-  });
+  }, 15_000);
 
   it("creates and lists conversations for a member organization", async () => {
     const cookie = await signup(server);
@@ -2030,6 +2149,12 @@ class InMemoryRepository implements AppRepository {
   processingJobs: ProcessingJobRecord[] = [];
   workerHeartbeats: WorkerHeartbeatRecord[] = [];
   users: StoredUser[] = [];
+  passwordResetTokens: Array<{
+    consumedAt: Date | null;
+    expiresAt: Date;
+    tokenHash: string;
+    userId: string;
+  }> = [];
   whatsAppAccounts: WhatsAppAccountRecord[] = [];
   whatsAppChatMappings: WhatsAppChatMappingRecord[] = [];
 
@@ -2266,10 +2391,25 @@ class InMemoryRepository implements AppRepository {
       ...input,
       createdAt: now,
       id: nextId("user"),
+      sessionVersion: 0,
       updatedAt: now
     };
     this.users.push(user);
     return toSafeUser(user);
+  }
+
+  async createPasswordResetToken(input: {
+    expiresAt: Date;
+    tokenHash: string;
+    userId: string;
+  }): Promise<void> {
+    this.passwordResetTokens = this.passwordResetTokens.filter(
+      (token) => token.userId !== input.userId
+    );
+    this.passwordResetTokens.push({
+      ...input,
+      consumedAt: null
+    });
   }
 
   async disconnect(): Promise<void> {}
@@ -2382,9 +2522,53 @@ class InMemoryRepository implements AppRepository {
     return this.users.find((user) => user.email === email.trim().toLowerCase()) ?? null;
   }
 
-  async findUserById(id: string): Promise<SafeUser | null> {
+  async findUserById(id: string) {
     const user = this.users.find((candidate) => candidate.id === id);
-    return user ? toSafeUser(user) : null;
+    return user
+      ? {
+          ...toSafeUser(user),
+          sessionVersion: user.sessionVersion
+        }
+      : null;
+  }
+
+  async resetPasswordWithToken(input: {
+    now: Date;
+    passwordHash: string;
+    tokenHash: string;
+  }): Promise<boolean> {
+    const token = this.passwordResetTokens.find(
+      (candidate) => candidate.tokenHash === input.tokenHash
+    );
+
+    if (!token || token.consumedAt || token.expiresAt <= input.now) {
+      return false;
+    }
+
+    const user = this.users.find((candidate) => candidate.id === token.userId);
+    if (!user) {
+      return false;
+    }
+
+    token.consumedAt = input.now;
+    user.passwordHash = input.passwordHash;
+    user.sessionVersion += 1;
+    this.passwordResetTokens
+      .filter((candidate) => candidate.userId === user.id && !candidate.consumedAt)
+      .forEach((candidate) => {
+        candidate.consumedAt = input.now;
+      });
+    return true;
+  }
+
+  async updateUserPassword(input: { passwordHash: string; userId: string }): Promise<void> {
+    const user = this.users.find((candidate) => candidate.id === input.userId);
+    if (!user) {
+      throw new Error("User not found.");
+    }
+
+    user.passwordHash = input.passwordHash;
+    user.sessionVersion += 1;
   }
 
   async getOrganizationForUser(

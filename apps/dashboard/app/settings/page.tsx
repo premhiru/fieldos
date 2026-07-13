@@ -3,6 +3,7 @@
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@fieldos/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { QRCodeSVG } from "qrcode.react";
+import { useRouter } from "next/navigation";
 import * as React from "react";
 
 import { AppShell } from "../../components/app-shell";
@@ -65,7 +66,16 @@ function SettingsContent() {
   }
 
   if (organizations.length === 0) {
-    return <OrganizationOnboarding />;
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-950">Settings</h1>
+          <p className="text-sm text-slate-600">Account security</p>
+        </div>
+        <PasswordSecurityCard />
+        <OrganizationOnboarding />
+      </div>
+    );
   }
 
   return (
@@ -77,6 +87,8 @@ function SettingsContent() {
         </div>
         <OrganizationSelector organizations={organizations} />
       </div>
+
+      <PasswordSecurityCard />
 
       <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
         This connector uses WhatsApp Web pairing through Baileys. Use dedicated business numbers
@@ -143,6 +155,109 @@ function SettingsContent() {
         )}
       </div>
     </div>
+  );
+}
+
+function PasswordSecurityCard() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const [currentPassword, setCurrentPassword] = React.useState("");
+  const [newPassword, setNewPassword] = React.useState("");
+  const [confirmPassword, setConfirmPassword] = React.useState("");
+  const [validationError, setValidationError] = React.useState<string | null>(null);
+  const mutation = useMutation({
+    mutationFn: api.changePassword,
+    onSuccess: async () => {
+      queryClient.clear();
+      router.replace("/login?passwordChanged=1");
+    }
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Password</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form
+          className="grid max-w-xl gap-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+
+            if (currentPassword.length < 8 || newPassword.length < 8) {
+              setValidationError("Passwords must contain at least 8 characters.");
+              return;
+            }
+
+            if (currentPassword === newPassword) {
+              setValidationError("Choose a new password that differs from your current password.");
+              return;
+            }
+
+            if (newPassword !== confirmPassword) {
+              setValidationError("New passwords do not match.");
+              return;
+            }
+
+            setValidationError(null);
+            mutation.mutate({ currentPassword, newPassword });
+          }}
+        >
+          <PasswordField
+            autoComplete="current-password"
+            label="Current password"
+            value={currentPassword}
+            onChange={setCurrentPassword}
+          />
+          <PasswordField
+            autoComplete="new-password"
+            label="New password"
+            value={newPassword}
+            onChange={setNewPassword}
+          />
+          <PasswordField
+            autoComplete="new-password"
+            label="Confirm new password"
+            value={confirmPassword}
+            onChange={setConfirmPassword}
+          />
+          {validationError ? <p className="text-sm text-red-600">{validationError}</p> : null}
+          {mutation.isError ? (
+            <p className="text-sm text-red-600">{(mutation.error as Error).message}</p>
+          ) : null}
+          <div>
+            <Button disabled={mutation.isPending} type="submit">
+              {mutation.isPending ? "Updating..." : "Update password"}
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PasswordField({
+  autoComplete,
+  label,
+  onChange,
+  value
+}: {
+  autoComplete: string;
+  label: string;
+  onChange(value: string): void;
+  value: string;
+}) {
+  return (
+    <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+      {label}
+      <input
+        autoComplete={autoComplete}
+        className="h-10 rounded-md border border-slate-300 px-3 text-sm"
+        type="password"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </label>
   );
 }
 

@@ -211,18 +211,26 @@ Go-Live QA Sprint is implemented, validated locally, and deployed to the Railway
   - Added empty states for projects without timeline activity or mapped WhatsApp messages.
   - Dashboard and API lint, typecheck, and targeted tests pass.
   - Deployed to the Vercel dashboard and Railway API on 2026-07-13.
+- Password security and recovery.
+  - Authenticated users can change their password from Settings.
+  - Login includes a forgot-password flow with dedicated request and reset pages.
+  - Reset tokens are random, stored as SHA-256 hashes, expire after one hour, and are single-use.
+  - Password changes and resets revoke all existing sessions through `User.sessionVersion`.
+  - Production email delivery uses a small Resend-compatible API adapter without adding an email framework.
+  - API and dashboard auth tests cover password changes, reset-link privacy, token reuse prevention, session revocation, and recovery UI states.
 
 ## In-Progress Tasks
 
-- None.
+- Password security and recovery implementation is complete locally; production email delivery awaits Resend configuration and deployment.
 
 ## Known Technical Debt
 
 - CODEOWNERS references `@fieldos/engineering`, which must be replaced or backed by a real GitHub team after the organization is created.
 - Git author identity is configured locally as `FieldOS Engineering <engineering@fieldos.local>` and should be replaced with the company identity when available.
 - Vitest is configured with `--passWithNoTests`; real tests should be added with the first product and infrastructure behavior.
-- Auth sessions do not yet support server-side revocation.
-- Invite, membership administration, password reset, and email verification flows are not implemented yet.
+- Invite, membership administration, and email verification flows are not implemented yet.
+- Password-reset request rate limiting is not yet implemented.
+- Production forgot-password email delivery requires `RESEND_API_KEY`, `EMAIL_FROM`, and `WEB_APP_URL` on the Railway API service.
 - Messaging is not real-time yet.
 - Message sending is internal/development-only until channel adapters exist.
 - Baileys is a WhatsApp Web adapter and should be used only with dedicated business test numbers until official Meta Cloud API support is implemented.
@@ -247,6 +255,7 @@ Go-Live QA Sprint is implemented, validated locally, and deployed to the Railway
 
 ## Upcoming Milestones
 
+- Configure password-reset email delivery and deploy migration `20260713010000_password_security`.
 - Confirm the Vercel dashboard deployment from the GitHub `main` push and capture production quick-start screenshots.
 - Pair the dedicated pilot WhatsApp line and verify one live `WHATSAPP_DRAFT_SEND` job reaches `COMPLETED`.
 - Reset the demo workspace in production through the dashboard after Vercel deployment is confirmed.

@@ -90,6 +90,15 @@ Authentication flow:
 5. A signed JWT is stored in an HTTP-only cookie.
 6. Protected routes read the cookie, verify the JWT, load the current user, and apply tenant role checks.
 
+Password security flow:
+
+1. Authenticated password changes verify the current bcrypt hash before writing a new hash.
+2. Password changes increment `User.sessionVersion`, invalidating every existing JWT session.
+3. Forgot-password requests always return the same response whether or not the email exists.
+4. Existing users receive a random reset token through the configured email adapter; PostgreSQL stores only its SHA-256 hash.
+5. Reset tokens expire after one hour and are consumed atomically with the password update.
+6. Successful resets increment `User.sessionVersion` and invalidate all outstanding reset tokens.
+
 Organization and project flow:
 
 1. A user creates an organization.

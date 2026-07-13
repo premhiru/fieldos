@@ -917,6 +917,11 @@ async function apiBlobRequest(path: string): Promise<Blob> {
 }
 
 export const api = {
+  changePassword: (body: { currentPassword: string; newPassword: string }) =>
+    apiRequest<{ ok: true }>("/auth/change-password", {
+      body: JSON.stringify(body),
+      method: "POST"
+    }),
   createOrganization: (body: { name: string; slug: string }) =>
     apiRequest<{ organization: Organization }>("/organizations", {
       body: JSON.stringify(body),
@@ -933,6 +938,11 @@ export const api = {
   getConversation: (conversationId: string) =>
     apiRequest<{ conversation: Conversation }>(`/conversations/${conversationId}`),
   getMe: () => apiRequest<{ user: User }>("/auth/me"),
+  forgotPassword: (body: { email: string }) =>
+    apiRequest<{ message: string; ok: true; resetUrl?: string }>("/auth/forgot-password", {
+      body: JSON.stringify(body),
+      method: "POST"
+    }),
   getDashboard: (organizationId: string) => {
     const params = new URLSearchParams({ organizationId });
     return apiRequest<{ dashboard: OperationsDashboard }>(`/dashboard?${params.toString()}`);
@@ -947,6 +957,11 @@ export const api = {
         conversations: Conversation[];
       };
     }>("/demo/reset", {
+      method: "POST"
+    }),
+  resetPassword: (body: { newPassword: string; token: string }) =>
+    apiRequest<{ ok: true }>("/auth/reset-password", {
+      body: JSON.stringify(body),
       method: "POST"
     }),
   submitFeedback: (body: {

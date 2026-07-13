@@ -5,7 +5,7 @@
 | Purpose      | Track known technical debt, deferred features, risks, and next-sprint recommendations. |
 | Owner        | Engineering                                                                            |
 | Status       | Active                                                                                 |
-| Last Updated | 2026-07-08                                                                             |
+| Last Updated | 2026-07-13                                                                             |
 
 ## Table of Contents
 
@@ -19,7 +19,7 @@
 ## High Priority
 
 - Move WhatsApp auth state from local `.storage` to managed secret or durable state storage before broader production customer use.
-- Add server-side session revocation, password reset, and email verification before broad external testing.
+- Add password-reset request rate limiting and email verification before broad external testing.
 - Formalize pagination contracts for conversations, messages, and chat mappings before importing large tenants.
 - Add production observability around worker retries, WhatsApp disconnect reasons, AI provider failures, and queue lag.
 - Replace placeholder quick-start screenshots with production screenshots after the pilot deployment is live.
@@ -48,6 +48,7 @@
 - Invite, membership administration, role management, and organization settings.
 - Real-time inbox updates.
 - Full text or semantic search.
+- Invite and email-verification flows.
 
 ## Risks
 
