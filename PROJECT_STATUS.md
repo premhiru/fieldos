@@ -303,7 +303,7 @@ Go-Live QA Sprint is implemented, validated locally, and deployed to the Railway
 - Backend deployed to Railway.
   - API deployed at `https://fieldos-api-production.up.railway.app`.
   - API health verified at `https://fieldos-api-production.up.railway.app/health`.
-  - Resend SDK API deployment `a19c92d7-fc83-4966-a393-1a7e9261d326` completed successfully.
+  - Hardened Resend SDK API deployment `f4274313-c94c-45fa-bf59-894eb600c531` completed successfully.
   - Password security API deployment `d42055a6-78ec-4f06-bacc-08c362ef4066` completed successfully.
   - Production migration `20260713010000_password_security` applied during API startup.
   - Project detail activity API deployment `1a9b67a5-3a87-4489-9cc4-fd0b7e1478d2` completed successfully.
