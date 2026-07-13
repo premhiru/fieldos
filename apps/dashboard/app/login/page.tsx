@@ -8,6 +8,7 @@ import * as React from "react";
 import { z } from "zod";
 
 import { api } from "../../lib/api";
+import { authenticateWithInvitation } from "../../lib/auth-flow";
 
 const loginFormSchema = z.object({
   email: z.string().email(),
@@ -33,11 +34,9 @@ export default function LoginPage() {
   }, []);
 
   const mutation = useMutation({
-    mutationFn: api.login,
+    mutationFn: (body: z.infer<typeof loginFormSchema>) =>
+      authenticateWithInvitation(() => api.login(body), inviteToken),
     onSuccess: async () => {
-      if (inviteToken) {
-        await api.acceptInvitation(inviteToken);
-      }
       await queryClient.invalidateQueries({ queryKey: ["me"] });
       await queryClient.invalidateQueries({ queryKey: ["organizations"] });
       router.push(inviteToken ? "/projects" : "/");

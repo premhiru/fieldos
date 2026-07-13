@@ -23,6 +23,9 @@ Go-Live QA Sprint is implemented, validated locally, and deployed to the Railway
 
 ## Completed Tasks
 
+- Invitation authentication reliability.
+  - Dashboard API requests now use a same-origin proxy so production session cookies are first-party.
+  - Login and signup now complete invitation acceptance inside the tracked authentication mutation.
 - Dashboard application icon.
   - Added a FieldOS favicon and installable web app icon for browser tabs, pinned shortcuts, and taskbars.
   - Added web app metadata with FieldOS branding and theme colors.

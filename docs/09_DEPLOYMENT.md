@@ -119,7 +119,7 @@ SIGNED_URL_TTL_SECONDS=900
 Vercel dashboard:
 
 ```text
-NEXT_PUBLIC_API_URL=https://fieldos-api-production.up.railway.app
+API_URL=https://fieldos-api-production.up.railway.app
 ```
 
 ## Deployment Flow
@@ -130,7 +130,7 @@ NEXT_PUBLIC_API_URL=https://fieldos-api-production.up.railway.app
 4. Configure API and worker environment variables.
 5. Deploy `fieldos-api`.
 6. Deploy `fieldos-worker`.
-7. Set `NEXT_PUBLIC_API_URL` in Vercel to the Railway API public URL.
+7. Set `API_URL` in Vercel to the Railway API public URL. The dashboard proxies `/api/*` requests to this server-only destination so authentication cookies remain first-party.
 8. Redeploy the Vercel dashboard.
 9. Verify `GET /health` on the public API URL.
 10. Verify dashboard login/signup flows against the hosted API.

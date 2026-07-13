@@ -881,7 +881,7 @@ class DashboardApiError extends Error {
   }
 }
 
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+const apiBaseUrl = "/api";
 
 export async function apiRequest<TResponse>(
   path: string,
