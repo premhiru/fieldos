@@ -101,6 +101,28 @@ export interface ProjectRecord {
   status: Status;
   createdAt: Date;
   updatedAt: Date;
+  timelineEvents?: ProjectTimelineEventRecord[];
+  whatsAppMessages?: ProjectWhatsAppMessageRecord[];
+}
+
+export interface ProjectTimelineEventRecord {
+  id: string;
+  organizationId: string;
+  projectId: string | null;
+  sourceType: EventSourceType;
+  sourceId: string;
+  eventType: string;
+  title: string;
+  description: string | null;
+  occurredAt: Date;
+  createdAt: Date;
+}
+
+export interface ProjectWhatsAppMessageRecord extends MessageRecord {
+  conversation: {
+    id: string;
+    title: string;
+  };
 }
 
 export interface WhatsAppAccountRecord {
@@ -731,7 +753,7 @@ export function createPrismaRepository(): AppRepository {
 
     async findProjectForUser(userId, projectId) {
       const prisma = await getPrisma();
-      return prisma.project.findFirst({
+      const project = await prisma.project.findFirst({
         where: {
           id: projectId,
           organization: {
@@ -743,6 +765,52 @@ export function createPrismaRepository(): AppRepository {
           }
         }
       });
+
+      if (!project) {
+        return null;
+      }
+
+      const [timelineEvents, whatsAppMessages] = await Promise.all([
+        prisma.event.findMany({
+          orderBy: {
+            occurredAt: "desc"
+          },
+          take: 8,
+          where: {
+            projectId: project.id
+          }
+        }),
+        prisma.message.findMany({
+          include: {
+            ...messageInclude(),
+            conversation: {
+              select: {
+                id: true,
+                title: true
+              }
+            }
+          },
+          orderBy: {
+            occurredAt: "desc"
+          },
+          take: 8,
+          where: {
+            conversation: {
+              channel: "WHATSAPP",
+              projectId: project.id
+            }
+          }
+        })
+      ]);
+
+      return {
+        ...project,
+        timelineEvents,
+        whatsAppMessages: whatsAppMessages.map((message) => ({
+          ...toMessageRecord(message),
+          conversation: message.conversation
+        }))
+      };
     },
 
     async findUserByEmail(email) {

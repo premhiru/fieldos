@@ -102,6 +102,28 @@ export interface Project {
   name: string;
   organizationId: string;
   status: ProjectStatus;
+  timelineEvents?: ProjectTimelineEvent[];
+  whatsAppMessages?: ProjectWhatsAppMessage[];
+}
+
+export interface ProjectTimelineEvent {
+  id: string;
+  organizationId: string;
+  projectId: string | null;
+  sourceType: "MESSAGE" | "ACTION_ITEM" | "REPORT" | "RECOMMENDATION" | "SYSTEM";
+  sourceId: string;
+  eventType: string;
+  title: string;
+  description: string | null;
+  occurredAt: string;
+  createdAt: string;
+}
+
+export interface ProjectWhatsAppMessage extends Message {
+  conversation: {
+    id: string;
+    title: string;
+  };
 }
 
 export interface ProjectState {

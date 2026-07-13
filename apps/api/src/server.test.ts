@@ -2333,7 +2333,49 @@ class InMemoryRepository implements AppRepository {
     }
 
     const membership = await this.findMembership(userId, project.organizationId);
-    return membership ? project : null;
+    if (!membership) {
+      return null;
+    }
+
+    const timelineEvents = this.events
+      .filter((event) => event.projectId === project.id)
+      .sort((left, right) => right.occurredAt.getTime() - left.occurredAt.getTime())
+      .slice(0, 8);
+    const whatsAppConversationIds = new Set(
+      this.conversations
+        .filter(
+          (conversation) =>
+            conversation.projectId === project.id && conversation.channel === "WHATSAPP"
+        )
+        .map((conversation) => conversation.id)
+    );
+    const whatsAppMessages = this.messages
+      .filter((message) => whatsAppConversationIds.has(message.conversationId))
+      .sort((left, right) => right.occurredAt.getTime() - left.occurredAt.getTime())
+      .slice(0, 8)
+      .flatMap((message) => {
+        const conversation = this.conversations.find(
+          (candidate) => candidate.id === message.conversationId
+        );
+
+        return conversation
+          ? [
+              {
+                ...message,
+                conversation: {
+                  id: conversation.id,
+                  title: conversation.title
+                }
+              }
+            ]
+          : [];
+      });
+
+    return {
+      ...project,
+      timelineEvents,
+      whatsAppMessages
+    };
   }
 
   async findUserByEmail(email: string): Promise<StoredUser | null> {

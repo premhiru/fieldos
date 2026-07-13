@@ -12,7 +12,9 @@ import {
   api,
   type AIMessageClassification,
   type ActionItem,
-  type PhotoAnalysis
+  type PhotoAnalysis,
+  type ProjectTimelineEvent,
+  type ProjectWhatsAppMessage
 } from "../../../lib/api";
 
 export default function ProjectDetailPage() {
@@ -109,6 +111,8 @@ function ProjectDetailContent() {
   const classifications = classificationsQuery.data?.classifications ?? [];
   const actionItems = actionItemsQuery.data?.actionItems ?? [];
   const photoAnalyses = photoAnalysisQuery.data?.analyses ?? [];
+  const timelineEvents = project?.timelineEvents ?? [];
+  const whatsAppMessages = project?.whatsAppMessages ?? [];
 
   if (projectQuery.isLoading) {
     return <p className="text-sm text-slate-600">Loading project...</p>;
@@ -137,8 +141,8 @@ function ProjectDetailContent() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <PlaceholderCard title="Timeline coming soon" />
-        <PlaceholderCard title="WhatsApp messages coming soon" />
+        <ProjectTimelineCard events={timelineEvents} />
+        <ProjectWhatsAppMessagesCard messages={whatsAppMessages} />
         <Card>
           <CardHeader>
             <CardTitle>Reports</CardTitle>
@@ -353,6 +357,80 @@ function ProjectDetailContent() {
   );
 }
 
+function ProjectTimelineCard({ events }: { events: ProjectTimelineEvent[] }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Timeline</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {events.length === 0 ? (
+          <p className="text-sm text-slate-600">
+            No timeline activity yet. New messages, Action Items, reports, and system events will
+            appear here.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {events.slice(0, 5).map((event) => (
+              <div className="border-l-2 border-slate-200 pl-3" key={event.id}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium text-slate-950">{event.title}</span>
+                  <Badge variant="muted">{formatStatus(event.sourceType)}</Badge>
+                </div>
+                {event.description ? (
+                  <p className="mt-1 line-clamp-2 text-sm text-slate-600">{event.description}</p>
+                ) : null}
+                <p className="mt-1 text-xs text-slate-500">{formatTime(event.occurredAt)}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ProjectWhatsAppMessagesCard({ messages }: { messages: ProjectWhatsAppMessage[] }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>WhatsApp Messages</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {messages.length === 0 ? (
+          <p className="text-sm text-slate-600">
+            No WhatsApp messages mapped to this project yet. Activate a WhatsApp chat and assign it
+            to this project to see updates here.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {messages.slice(0, 5).map((message) => (
+              <Link
+                className="block rounded-md border border-slate-200 p-3 hover:bg-slate-50"
+                href={`/inbox/${message.conversation.id}`}
+                key={message.id}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-slate-950">
+                    {message.conversation.title}
+                  </span>
+                  <span className="text-xs text-slate-500">{formatTime(message.occurredAt)}</span>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  {message.senderParticipant.displayName}
+                </p>
+                <p className="mt-1 line-clamp-2 text-sm text-slate-700">
+                  {getMessagePreview(message)}
+                </p>
+              </Link>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function AIInsightRow({ classification }: { classification: AIMessageClassification }) {
   return (
     <div className="rounded-md border border-slate-200 p-3">
@@ -528,17 +606,14 @@ function formatStatus(value: string): string {
     .join(" ");
 }
 
-function PlaceholderCard({ title }: { title: string }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="text-sm text-slate-600">
-          This section is intentionally empty for this slice.
-        </p>
-      </CardContent>
-    </Card>
-  );
+function getMessagePreview(message: ProjectWhatsAppMessage): string {
+  if (message.body?.trim()) {
+    return message.body;
+  }
+
+  if (message.attachments.length > 0) {
+    return message.attachments.map((attachment) => attachment.filename).join(", ");
+  }
+
+  return formatStatus(message.type);
 }

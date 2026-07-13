@@ -5,7 +5,7 @@
 | Purpose      | Track FieldOS milestone progress, task completion, technical debt, architecture decisions, and deployment readiness. |
 | Owner        | Founding Engineering                                                                                                 |
 | Status       | Active                                                                                                               |
-| Last Updated | 2026-07-10                                                                                                           |
+| Last Updated | 2026-07-13                                                                                                           |
 
 ## Table of Contents
 
@@ -204,6 +204,12 @@ Go-Live QA Sprint is implemented, validated locally, and deployed to the Railway
   - Local validation passed for format, lint, typecheck, tests, build, and Prisma migration deploy.
   - Railway API deployment applied migration `20260708050000_pilot_qa_whatsapp_draft_send_jobs`.
   - Railway worker deployment verified startup and scheduled coordinator scan.
+- Project detail activity panels.
+  - Replaced the Timeline placeholder with recent project-scoped events.
+  - Replaced the WhatsApp Messages placeholder with recent messages from active conversations mapped to the project.
+  - WhatsApp message entries link directly to their unified inbox conversation.
+  - Added empty states for projects without timeline activity or mapped WhatsApp messages.
+  - Dashboard and API lint, typecheck, and targeted tests pass.
 
 ## In-Progress Tasks
 

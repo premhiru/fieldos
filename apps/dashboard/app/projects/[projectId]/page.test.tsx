@@ -29,7 +29,49 @@ vi.mock("@tanstack/react-query", () => ({
             code: "PRJ-001",
             id: "project_1",
             name: "Warehouse rollout",
-            status: "ACTIVE"
+            organizationId: "organization_1",
+            status: "ACTIVE",
+            timelineEvents: [
+              {
+                createdAt: "2026-07-03T00:00:00.000Z",
+                description: "New inbound site update.",
+                eventType: "MESSAGE_RECEIVED",
+                id: "event_1",
+                occurredAt: "2026-07-03T00:00:00.000Z",
+                organizationId: "organization_1",
+                projectId: "project_1",
+                sourceId: "message_1",
+                sourceType: "MESSAGE",
+                title: "WhatsApp message received"
+              }
+            ],
+            whatsAppMessages: [
+              {
+                attachments: [],
+                body: "Terminal 2 runway lighting completed.",
+                conversation: {
+                  id: "conversation_1",
+                  title: "Site team"
+                },
+                conversationId: "conversation_1",
+                createdAt: "2026-07-03T00:00:00.000Z",
+                direction: "INBOUND",
+                externalMessageId: "wa_message_1",
+                id: "message_1",
+                occurredAt: "2026-07-03T00:00:00.000Z",
+                processingStatus: "AI_COMPLETE",
+                senderParticipant: {
+                  conversationId: "conversation_1",
+                  createdAt: "2026-07-03T00:00:00.000Z",
+                  displayName: "Site Lead",
+                  externalIdentifier: "site-lead",
+                  id: "participant_1",
+                  role: "contact"
+                },
+                senderParticipantId: "participant_1",
+                type: "TEXT"
+              }
+            ]
           }
         },
         isError: false,
@@ -85,9 +127,15 @@ vi.mock("@tanstack/react-query", () => ({
 }));
 
 describe("ProjectDetailPage AI sections", () => {
-  it("renders AI insights and pending Action Items", () => {
+  it("renders live project activity, AI insights, and pending Action Items", () => {
     render(React.createElement(ProjectDetailPage));
 
+    expect(screen.getByRole("heading", { name: "Timeline" })).toBeTruthy();
+    expect(screen.getByText("WhatsApp message received")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "WhatsApp Messages" })).toBeTruthy();
+    expect(screen.getByText("Terminal 2 runway lighting completed.")).toBeTruthy();
+    expect(screen.queryByText("Timeline coming soon")).toBeNull();
+    expect(screen.queryByText("WhatsApp messages coming soon")).toBeNull();
     expect(screen.getByRole("heading", { name: "AI Insights" })).toBeTruthy();
     expect(screen.getByText("A lobby light failed.")).toBeTruthy();
     expect(screen.getAllByText("High Confidence").length).toBeGreaterThan(0);
