@@ -1259,9 +1259,12 @@ export const api = {
       method: "POST"
     }),
   getInvitation: (token: string) =>
-    apiRequest<{ invitation: PublicTeamInvitation }>(`/invitations/${encodeURIComponent(token)}`),
+    apiRequest<{ invitation: PublicTeamInvitation }>("/invitations/resolve", {
+      headers: { "x-invitation-token": token }
+    }),
   acceptInvitation: (token: string) =>
-    apiRequest<{ ok: true }>(`/invitations/${encodeURIComponent(token)}/accept`, {
+    apiRequest<{ ok: true }>("/invitations/accept", {
+      headers: { "x-invitation-token": token },
       method: "POST"
     }),
   listTeam: (organizationId: string) =>

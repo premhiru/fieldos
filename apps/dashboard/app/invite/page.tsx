@@ -24,7 +24,7 @@ export default function InvitationPage() {
   const [token, setToken] = React.useState("");
 
   React.useEffect(() => {
-    setToken(new URLSearchParams(window.location.search).get("token") ?? "");
+    setToken(new URLSearchParams(window.location.hash.slice(1)).get("token") ?? "");
   }, []);
 
   const invitationQuery = useQuery({
@@ -42,7 +42,7 @@ export default function InvitationPage() {
   });
 
   const invitation = invitationQuery.data?.invitation;
-  const authQuery = new URLSearchParams({
+  const authFragment = new URLSearchParams({
     email: invitation?.email ?? "",
     invite: token
   }).toString();
@@ -109,13 +109,13 @@ export default function InvitationPage() {
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Link
                     className="inline-flex h-10 items-center justify-center rounded-md bg-slate-950 px-4 text-sm font-medium text-white hover:bg-slate-800"
-                    href={`/signup?${authQuery}`}
+                    href={`/signup#${authFragment}`}
                   >
                     Create account
                   </Link>
                   <Link
                     className="inline-flex h-10 items-center justify-center rounded-md bg-slate-100 px-4 text-sm font-medium text-slate-950 hover:bg-slate-200"
-                    href={`/login?${authQuery}`}
+                    href={`/login#${authFragment}`}
                   >
                     Log in
                   </Link>

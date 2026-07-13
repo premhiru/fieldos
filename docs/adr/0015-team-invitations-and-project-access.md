@@ -21,6 +21,8 @@ Organization membership previously granted access to every project. FieldOS need
 
 FieldOS uses expiring, single-use `TeamInvitation` records. Raw invitation tokens are delivered to users but only SHA-256 hashes are stored. Invitations require an exact email match during authenticated acceptance.
 
+Invitation links keep tokens in URL fragments, and dashboard API calls move them into a dedicated request header. Tokens are therefore not included in Vercel page URLs or Railway API request logs.
+
 `Membership` remains the organization role boundary. `OWNER` and `ADMIN` memberships have access to all projects. `MEMBER` and `VIEWER` memberships may be restricted through explicit `ProjectAccess` records. Existing memberships default to all-project access for backwards compatibility.
 
 Owners can manage administrators. Owners and administrators can invite members or viewers, update their project access, resend or revoke invitations, and remove members. The organization owner cannot be demoted or removed through team-management APIs.

@@ -75,7 +75,7 @@ import {
   evidenceParamsSchema,
   feedbackSchema,
   generateProjectReportSchema,
-  invitationParamsSchema,
+  invitationTokenHeadersSchema,
   mediaParamsSchema,
   mediaQuerySchema,
   messageParamsSchema,
@@ -276,16 +276,16 @@ export function buildServer(options: BuildServerOptions = {}) {
     status: "ok"
   }));
 
-  server.get("/invitations/:token", async (request) => {
-    const params = invitationParamsSchema.parse(request.params);
-    return { invitation: await teamService.getInvitation(params.token) };
+  server.get("/invitations/resolve", async (request) => {
+    const headers = invitationTokenHeadersSchema.parse(request.headers);
+    return { invitation: await teamService.getInvitation(headers["x-invitation-token"]) };
   });
 
-  server.post("/invitations/:token/accept", { preHandler: requireAuth }, async (request) => {
-    const params = invitationParamsSchema.parse(request.params);
+  server.post("/invitations/accept", { preHandler: requireAuth }, async (request) => {
+    const headers = invitationTokenHeadersSchema.parse(request.headers);
     const user = requireCurrentUser(request);
     await teamService.acceptInvitation({
-      token: params.token,
+      token: headers["x-invitation-token"],
       userEmail: user.email,
       userId: user.id
     });
@@ -1746,7 +1746,7 @@ export function buildServer(options: BuildServerOptions = {}) {
   });
 
   async function sendTeamInvitation(delivery: TeamInvitationDelivery) {
-    const invitationUrl = `${apiEnv.WEB_APP_URL}/invite?token=${encodeURIComponent(delivery.token)}`;
+    const invitationUrl = `${apiEnv.WEB_APP_URL}/invite#token=${encodeURIComponent(delivery.token)}`;
     let deliveryStatus: "FAILED" | "NOT_CONFIGURED" | "SENT" = "SENT";
     try {
       const status = await teamInvitationEmailSender.send({

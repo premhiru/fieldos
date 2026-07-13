@@ -41,7 +41,7 @@ vi.mock("@tanstack/react-query", async () => {
 
 describe("InvitationPage", () => {
   beforeEach(() => {
-    window.history.pushState({}, "", "/invite?token=valid-invitation-token-that-is-long-enough");
+    window.history.pushState({}, "", "/invite#token=valid-invitation-token-that-is-long-enough");
   });
 
   it("shows invitation details and authentication choices", async () => {

@@ -292,7 +292,7 @@ describe("FieldOS API auth and tenancy", () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json().deliveryStatus).toBe("SENT");
-    expect(response.json().invitationUrl).toContain("/invite?token=invite-token");
+    expect(response.json().invitationUrl).toContain("/invite#token=invite-token");
     expect(teamService.createInvitation).toHaveBeenCalledWith({
       email: "invitee@example.com",
       invitedByUserId: expect.any(String),
@@ -330,13 +330,14 @@ describe("FieldOS API auth and tenancy", () => {
     const invitationServer = buildServer({ repository, teamService });
 
     const unauthenticated = await invitationServer.inject({
+      headers: { "x-invitation-token": "invite-token-that-is-long-enough" },
       method: "POST",
-      url: "/invitations/invite-token-that-is-long-enough/accept"
+      url: "/invitations/accept"
     });
     const authenticated = await invitationServer.inject({
-      headers: { cookie },
+      headers: { cookie, "x-invitation-token": "invite-token-that-is-long-enough" },
       method: "POST",
-      url: "/invitations/invite-token-that-is-long-enough/accept"
+      url: "/invitations/accept"
     });
     await invitationServer.close();
 

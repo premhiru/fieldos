@@ -4,8 +4,8 @@ export const organizationParamsSchema = z.object({
   organizationId: z.string().min(1)
 });
 
-export const invitationParamsSchema = z.object({
-  token: z.string().min(32).max(256)
+export const invitationTokenHeadersSchema = z.object({
+  "x-invitation-token": z.string().min(32).max(256)
 });
 
 export const organizationInvitationParamsSchema = z.object({

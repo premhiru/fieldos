@@ -25,9 +25,10 @@ export default function LoginPage() {
 
   React.useEffect(() => {
     const query = new URLSearchParams(window.location.search);
+    const invite = new URLSearchParams(window.location.hash.slice(1));
     setPasswordChanged(query.get("passwordChanged") === "1");
-    setInviteToken(query.get("invite") ?? "");
-    const invitedEmail = query.get("email");
+    setInviteToken(invite.get("invite") ?? "");
+    const invitedEmail = invite.get("email");
     if (invitedEmail) setEmail(invitedEmail);
   }, []);
 
@@ -107,7 +108,7 @@ export default function LoginPage() {
                 className="font-medium text-slate-950 underline"
                 href={
                   inviteToken
-                    ? `/signup?invite=${encodeURIComponent(inviteToken)}&email=${encodeURIComponent(email)}`
+                    ? `/signup#invite=${encodeURIComponent(inviteToken)}&email=${encodeURIComponent(email)}`
                     : "/signup"
                 }
               >
