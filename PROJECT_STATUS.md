@@ -210,6 +210,7 @@ Go-Live QA Sprint is implemented, validated locally, and deployed to the Railway
   - WhatsApp message entries link directly to their unified inbox conversation.
   - Added empty states for projects without timeline activity or mapped WhatsApp messages.
   - Dashboard and API lint, typecheck, and targeted tests pass.
+  - Deployed to the Vercel dashboard and Railway API on 2026-07-13.
 
 ## In-Progress Tasks
 
@@ -285,10 +286,12 @@ Go-Live QA Sprint is implemented, validated locally, and deployed to the Railway
 ## Deployment Status
 
 - Dashboard deployed to Vercel production: `https://fieldos-sand.vercel.app`.
-- Latest Vercel deployment URL: `https://fieldos-a1qlu1bqq-premhirus-projects.vercel.app`.
+- Project detail activity dashboard deployment `7zxFHD7SJAqNVhYdQVRQ99vDTHwv` completed and was aliased to the production domain.
+- Latest Vercel deployment URL: `https://fieldos-kpnhaa7ph-premhirus-projects.vercel.app`.
 - Backend deployed to Railway.
   - API deployed at `https://fieldos-api-production.up.railway.app`.
   - API health verified at `https://fieldos-api-production.up.railway.app/health`.
+  - Project detail activity API deployment `1a9b67a5-3a87-4489-9cc4-fd0b7e1478d2` completed successfully.
   - Worker deployed and verified running with startup log: `worker started and waiting for jobs`.
   - Railway PostgreSQL service `Postgres` is deployed and migrations are applied.
   - Railway Redis service `Redis` is deployed.
