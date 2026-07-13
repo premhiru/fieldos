@@ -1,3 +1,5 @@
+import { Resend } from "resend";
+
 export interface PasswordResetEmailInput {
   recipient: string;
   resetUrl: string;
@@ -11,31 +13,28 @@ export function createPasswordResetEmailSender(config: {
   apiKey?: string;
   from?: string;
 }): PasswordResetEmailSender {
-  if (!config.apiKey || !config.from) {
+  const { apiKey, from } = config;
+
+  if (!apiKey || !from) {
     return {
       send: async () => "NOT_CONFIGURED"
     };
   }
 
+  const resend = new Resend(apiKey);
+
   return {
     async send(input) {
-      const response = await fetch("https://api.resend.com/emails", {
-        body: JSON.stringify({
-          from: config.from,
-          html: passwordResetEmailHtml(input.resetUrl),
-          subject: "Reset your FieldOS password",
-          text: `Reset your FieldOS password using this link: ${input.resetUrl}\n\nThis link expires in one hour. If you did not request it, you can ignore this email.`,
-          to: [input.recipient]
-        }),
-        headers: {
-          Authorization: `Bearer ${config.apiKey}`,
-          "Content-Type": "application/json"
-        },
-        method: "POST"
+      const { error } = await resend.emails.send({
+        from,
+        html: passwordResetEmailHtml(input.resetUrl),
+        subject: "Reset your FieldOS password",
+        text: `Reset your FieldOS password using this link: ${input.resetUrl}\n\nThis link expires in one hour. If you did not request it, you can ignore this email.`,
+        to: input.recipient
       });
 
-      if (!response.ok) {
-        throw new Error(`Password reset email provider failed with status ${response.status}.`);
+      if (error) {
+        throw new Error(`Password reset email provider failed: ${error.message}`);
       }
 
       return "SENT";

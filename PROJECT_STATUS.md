@@ -216,7 +216,7 @@ Go-Live QA Sprint is implemented, validated locally, and deployed to the Railway
   - Login includes a forgot-password flow with dedicated request and reset pages.
   - Reset tokens are random, stored as SHA-256 hashes, expire after one hour, and are single-use.
   - Password changes and resets revoke all existing sessions through `User.sessionVersion`.
-  - Production email delivery uses a small Resend-compatible API adapter without adding an email framework.
+  - Production email delivery uses Resend's official Node.js SDK through the password-reset email adapter.
   - API and dashboard auth tests cover password changes, reset-link privacy, token reuse prevention, session revocation, and recovery UI states.
   - Deployed to Vercel and Railway on 2026-07-13; production migration `20260713010000_password_security` is applied.
 
