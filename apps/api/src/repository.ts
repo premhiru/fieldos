@@ -92,6 +92,7 @@ export interface OrganizationRecord {
 }
 
 export interface MembershipRecord {
+  allProjects: boolean;
   id: string;
   userId: string;
   organizationId: string;
@@ -789,6 +790,7 @@ export function createPrismaRepository(): AppRepository {
           organization: {
             memberships: {
               some: {
+                OR: [{ allProjects: true }, { projectAccess: { some: { projectId } } }],
                 userId
               }
             }
@@ -1006,7 +1008,10 @@ export function createPrismaRepository(): AppRepository {
           createdAt: "desc"
         },
         where: {
-          organizationId
+          organizationId,
+          ...(membership.allProjects
+            ? {}
+            : { projectAccess: { some: { membershipId: membership.id } } })
         }
       });
     },
@@ -1366,6 +1371,19 @@ export function createPrismaRepository(): AppRepository {
     async getOperationsDashboard(input) {
       const prisma = await getPrisma();
       const todayStart = getUtcDayStart(new Date());
+      const membership = await prisma.membership.findUnique({
+        include: { projectAccess: { select: { projectId: true } } },
+        where: {
+          userId_organizationId: {
+            organizationId: input.organizationId,
+            userId: input.userId
+          }
+        }
+      });
+      const allowedProjectIds = membership?.allProjects
+        ? null
+        : (membership?.projectAccess.map(({ projectId }) => projectId) ?? []);
+      const projectIdFilter = allowedProjectIds ? { in: allowedProjectIds } : undefined;
 
       const [projects, actionItems, classifications, events, milestones, pendingAIReviews] =
         await Promise.all([
@@ -1374,7 +1392,8 @@ export function createPrismaRepository(): AppRepository {
               updatedAt: "desc"
             },
             where: {
-              organizationId: input.organizationId
+              organizationId: input.organizationId,
+              ...(projectIdFilter ? { id: projectIdFilter } : {})
             }
           }),
           prisma.actionItem.findMany({
@@ -1384,7 +1403,8 @@ export function createPrismaRepository(): AppRepository {
             },
             take: 250,
             where: {
-              organizationId: input.organizationId
+              organizationId: input.organizationId,
+              ...(projectIdFilter ? { projectId: projectIdFilter } : {})
             }
           }),
           prisma.aIMessageClassification.findMany({
@@ -1393,7 +1413,8 @@ export function createPrismaRepository(): AppRepository {
             },
             take: 250,
             where: {
-              organizationId: input.organizationId
+              organizationId: input.organizationId,
+              ...(projectIdFilter ? { projectId: projectIdFilter } : {})
             }
           }),
           prisma.event.findMany({
@@ -1413,7 +1434,7 @@ export function createPrismaRepository(): AppRepository {
             where: {
               organizationId: input.organizationId,
               projectId: {
-                not: null
+                ...(projectIdFilter ?? { not: null })
               },
               sourceType: {
                 in: ["MESSAGE", "ACTION_ITEM", "REPORT"]
@@ -1436,6 +1457,7 @@ export function createPrismaRepository(): AppRepository {
             take: 12,
             where: {
               organizationId: input.organizationId,
+              ...(projectIdFilter ? { projectId: projectIdFilter } : {}),
               status: {
                 not: "COMPLETED"
               }
@@ -1444,6 +1466,7 @@ export function createPrismaRepository(): AppRepository {
           prisma.aIMessageClassification.count({
             where: {
               organizationId: input.organizationId,
+              ...(projectIdFilter ? { projectId: projectIdFilter } : {}),
               status: {
                 in: ["PENDING", "NEEDS_REVIEW"]
               }
@@ -2233,6 +2256,18 @@ export function createPrismaRepository(): AppRepository {
       return Boolean(membership);
     },
 
+    async userCanAccessProject(userId, projectId) {
+      const prisma = await getPrisma();
+      const membership = await prisma.membership.findFirst({
+        where: {
+          organization: { projects: { some: { id: projectId } } },
+          OR: [{ allProjects: true }, { projectAccess: { some: { projectId } } }],
+          userId
+        }
+      });
+      return Boolean(membership);
+    },
+
     async projectBelongsToOrganization(projectId, organizationId) {
       const prisma = await getPrisma();
       const project = await prisma.project.findFirst({
@@ -2261,6 +2296,15 @@ export function createPrismaRepository(): AppRepository {
     async listConversations(input) {
       const prisma = await getPrisma();
       const search = input.search?.trim();
+      const membership = await prisma.membership.findUnique({
+        where: {
+          userId_organizationId: {
+            organizationId: input.organizationId,
+            userId: input.userId
+          }
+        }
+      });
+      if (!membership) return [];
       const conversations = await prisma.conversation.findMany({
         include: conversationInclude(),
         orderBy: [
@@ -2294,6 +2338,13 @@ export function createPrismaRepository(): AppRepository {
             }
           ],
           organizationId: input.organizationId,
+          ...(membership.allProjects
+            ? {}
+            : {
+                project: {
+                  is: { projectAccess: { some: { membershipId: membership.id } } }
+                }
+              }),
           ...(search
             ? {
                 OR: [
@@ -2339,7 +2390,8 @@ export function createPrismaRepository(): AppRepository {
       return prisma.conversation.findUnique({
         select: {
           id: true,
-          organizationId: true
+          organizationId: true,
+          projectId: true
         },
         where: {
           id: conversationId
@@ -2433,7 +2485,8 @@ export function createPrismaRepository(): AppRepository {
           conversation: {
             select: {
               id: true,
-              organizationId: true
+              organizationId: true,
+              projectId: true
             }
           },
           id: true
@@ -2447,7 +2500,8 @@ export function createPrismaRepository(): AppRepository {
         ? {
             conversationId: message.conversation.id,
             id: message.id,
-            organizationId: message.conversation.organizationId
+            organizationId: message.conversation.organizationId,
+            projectId: message.conversation.projectId
           }
         : null;
     },

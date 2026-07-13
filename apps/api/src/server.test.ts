@@ -22,6 +22,8 @@ import type {
 } from "@fieldos/shared";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { TeamService } from "./team-service.js";
+
 import type {
   AppRepository,
   AIMessageClassificationRecord,
@@ -258,6 +260,93 @@ describe("FieldOS API auth and tenancy", () => {
     });
 
     expect(response.statusCode).toBe(401);
+  });
+
+  it("allows an owner to create a project-scoped team invitation", async () => {
+    const cookie = await signup(server);
+    const organization = await createOrganization(server, cookie);
+    const project = await repository.createProject({
+      code: "INV-001",
+      name: "Invitation project",
+      organizationId: organization.id,
+      status: "ACTIVE"
+    });
+    const teamService = createMockTeamService();
+    const invitationServer = buildServer({
+      repository,
+      teamInvitationEmailSender: { send: async () => "SENT" },
+      teamService
+    });
+
+    const response = await invitationServer.inject({
+      headers: { cookie },
+      method: "POST",
+      payload: {
+        email: "invitee@example.com",
+        projectIds: [project.id],
+        role: "MEMBER"
+      },
+      url: `/organizations/${organization.id}/invitations`
+    });
+    await invitationServer.close();
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().deliveryStatus).toBe("SENT");
+    expect(response.json().invitationUrl).toContain("/invite?token=invite-token");
+    expect(teamService.createInvitation).toHaveBeenCalledWith({
+      email: "invitee@example.com",
+      invitedByUserId: expect.any(String),
+      organizationId: organization.id,
+      projectIds: [project.id],
+      role: "MEMBER"
+    });
+  });
+
+  it("prevents an admin from inviting another administrator", async () => {
+    const ownerCookie = await signup(server, "owner@example.com");
+    const organization = await createOrganization(server, ownerCookie);
+    const adminCookie = await signup(server, "admin@example.com");
+    const admin = repository.users.find((user) => user.email === "admin@example.com");
+    if (!admin) throw new Error("admin user was not created");
+    repository.addMembership(admin.id, organization.id, "ADMIN");
+    const teamService = createMockTeamService();
+    const invitationServer = buildServer({ repository, teamService });
+
+    const response = await invitationServer.inject({
+      headers: { cookie: adminCookie },
+      method: "POST",
+      payload: { email: "second-admin@example.com", projectIds: [], role: "ADMIN" },
+      url: `/organizations/${organization.id}/invitations`
+    });
+    await invitationServer.close();
+
+    expect(response.statusCode).toBe(403);
+    expect(teamService.createInvitation).not.toHaveBeenCalled();
+  });
+
+  it("accepts an invitation only for an authenticated user", async () => {
+    const cookie = await signup(server, "invitee@example.com");
+    const teamService = createMockTeamService();
+    const invitationServer = buildServer({ repository, teamService });
+
+    const unauthenticated = await invitationServer.inject({
+      method: "POST",
+      url: "/invitations/invite-token-that-is-long-enough/accept"
+    });
+    const authenticated = await invitationServer.inject({
+      headers: { cookie },
+      method: "POST",
+      url: "/invitations/invite-token-that-is-long-enough/accept"
+    });
+    await invitationServer.close();
+
+    expect(unauthenticated.statusCode).toBe(401);
+    expect(authenticated.statusCode).toBe(200);
+    expect(teamService.acceptInvitation).toHaveBeenCalledWith({
+      token: "invite-token-that-is-long-enough",
+      userEmail: "invitee@example.com",
+      userId: expect.any(String)
+    });
   });
 
   it("creates a project as OWNER", async () => {
@@ -2111,6 +2200,40 @@ async function createProjectMessage(
   });
 }
 
+function createMockTeamService(): TeamService {
+  return {
+    acceptInvitation: vi.fn().mockResolvedValue(undefined),
+    createInvitation: vi.fn().mockResolvedValue({
+      deliveryKey: "delivery-key",
+      email: "invitee@example.com",
+      invitationId: "invitation-1",
+      organizationName: "Acme Field Ops",
+      role: "MEMBER",
+      token: "invite-token"
+    }),
+    getInvitation: vi.fn().mockResolvedValue({
+      email: "invitee@example.com",
+      expiresAt: new Date(Date.now() + 60_000),
+      organization: { id: "organization-1", name: "Acme Field Ops" },
+      projects: [],
+      role: "MEMBER",
+      status: "PENDING"
+    }),
+    listTeam: vi.fn().mockResolvedValue({ invitations: [], members: [] }),
+    removeMember: vi.fn().mockResolvedValue(undefined),
+    resendInvitation: vi.fn().mockResolvedValue({
+      deliveryKey: "delivery-key-2",
+      email: "invitee@example.com",
+      invitationId: "invitation-1",
+      organizationName: "Acme Field Ops",
+      role: "MEMBER",
+      token: "invite-token-2"
+    }),
+    revokeInvitation: vi.fn().mockResolvedValue(undefined),
+    updateMember: vi.fn().mockResolvedValue(undefined)
+  };
+}
+
 class InMemoryRepository implements AppRepository {
   attachments: AttachmentRecord[] = [];
   conversations: ConversationRecord[] = [];
@@ -2160,6 +2283,7 @@ class InMemoryRepository implements AppRepository {
 
   addMembership(userId: string, organizationId: string, role: Role): MembershipRecord {
     const membership = {
+      allProjects: true,
       id: nextId("membership"),
       organizationId,
       role,
@@ -2426,6 +2550,11 @@ class InMemoryRepository implements AppRepository {
     return Boolean(await this.findMembership(userId, organizationId));
   }
 
+  async userCanAccessProject(userId: string, projectId: string): Promise<boolean> {
+    const project = this.projects.find((candidate) => candidate.id === projectId);
+    return Boolean(project && (await this.findMembership(userId, project.organizationId)));
+  }
+
   async projectBelongsToOrganization(projectId: string, organizationId: string): Promise<boolean> {
     return this.projects.some(
       (project) => project.id === projectId && project.organizationId === organizationId
@@ -2437,7 +2566,8 @@ class InMemoryRepository implements AppRepository {
     return conversation
       ? {
           id: conversation.id,
-          organizationId: conversation.organizationId
+          organizationId: conversation.organizationId,
+          projectId: conversation.projectId
         }
       : null;
   }
@@ -2452,7 +2582,8 @@ class InMemoryRepository implements AppRepository {
       ? {
           conversationId: conversation.id,
           id: message.id,
-          organizationId: conversation.organizationId
+          organizationId: conversation.organizationId,
+          projectId: conversation.projectId
         }
       : null;
   }

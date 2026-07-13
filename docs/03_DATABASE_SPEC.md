@@ -41,6 +41,9 @@ Current MVP models:
 - `PasswordResetToken`: Hashed, expiring, single-use credential for password recovery.
 - `Organization`: Workspace boundary for projects and memberships.
 - `Membership`: Join model between users and organizations with a role.
+- `TeamInvitation`: Hashed, expiring, single-use invitation to an organization role.
+- `TeamInvitationProject`: Selected projects offered by an invitation.
+- `ProjectAccess`: Explicit project access for a restricted membership.
 - `Project`: Work container belonging to an organization.
 - `Conversation`: Channel-agnostic communication thread owned by an organization and optionally linked to a project.
 - `Participant`: Sender or actor inside a conversation.
@@ -68,9 +71,13 @@ Current MVP models:
 Membership roles:
 
 - `OWNER`: Full organization control for the MVP.
-- `ADMIN`: Can create projects.
-- `MEMBER`: Can view projects.
-- `VIEWER`: Can view projects and cannot create or edit.
+- `ADMIN`: Organization-wide management and project access. Only owners can assign this role.
+- `MEMBER`: Operational access to assigned projects.
+- `VIEWER`: Read-only access to assigned projects.
+
+`Membership.allProjects` defaults to `true` to preserve existing access. New `MEMBER` and `VIEWER` invitations set it to `false` and create `ProjectAccess` rows for selected projects. `OWNER` and `ADMIN` memberships always use all-project access.
+
+`TeamInvitation.tokenHash` stores a SHA-256 hash rather than the raw invitation token. Invitations expire after seven days and record acceptance or revocation timestamps. `TeamInvitationProject` records are copied into `ProjectAccess` when the invited user accepts with the exact invited email address.
 
 Project statuses:
 

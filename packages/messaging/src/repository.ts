@@ -26,8 +26,10 @@ export interface MessagingRepository {
   listConversations(input: {
     organizationId: string;
     search?: string;
+    userId: string;
   }): Promise<ConversationRecord[]>;
   listMessages(conversationId: string): Promise<MessageRecord[]>;
   projectBelongsToOrganization(projectId: string, organizationId: string): Promise<boolean>;
   userBelongsToOrganization(userId: string, organizationId: string): Promise<boolean>;
+  userCanAccessProject(userId: string, projectId: string): Promise<boolean>;
 }

@@ -96,6 +96,40 @@ export interface Organization {
   slug: string;
 }
 
+export interface TeamProjectReference {
+  id: string;
+  name: string;
+}
+
+export interface TeamMember {
+  allProjects: boolean;
+  createdAt: string;
+  id: string;
+  projects: TeamProjectReference[];
+  role: MembershipRole;
+  user: User;
+}
+
+export interface TeamInvitation {
+  acceptedAt: string | null;
+  createdAt: string;
+  email: string;
+  expiresAt: string;
+  id: string;
+  projects: TeamProjectReference[];
+  role: MembershipRole;
+  status: "ACCEPTED" | "EXPIRED" | "PENDING" | "REVOKED";
+}
+
+export interface PublicTeamInvitation {
+  email: string;
+  expiresAt: string;
+  organization: { id: string; name: string };
+  projects: TeamProjectReference[];
+  role: MembershipRole;
+  status: "ACCEPTED" | "EXPIRED" | "PENDING" | "REVOKED";
+}
+
 export interface Project {
   id: string;
   code: string;
@@ -1223,6 +1257,53 @@ export const api = {
     apiRequest<{ user: User }>("/auth/login", {
       body: JSON.stringify(body),
       method: "POST"
+    }),
+  getInvitation: (token: string) =>
+    apiRequest<{ invitation: PublicTeamInvitation }>(`/invitations/${encodeURIComponent(token)}`),
+  acceptInvitation: (token: string) =>
+    apiRequest<{ ok: true }>(`/invitations/${encodeURIComponent(token)}/accept`, {
+      method: "POST"
+    }),
+  listTeam: (organizationId: string) =>
+    apiRequest<{ invitations: TeamInvitation[]; members: TeamMember[] }>(
+      `/organizations/${organizationId}/team`
+    ),
+  inviteTeamMember: (
+    organizationId: string,
+    body: { email: string; projectIds: string[]; role: "ADMIN" | "MEMBER" | "VIEWER" }
+  ) =>
+    apiRequest<{
+      deliveryStatus: "FAILED" | "NOT_CONFIGURED" | "SENT";
+      invitationId: string;
+      invitationUrl: string;
+    }>(`/organizations/${organizationId}/invitations`, {
+      body: JSON.stringify(body),
+      method: "POST"
+    }),
+  resendTeamInvitation: (organizationId: string, invitationId: string) =>
+    apiRequest<{
+      deliveryStatus: "FAILED" | "NOT_CONFIGURED" | "SENT";
+      invitationId: string;
+      invitationUrl: string;
+    }>(`/organizations/${organizationId}/invitations/${invitationId}/resend`, {
+      method: "POST"
+    }),
+  revokeTeamInvitation: (organizationId: string, invitationId: string) =>
+    apiRequest<{ ok: true }>(`/organizations/${organizationId}/invitations/${invitationId}`, {
+      method: "DELETE"
+    }),
+  updateTeamMember: (
+    organizationId: string,
+    membershipId: string,
+    body: { projectIds: string[]; role: "ADMIN" | "MEMBER" | "VIEWER" }
+  ) =>
+    apiRequest<{ ok: true }>(`/organizations/${organizationId}/members/${membershipId}`, {
+      body: JSON.stringify(body),
+      method: "PATCH"
+    }),
+  removeTeamMember: (organizationId: string, membershipId: string) =>
+    apiRequest<{ ok: true }>(`/organizations/${organizationId}/members/${membershipId}`, {
+      method: "DELETE"
     }),
   logout: () =>
     apiRequest<{ ok: true }>("/auth/logout", {

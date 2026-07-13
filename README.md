@@ -293,7 +293,9 @@ Authenticated users can change their password from Settings. Password changes an
 
 Organizations are workspaces. Users access organizations through memberships with one of four roles: `OWNER`, `ADMIN`, `MEMBER`, or `VIEWER`.
 
-Project creation is limited to `OWNER` and `ADMIN`. Project reads are scoped to organization membership.
+Owners and administrators manage team invitations from Settings. Invitations expire after seven days, are single-use, require an exact account-email match, and store only a SHA-256 token hash. Owners can assign administrators; owners and administrators can assign member or viewer roles, selected-project access, resend or revoke invitations, change access later, and remove members. A copyable invitation link is available when email delivery is unavailable.
+
+`OWNER` and `ADMIN` have organization-wide project access. `MEMBER` and `VIEWER` can be restricted to selected projects. Project creation and integration management are limited to `OWNER` and `ADMIN`; viewers cannot mutate Action Items.
 
 ## Messaging
 

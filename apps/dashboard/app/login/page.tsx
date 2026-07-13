@@ -21,16 +21,25 @@ export default function LoginPage() {
   const [password, setPassword] = React.useState("");
   const [validationError, setValidationError] = React.useState<string | null>(null);
   const [passwordChanged, setPasswordChanged] = React.useState(false);
+  const [inviteToken, setInviteToken] = React.useState("");
 
   React.useEffect(() => {
-    setPasswordChanged(new URLSearchParams(window.location.search).get("passwordChanged") === "1");
+    const query = new URLSearchParams(window.location.search);
+    setPasswordChanged(query.get("passwordChanged") === "1");
+    setInviteToken(query.get("invite") ?? "");
+    const invitedEmail = query.get("email");
+    if (invitedEmail) setEmail(invitedEmail);
   }, []);
 
   const mutation = useMutation({
     mutationFn: api.login,
     onSuccess: async () => {
+      if (inviteToken) {
+        await api.acceptInvitation(inviteToken);
+      }
       await queryClient.invalidateQueries({ queryKey: ["me"] });
-      router.push("/");
+      await queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      router.push(inviteToken ? "/projects" : "/");
     }
   });
 
@@ -61,6 +70,7 @@ export default function LoginPage() {
               <input
                 className="h-10 rounded-md border border-slate-300 px-3 text-sm"
                 type="email"
+                readOnly={Boolean(inviteToken)}
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
               />
@@ -93,7 +103,14 @@ export default function LoginPage() {
             </Button>
             <p className="text-sm text-slate-600">
               New to FieldOS?{" "}
-              <Link className="font-medium text-slate-950 underline" href="/signup">
+              <Link
+                className="font-medium text-slate-950 underline"
+                href={
+                  inviteToken
+                    ? `/signup?invite=${encodeURIComponent(inviteToken)}&email=${encodeURIComponent(email)}`
+                    : "/signup"
+                }
+              >
                 Sign up
               </Link>
             </p>

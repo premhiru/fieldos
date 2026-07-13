@@ -23,7 +23,8 @@ export class ConversationService {
 
     return this.repository.listConversations({
       organizationId: parsed.organizationId,
-      search: parsed.search
+      search: parsed.search,
+      userId
     });
   }
 
@@ -33,7 +34,11 @@ export class ConversationService {
 
     if (
       parsed.projectId &&
-      !(await this.repository.projectBelongsToOrganization(parsed.projectId, parsed.organizationId))
+      (!(await this.repository.projectBelongsToOrganization(
+        parsed.projectId,
+        parsed.organizationId
+      )) ||
+        !(await this.repository.userCanAccessProject(userId, parsed.projectId)))
     ) {
       throw notFound("Project not found.");
     }
@@ -49,6 +54,12 @@ export class ConversationService {
     }
 
     await this.requireOrganizationAccess(userId, conversation.organizationId);
+    if (
+      conversation.projectId &&
+      !(await this.repository.userCanAccessProject(userId, conversation.projectId))
+    ) {
+      throw forbidden();
+    }
     return conversation;
   }
 
@@ -95,6 +106,12 @@ export class MessageService {
     }
 
     await this.requireOrganizationAccess(userId, context.organizationId);
+    if (
+      context.projectId &&
+      !(await this.repository.userCanAccessProject(userId, context.projectId))
+    ) {
+      throw forbidden();
+    }
 
     if (!(await this.repository.deleteMessage(messageId))) {
       throw notFound("Message not found.");
@@ -111,6 +128,12 @@ export class MessageService {
     }
 
     await this.requireOrganizationAccess(userId, context.organizationId);
+    if (
+      context.projectId &&
+      !(await this.repository.userCanAccessProject(userId, context.projectId))
+    ) {
+      throw forbidden();
+    }
     return context;
   }
 
@@ -133,6 +156,12 @@ export class AttachmentService {
     }
 
     if (!(await this.repository.userBelongsToOrganization(userId, context.organizationId))) {
+      throw forbidden();
+    }
+    if (
+      context.projectId &&
+      !(await this.repository.userCanAccessProject(userId, context.projectId))
+    ) {
       throw forbidden();
     }
 

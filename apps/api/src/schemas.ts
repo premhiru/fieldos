@@ -4,6 +4,33 @@ export const organizationParamsSchema = z.object({
   organizationId: z.string().min(1)
 });
 
+export const invitationParamsSchema = z.object({
+  token: z.string().min(32).max(256)
+});
+
+export const organizationInvitationParamsSchema = z.object({
+  invitationId: z.string().min(1),
+  organizationId: z.string().min(1)
+});
+
+export const organizationMembershipParamsSchema = z.object({
+  membershipId: z.string().min(1),
+  organizationId: z.string().min(1)
+});
+
+const teamRoleSchema = z.enum(["ADMIN", "MEMBER", "VIEWER"]);
+
+export const createTeamInvitationSchema = z.object({
+  email: z.string().trim().email(),
+  projectIds: z.array(z.string().trim().min(1)).max(100).default([]),
+  role: teamRoleSchema
+});
+
+export const updateTeamMemberSchema = z.object({
+  projectIds: z.array(z.string().trim().min(1)).max(100).default([]),
+  role: teamRoleSchema
+});
+
 export const adminOperationsQuerySchema = z.object({
   organizationId: z.string().trim().min(1)
 });

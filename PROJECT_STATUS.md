@@ -220,6 +220,12 @@ Go-Live QA Sprint is implemented, validated locally, and deployed to the Railway
   - Password-reset delivery retries transient Resend failures with exponential backoff and a per-token idempotency key; provider failures are logged without recipient or token data.
   - API and dashboard auth tests cover password changes, reset-link privacy, token reuse prevention, session revocation, and recovery UI states.
   - Deployed to Vercel and Railway on 2026-07-13; production migration `20260713010000_password_security` is applied.
+- Team and invitations.
+  - Owners and administrators can invite users, resend or revoke invitations, change member roles and project access, and remove members from Settings.
+  - Invitation tokens are hashed, expire after seven days, require exact-email acceptance, and are single-use.
+  - Owners can assign administrators; administrators cannot manage other administrators or the owner.
+  - Members and viewers can be restricted to selected projects across Projects, Dashboard, Search, and Inbox access paths.
+  - Production migration `20260713030000_team_invitations` is applied and the invitation lifecycle passed a disposable production database smoke test.
 
 ## In-Progress Tasks
 
@@ -292,6 +298,7 @@ Go-Live QA Sprint is implemented, validated locally, and deployed to the Railway
 - ADR 0013: Generate grounded project intelligence and reports from stored FieldOS records, with signed evidence media access.
 - ADR 0013B: Use Cloudflare R2 for production media and report storage through signed URLs.
 - ADR 0014: Use AI Project Coordinators, deterministic ProjectState, and human-approved Recommendations.
+- ADR 0015: Use hashed team invitations, organization roles, and explicit project access for restricted members.
 - Sprint 14 implementation decision: Keep pilot readiness primitives small, tenant-scoped, and API-owned rather than introducing a product analytics service or tour framework before the first pilot.
 
 ## Deployment Status

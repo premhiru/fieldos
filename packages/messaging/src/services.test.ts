@@ -257,7 +257,8 @@ class InMemoryMessagingRepository implements MessagingRepository {
     return conversation
       ? {
           id: conversation.id,
-          organizationId: conversation.organizationId
+          organizationId: conversation.organizationId,
+          projectId: conversation.projectId
         }
       : null;
   }
@@ -272,7 +273,8 @@ class InMemoryMessagingRepository implements MessagingRepository {
       ? {
           conversationId: conversation.id,
           id: message.id,
-          organizationId: conversation.organizationId
+          organizationId: conversation.organizationId,
+          projectId: conversation.projectId
         }
       : null;
   }
@@ -314,6 +316,10 @@ class InMemoryMessagingRepository implements MessagingRepository {
 
   async userBelongsToOrganization(userId: string, organizationId: string): Promise<boolean> {
     return userId === "user_1" && organizationId === "organization_1";
+  }
+
+  async userCanAccessProject(userId: string, projectId: string): Promise<boolean> {
+    return userId === "user_1" && projectId === this.project.id;
   }
 }
 

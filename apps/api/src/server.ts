@@ -68,18 +68,22 @@ import {
   adminOperationsQuerySchema,
   createOrganizationSchema,
   createProjectSchema,
+  createTeamInvitationSchema,
   conversationParamsSchema,
   createWhatsAppAccountSchema,
   dashboardQuerySchema,
   evidenceParamsSchema,
   feedbackSchema,
   generateProjectReportSchema,
+  invitationParamsSchema,
   mediaParamsSchema,
   mediaQuerySchema,
   messageParamsSchema,
   notificationParamsSchema,
   notificationsQuerySchema,
   organizationParamsSchema,
+  organizationInvitationParamsSchema,
+  organizationMembershipParamsSchema,
   paginationQuerySchema,
   photoAnalysisParamsSchema,
   processingJobParamsSchema,
@@ -93,6 +97,7 @@ import {
   searchQuerySchema,
   dismissRecommendationSchema,
   updateWhatsAppDraftSchema,
+  updateTeamMemberSchema,
   updateWhatsAppChatMappingSchema,
   whatsappAccountParamsSchema,
   whatsappAccountsQuerySchema,
@@ -100,6 +105,17 @@ import {
   whatsappDraftsQuerySchema,
   whatsappChatMappingParamsSchema
 } from "./schemas.js";
+import {
+  createTeamInvitationEmailSender,
+  TeamInvitationEmailError,
+  type TeamInvitationEmailSender
+} from "./team-invitation-email.js";
+import {
+  createPrismaTeamService,
+  TeamServiceError,
+  type TeamInvitationDelivery,
+  type TeamService
+} from "./team-service.js";
 
 const writableRoles = new Set<Role>(["OWNER", "ADMIN"]);
 
@@ -112,6 +128,8 @@ export interface BuildServerOptions {
     answer(input: SearchAnswerInput): Promise<SearchAnswerResult>;
   };
   storageProvider?: StorageProvider;
+  teamInvitationEmailSender?: TeamInvitationEmailSender;
+  teamService?: TeamService;
 }
 
 type CoordinatorRuntimePort = Pick<
@@ -144,6 +162,13 @@ export function buildServer(options: BuildServerOptions = {}) {
   const passwordResetEmailSender =
     options.passwordResetEmailSender ??
     createPasswordResetEmailSender({
+      apiKey: apiEnv.RESEND_API_KEY,
+      from: apiEnv.EMAIL_FROM
+    });
+  const teamService = options.teamService ?? createPrismaTeamService();
+  const teamInvitationEmailSender =
+    options.teamInvitationEmailSender ??
+    createTeamInvitationEmailSender({
       apiKey: apiEnv.RESEND_API_KEY,
       from: apiEnv.EMAIL_FROM
     });
@@ -204,6 +229,25 @@ export function buildServer(options: BuildServerOptions = {}) {
       });
     }
 
+    if (error instanceof TeamServiceError) {
+      const statusCode =
+        error.code === "NOT_FOUND"
+          ? 404
+          : error.code === "EXPIRED"
+            ? 410
+            : error.code === "MEMBER_EXISTS" || error.code === "USED"
+              ? 409
+              : error.code === "EMAIL_MISMATCH" ||
+                  error.code === "FORBIDDEN" ||
+                  error.code === "OWNER_PROTECTED"
+                ? 403
+                : 400;
+      return reply.status(statusCode).send({
+        error: { code: error.code, message: error.message },
+        requestId: request.id
+      });
+    }
+
     if (error instanceof HttpError) {
       return reply.status(error.statusCode).send({
         error: {
@@ -231,6 +275,22 @@ export function buildServer(options: BuildServerOptions = {}) {
   server.get("/health", async () => ({
     status: "ok"
   }));
+
+  server.get("/invitations/:token", async (request) => {
+    const params = invitationParamsSchema.parse(request.params);
+    return { invitation: await teamService.getInvitation(params.token) };
+  });
+
+  server.post("/invitations/:token/accept", { preHandler: requireAuth }, async (request) => {
+    const params = invitationParamsSchema.parse(request.params);
+    const user = requireCurrentUser(request);
+    await teamService.acceptInvitation({
+      token: params.token,
+      userEmail: user.email,
+      userId: user.id
+    });
+    return { ok: true };
+  });
 
   server.get("/media/:token", async (request, reply) => {
     const params = mediaParamsSchema.parse(request.params);
@@ -438,6 +498,92 @@ export function buildServer(options: BuildServerOptions = {}) {
   });
 
   server.get(
+    "/organizations/:organizationId/team",
+    { preHandler: requireAuth },
+    async (request) => {
+      const params = organizationParamsSchema.parse(request.params);
+      await requireWritableOrganizationRole(requireCurrentUser(request).id, params.organizationId);
+      return teamService.listTeam(params.organizationId);
+    }
+  );
+
+  server.post(
+    "/organizations/:organizationId/invitations",
+    { preHandler: requireAuth },
+    async (request) => {
+      const params = organizationParamsSchema.parse(request.params);
+      const body = createTeamInvitationSchema.parse(request.body);
+      const user = requireCurrentUser(request);
+      const membership = await requireWritableOrganizationRole(user.id, params.organizationId);
+      if (body.role === "ADMIN" && membership.role !== "OWNER") {
+        throw forbidden("Only the organization owner can invite administrators.");
+      }
+      const delivery = await teamService.createInvitation({
+        ...body,
+        invitedByUserId: user.id,
+        organizationId: params.organizationId
+      });
+      return sendTeamInvitation(delivery);
+    }
+  );
+
+  server.post(
+    "/organizations/:organizationId/invitations/:invitationId/resend",
+    { preHandler: requireAuth },
+    async (request) => {
+      const params = organizationInvitationParamsSchema.parse(request.params);
+      await requireWritableOrganizationRole(requireCurrentUser(request).id, params.organizationId);
+      return sendTeamInvitation(await teamService.resendInvitation(params));
+    }
+  );
+
+  server.delete(
+    "/organizations/:organizationId/invitations/:invitationId",
+    { preHandler: requireAuth },
+    async (request) => {
+      const params = organizationInvitationParamsSchema.parse(request.params);
+      await requireWritableOrganizationRole(requireCurrentUser(request).id, params.organizationId);
+      await teamService.revokeInvitation(params);
+      return { ok: true };
+    }
+  );
+
+  server.patch(
+    "/organizations/:organizationId/members/:membershipId",
+    { preHandler: requireAuth },
+    async (request) => {
+      const params = organizationMembershipParamsSchema.parse(request.params);
+      const body = updateTeamMemberSchema.parse(request.body);
+      const user = requireCurrentUser(request);
+      const actor = await requireWritableOrganizationRole(user.id, params.organizationId);
+      await teamService.updateMember({
+        ...body,
+        actorRole: actor.role as "OWNER" | "ADMIN",
+        membershipId: params.membershipId,
+        organizationId: params.organizationId
+      });
+      return { ok: true };
+    }
+  );
+
+  server.delete(
+    "/organizations/:organizationId/members/:membershipId",
+    { preHandler: requireAuth },
+    async (request) => {
+      const params = organizationMembershipParamsSchema.parse(request.params);
+      const user = requireCurrentUser(request);
+      const actor = await requireWritableOrganizationRole(user.id, params.organizationId);
+      await teamService.removeMember({
+        actorRole: actor.role as "OWNER" | "ADMIN",
+        actorUserId: user.id,
+        membershipId: params.membershipId,
+        organizationId: params.organizationId
+      });
+      return { ok: true };
+    }
+  );
+
+  server.get(
     "/organizations/:organizationId/onboarding",
     { preHandler: requireAuth },
     async (request) => {
@@ -627,7 +773,10 @@ export function buildServer(options: BuildServerOptions = {}) {
   server.get("/search", { preHandler: requireAuth }, async (request) => {
     const query = searchQuerySchema.parse(request.query);
     const user = requireCurrentUser(request);
-    await requireOrganizationMembership(user.id, query.organizationId);
+    const membership = await requireOrganizationMembership(user.id, query.organizationId);
+    if (!membership.allProjects && !query.projectId) {
+      throw forbidden("Select an assigned project before searching.");
+    }
     await validateMappingProject(user.id, query.organizationId, query.projectId ?? null);
 
     const results = await repository.searchDocuments({
@@ -656,7 +805,10 @@ export function buildServer(options: BuildServerOptions = {}) {
   server.post("/search/ask", { preHandler: requireAuth }, async (request) => {
     const body = searchAskSchema.parse(request.body);
     const user = requireCurrentUser(request);
-    await requireOrganizationMembership(user.id, body.organizationId);
+    const membership = await requireOrganizationMembership(user.id, body.organizationId);
+    if (!membership.allProjects && !body.projectId) {
+      throw forbidden("Select an assigned project before asking a question.");
+    }
     await validateMappingProject(user.id, body.organizationId, body.projectId ?? null);
     await trackProductEvent({
       eventName: "search_answer_requested",
@@ -1235,7 +1387,9 @@ export function buildServer(options: BuildServerOptions = {}) {
       throw notFound("Message not found.");
     }
 
-    await requireOrganizationMembership(requireCurrentUser(request).id, context.organizationId);
+    const userId = requireCurrentUser(request).id;
+    await requireOrganizationMembership(userId, context.organizationId);
+    await requireScopedProjectAccess(userId, context.projectId, "Message");
 
     return {
       classification: await repository.getMessageClassification(params.id)
@@ -1250,10 +1404,9 @@ export function buildServer(options: BuildServerOptions = {}) {
       throw notFound("Message not found.");
     }
 
-    await requireOrganizationMembership(
-      requireCurrentUser(request).id,
-      messageContext.organizationId
-    );
+    const userId = requireCurrentUser(request).id;
+    await requireOrganizationMembership(userId, messageContext.organizationId);
+    await requireScopedProjectAccess(userId, messageContext.projectId, "Message");
 
     return {
       context: await repository.getMessageEvidenceContext(params.id)
@@ -1268,10 +1421,9 @@ export function buildServer(options: BuildServerOptions = {}) {
       throw notFound("Message not found.");
     }
 
-    await requireOrganizationMembership(
-      requireCurrentUser(request).id,
-      messageContext.organizationId
-    );
+    const userId = requireCurrentUser(request).id;
+    await requireOrganizationMembership(userId, messageContext.organizationId);
+    await requireScopedProjectAccess(userId, messageContext.projectId, "Message");
 
     return {
       evidenceSummary: await repository.getMessageEvidenceSummary(params.id)
@@ -1286,7 +1438,9 @@ export function buildServer(options: BuildServerOptions = {}) {
       throw notFound("Photo analysis not found.");
     }
 
-    await requireOrganizationMembership(requireCurrentUser(request).id, analysis.organizationId);
+    const userId = requireCurrentUser(request).id;
+    await requireOrganizationMembership(userId, analysis.organizationId);
+    await requireScopedProjectAccess(userId, analysis.projectId, "Photo analysis");
 
     return {
       analysis
@@ -1301,7 +1455,9 @@ export function buildServer(options: BuildServerOptions = {}) {
       throw notFound("Photo analysis not found.");
     }
 
-    await requireOrganizationMembership(requireCurrentUser(request).id, analysis.organizationId);
+    const userId = requireCurrentUser(request).id;
+    await requireOrganizationMembership(userId, analysis.organizationId);
+    await requireScopedProjectAccess(userId, analysis.projectId, "Photo analysis");
 
     return {
       analysis
@@ -1316,7 +1472,9 @@ export function buildServer(options: BuildServerOptions = {}) {
       throw notFound("Evidence not found.");
     }
 
-    await requireOrganizationMembership(requireCurrentUser(request).id, evidence.organizationId);
+    const userId = requireCurrentUser(request).id;
+    await requireOrganizationMembership(userId, evidence.organizationId);
+    await requireScopedProjectAccess(userId, evidence.project?.id ?? null, "Evidence");
     const signedUrl = await storageProvider.getSignedUrl({
       baseUrl: getRequestBaseUrl(request),
       expiresInSeconds: apiEnv.SIGNED_URL_TTL_SECONDS,
@@ -1341,7 +1499,9 @@ export function buildServer(options: BuildServerOptions = {}) {
       throw notFound("Message not found.");
     }
 
-    await requireOrganizationMembership(requireCurrentUser(request).id, context.organizationId);
+    const userId = requireCurrentUser(request).id;
+    await requireWritableOrganizationRole(userId, context.organizationId);
+    await requireScopedProjectAccess(userId, context.projectId, "Message");
 
     return {
       classification: await repository.enqueueMessageClassification(params.id)
@@ -1390,7 +1550,7 @@ export function buildServer(options: BuildServerOptions = {}) {
   server.get("/whatsapp/accounts", { preHandler: requireAuth }, async (request) => {
     const query = whatsappAccountsQuerySchema.parse(request.query);
     const user = requireCurrentUser(request);
-    await requireOrganizationMembership(user.id, query.organizationId);
+    await requireWritableOrganizationRole(user.id, query.organizationId);
 
     return {
       accounts: await repository.listWhatsAppAccounts(query.organizationId)
@@ -1585,6 +1745,40 @@ export function buildServer(options: BuildServerOptions = {}) {
     await repository.disconnect();
   });
 
+  async function sendTeamInvitation(delivery: TeamInvitationDelivery) {
+    const invitationUrl = `${apiEnv.WEB_APP_URL}/invite?token=${encodeURIComponent(delivery.token)}`;
+    let deliveryStatus: "FAILED" | "NOT_CONFIGURED" | "SENT" = "SENT";
+    try {
+      const status = await teamInvitationEmailSender.send({
+        deliveryKey: delivery.deliveryKey,
+        invitationId: delivery.invitationId,
+        invitationUrl,
+        organizationName: delivery.organizationName,
+        recipient: delivery.email,
+        role: delivery.role
+      });
+      deliveryStatus = status;
+    } catch (error) {
+      deliveryStatus = "FAILED";
+      if (error instanceof TeamInvitationEmailError) {
+        server.log.error(
+          {
+            invitationId: delivery.invitationId,
+            providerCode: error.providerCode,
+            statusCode: error.statusCode
+          },
+          "team invitation email delivery failed"
+        );
+      } else {
+        server.log.error(
+          { err: error, invitationId: delivery.invitationId },
+          "team invitation email delivery failed"
+        );
+      }
+    }
+    return { deliveryStatus, invitationId: delivery.invitationId, invitationUrl };
+  }
+
   async function requireAuth(request: FastifyRequest) {
     const token = request.cookies[AUTH_COOKIE_NAME];
 
@@ -1650,7 +1844,7 @@ export function buildServer(options: BuildServerOptions = {}) {
       throw notFound("WhatsApp account not found.");
     }
 
-    await requireOrganizationMembership(userId, account.organizationId);
+    await requireWritableOrganizationRole(userId, account.organizationId);
     return account;
   }
 
@@ -1661,7 +1855,7 @@ export function buildServer(options: BuildServerOptions = {}) {
       throw notFound("WhatsApp chat mapping not found.");
     }
 
-    await requireOrganizationMembership(userId, mapping.organizationId);
+    await requireWritableOrganizationRole(userId, mapping.organizationId);
     return mapping;
   }
 
@@ -1672,7 +1866,16 @@ export function buildServer(options: BuildServerOptions = {}) {
       throw notFound("Action item not found.");
     }
 
-    await requireOrganizationMembership(userId, actionItem.organizationId);
+    const membership = await requireOrganizationMembership(userId, actionItem.organizationId);
+    if (membership.role === "VIEWER") {
+      throw forbidden("Viewers cannot update action items.");
+    }
+    if (
+      actionItem.projectId &&
+      !(await repository.findProjectForUser(userId, actionItem.projectId))
+    ) {
+      throw notFound("Action item not found.");
+    }
     return actionItem;
   }
 
@@ -1684,6 +1887,9 @@ export function buildServer(options: BuildServerOptions = {}) {
     }
 
     await requireOrganizationMembership(userId, recommendation.organizationId);
+    if (!(await repository.findProjectForUser(userId, recommendation.projectId))) {
+      throw notFound("Recommendation not found.");
+    }
     return recommendation;
   }
 
@@ -1695,6 +1901,9 @@ export function buildServer(options: BuildServerOptions = {}) {
     }
 
     await requireOrganizationMembership(userId, draft.organizationId);
+    if (!(await repository.findProjectForUser(userId, draft.projectId))) {
+      throw notFound("WhatsApp draft not found.");
+    }
     return draft;
   }
 
@@ -1717,6 +1926,16 @@ export function buildServer(options: BuildServerOptions = {}) {
     }
 
     return project;
+  }
+
+  async function requireScopedProjectAccess(
+    userId: string,
+    projectId: string | null,
+    resourceName: string
+  ): Promise<void> {
+    if (projectId && !(await repository.findProjectForUser(userId, projectId))) {
+      throw notFound(`${resourceName} not found.`);
+    }
   }
 
   async function getProjectIntelligenceContextForRequest(request: FastifyRequest) {

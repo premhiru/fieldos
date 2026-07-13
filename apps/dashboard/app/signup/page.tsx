@@ -21,15 +21,27 @@ export default function SignupPage() {
   const [email, setEmail] = React.useState("");
   const [name, setName] = React.useState("");
   const [password, setPassword] = React.useState("");
+  const [inviteToken, setInviteToken] = React.useState("");
   const [validationError, setValidationError] = React.useState<string | null>(null);
 
   const mutation = useMutation({
     mutationFn: api.signup,
     onSuccess: async () => {
+      if (inviteToken) {
+        await api.acceptInvitation(inviteToken);
+      }
       await queryClient.invalidateQueries({ queryKey: ["me"] });
-      router.push("/");
+      await queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      router.push(inviteToken ? "/projects" : "/");
     }
   });
+
+  React.useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    const invitedEmail = query.get("email");
+    setInviteToken(query.get("invite") ?? "");
+    if (invitedEmail) setEmail(invitedEmail);
+  }, []);
 
   return (
     <PageContainer className="flex min-h-screen items-center justify-center">
@@ -68,6 +80,7 @@ export default function SignupPage() {
               <input
                 className="h-10 rounded-md border border-slate-300 px-3 text-sm"
                 type="email"
+                readOnly={Boolean(inviteToken)}
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
               />
@@ -90,7 +103,14 @@ export default function SignupPage() {
             </Button>
             <p className="text-sm text-slate-600">
               Already have an account?{" "}
-              <Link className="font-medium text-slate-950 underline" href="/login">
+              <Link
+                className="font-medium text-slate-950 underline"
+                href={
+                  inviteToken
+                    ? `/login?invite=${encodeURIComponent(inviteToken)}&email=${encodeURIComponent(email)}`
+                    : "/login"
+                }
+              >
                 Log in
               </Link>
             </p>

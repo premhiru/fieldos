@@ -22,6 +22,7 @@ model Organization {
   analyticsEvents          ProductAnalyticsEvent[]
   milestones               Milestone[]
   memberships              Membership[]
+  teamInvitations          TeamInvitation[]
   notifications            UserNotification[]
   photoAnalyses            PhotoAnalysis[]
   processingJobs           ProcessingJob[]
@@ -50,6 +51,8 @@ model User {
   feedback                      UserFeedback[]
   ignoredActionItems            ActionItem[]            @relation("ActionItemIgnoredBy")
   memberships                   Membership[]
+  acceptedTeamInvitations       TeamInvitation[]        @relation("TeamInvitationAcceptedBy")
+  sentTeamInvitations           TeamInvitation[]        @relation("TeamInvitationInvitedBy")
   notifications                 UserNotification[]
   passwordResetTokens           PasswordResetToken[]
   approvedRecommendations       Recommendation[]        @relation("RecommendationApprovedBy")
@@ -72,17 +75,64 @@ model PasswordResetToken {
 }
 
 model Membership {
-  id             String         @id @default(cuid())
+  id             String          @id @default(cuid())
   userId         String
   organizationId String
-  role           MembershipRole @default(MEMBER)
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           MembershipRole  @default(MEMBER)
+  allProjects    Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectAccess  ProjectAccess[]
 
   @@unique([userId, organizationId])
   @@index([organizationId])
+}
+
+model TeamInvitation {
+  id               String                  @id @default(cuid())
+  organizationId   String
+  email            String
+  role             MembershipRole
+  tokenHash        String                  @unique
+  expiresAt        DateTime
+  acceptedAt       DateTime?
+  revokedAt        DateTime?
+  invitedByUserId  String
+  acceptedByUserId String?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+  organization     Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedBy        User                    @relation("TeamInvitationInvitedBy", fields: [invitedByUserId], references: [id], onDelete: Restrict)
+  acceptedBy       User?                   @relation("TeamInvitationAcceptedBy", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
+  projects         TeamInvitationProject[]
+
+  @@index([organizationId, createdAt])
+  @@index([email, organizationId])
+  @@index([expiresAt])
+}
+
+model TeamInvitationProject {
+  invitationId String
+  projectId    String
+  invitation   TeamInvitation @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+  project      Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@id([invitationId, projectId])
+  @@index([projectId])
+}
+
+model ProjectAccess {
+  id           String     @id @default(cuid())
+  membershipId String
+  projectId    String
+  createdAt    DateTime   @default(now())
+  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  project      Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([membershipId, projectId])
+  @@index([projectId])
 }
 
 model Project {
@@ -103,9 +153,11 @@ model Project {
   photoAnalyses            PhotoAnalysis[]
   projectState             ProjectState?
   projectReports           ProjectReport[]
+  projectAccess            ProjectAccess[]
   recommendations          Recommendation[]
   searchDocuments          SearchDocument[]
   suggestedActionItems     ActionItem[]              @relation("ActionItemSuggestedProject")
+  teamInvitationProjects   TeamInvitationProject[]
   whatsAppChatMapping      WhatsAppChatMapping[]
   whatsAppDrafts           WhatsAppDraft[]
 

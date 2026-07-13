@@ -91,12 +91,14 @@ export interface MessageRecord {
 export interface ConversationContext {
   id: string;
   organizationId: string;
+  projectId: string | null;
 }
 
 export interface MessageContext {
   id: string;
   conversationId: string;
   organizationId: string;
+  projectId: string | null;
 }
 
 export interface CreateConversationInput {

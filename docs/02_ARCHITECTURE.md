@@ -103,8 +103,11 @@ Organization and project flow:
 
 1. A user creates an organization.
 2. The API creates an `OWNER` membership for that user.
-3. Project queries are scoped through organization membership.
-4. Project creation is limited to `OWNER` and `ADMIN` roles.
+3. Owners and administrators create seven-day team invitations; only token hashes are persisted.
+4. Invited users sign up or log in with the exact invited email and accept the invitation once.
+5. `OWNER` and `ADMIN` memberships access all projects. Restricted `MEMBER` and `VIEWER` memberships resolve projects through `ProjectAccess`.
+6. Project, dashboard, search, conversation, message, and attachment reads apply the same project-access boundary.
+7. Project creation and integration management are limited to `OWNER` and `ADMIN` roles.
 
 ## Integration Strategy
 

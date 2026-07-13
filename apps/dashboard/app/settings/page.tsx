@@ -4,13 +4,20 @@ import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@fieldo
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { QRCodeSVG } from "qrcode.react";
 import { useRouter } from "next/navigation";
+import { RefreshCw, Trash2, UserPlus } from "lucide-react";
 import * as React from "react";
 
 import { AppShell } from "../../components/app-shell";
 import { AuthGuard } from "../../components/auth-guard";
 import { OrganizationOnboarding } from "../../components/organization-onboarding";
 import { OrganizationSelector } from "../../components/organization-selector";
-import { api, type Project, type WhatsAppAccount, type WhatsAppChatMapping } from "../../lib/api";
+import {
+  api,
+  type Project,
+  type TeamMember,
+  type WhatsAppAccount,
+  type WhatsAppChatMapping
+} from "../../lib/api";
 import { useOrganizations, useProjects } from "../../lib/queries";
 import { useActiveOrganizationStore } from "../../store/active-organization-store";
 
@@ -90,6 +97,14 @@ function SettingsContent() {
 
       <PasswordSecurityCard />
 
+      {canManage ? (
+        <TeamSettingsSection
+          actorRole={activeOrganization.role as "OWNER" | "ADMIN"}
+          organizationId={activeOrganization.id}
+          projects={projects}
+        />
+      ) : null}
+
       <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
         This connector uses WhatsApp Web pairing through Baileys. Use dedicated business numbers
         only. Do not connect personal WhatsApp accounts. For enterprise deployments, FieldOS will
@@ -155,6 +170,355 @@ function SettingsContent() {
         )}
       </div>
     </div>
+  );
+}
+
+function TeamSettingsSection({
+  actorRole,
+  organizationId,
+  projects
+}: {
+  actorRole: "OWNER" | "ADMIN";
+  organizationId: string;
+  projects: Project[];
+}) {
+  const queryClient = useQueryClient();
+  const [email, setEmail] = React.useState("");
+  const [role, setRole] = React.useState<"ADMIN" | "MEMBER" | "VIEWER">("MEMBER");
+  const [projectIds, setProjectIds] = React.useState<string[]>([]);
+  const [deliveryNotice, setDeliveryNotice] = React.useState<string | null>(null);
+  const teamQuery = useQuery({
+    queryFn: () => api.listTeam(organizationId),
+    queryKey: ["team", organizationId],
+    retry: false
+  });
+  const inviteMutation = useMutation({
+    mutationFn: () => api.inviteTeamMember(organizationId, { email, projectIds, role }),
+    onSuccess: async (result) => {
+      await navigator.clipboard.writeText(result.invitationUrl);
+      setDeliveryNotice(
+        result.deliveryStatus === "SENT"
+          ? "Invitation sent. The invite link was also copied."
+          : "Email delivery was unavailable, so the invite link was copied for you to share."
+      );
+      setEmail("");
+      setProjectIds([]);
+      await queryClient.invalidateQueries({ queryKey: ["team", organizationId] });
+    }
+  });
+  const resendMutation = useMutation({
+    mutationFn: (invitationId: string) => api.resendTeamInvitation(organizationId, invitationId),
+    onSuccess: async (result) => {
+      await navigator.clipboard.writeText(result.invitationUrl);
+      setDeliveryNotice(
+        result.deliveryStatus === "SENT"
+          ? "Invitation resent and its new link copied."
+          : "Email delivery failed, but the new invite link was copied."
+      );
+      await queryClient.invalidateQueries({ queryKey: ["team", organizationId] });
+    }
+  });
+  const revokeMutation = useMutation({
+    mutationFn: (invitationId: string) => api.revokeTeamInvitation(organizationId, invitationId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["team", organizationId] })
+  });
+
+  React.useEffect(() => {
+    setDeliveryNotice(null);
+  }, [organizationId]);
+
+  return (
+    <section className="space-y-4">
+      <div>
+        <h2 className="text-lg font-semibold text-slate-950">Team & Invitations</h2>
+        <p className="text-sm text-slate-600">Manage organization roles and project access.</p>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Invite team member</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form
+            className="space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              setDeliveryNotice(null);
+              inviteMutation.mutate();
+            }}
+          >
+            <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_180px]">
+              <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+                Email
+                <input
+                  className="h-10 rounded-md border border-slate-300 px-3 text-sm"
+                  onChange={(event) => setEmail(event.target.value)}
+                  required
+                  type="email"
+                  value={email}
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+                Role
+                <select
+                  className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm"
+                  onChange={(event) => {
+                    const nextRole = event.target.value as "ADMIN" | "MEMBER" | "VIEWER";
+                    setRole(nextRole);
+                    if (nextRole === "ADMIN") setProjectIds([]);
+                  }}
+                  value={role}
+                >
+                  {actorRole === "OWNER" ? <option value="ADMIN">Admin</option> : null}
+                  <option value="MEMBER">Member</option>
+                  <option value="VIEWER">Viewer</option>
+                </select>
+              </label>
+            </div>
+
+            {role === "ADMIN" ? (
+              <p className="text-sm text-slate-600">Admins can access every project.</p>
+            ) : (
+              <ProjectCheckboxes
+                projectIds={projectIds}
+                projects={projects}
+                setProjectIds={setProjectIds}
+              />
+            )}
+
+            <div className="flex flex-wrap items-center gap-3">
+              <Button disabled={inviteMutation.isPending || !email.trim()} type="submit">
+                <UserPlus aria-hidden="true" className="mr-2 h-4 w-4" />
+                {inviteMutation.isPending ? "Inviting..." : "Send invitation"}
+              </Button>
+              {deliveryNotice ? <p className="text-sm text-emerald-700">{deliveryNotice}</p> : null}
+              {inviteMutation.isError ? (
+                <p className="text-sm text-red-700">{(inviteMutation.error as Error).message}</p>
+              ) : null}
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+
+      <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+        <div className="border-b border-slate-200 px-4 py-3">
+          <h3 className="text-sm font-semibold text-slate-950">Members</h3>
+        </div>
+        {teamQuery.isLoading ? (
+          <p className="p-4 text-sm text-slate-600">Loading team...</p>
+        ) : teamQuery.isError ? (
+          <p className="p-4 text-sm text-red-700">Unable to load team members.</p>
+        ) : (
+          <div className="divide-y divide-slate-200">
+            {(teamQuery.data?.members ?? []).map((member) => (
+              <TeamMemberRow
+                key={member.id}
+                actorRole={actorRole}
+                member={member}
+                organizationId={organizationId}
+                projects={projects}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+        <div className="border-b border-slate-200 px-4 py-3">
+          <h3 className="text-sm font-semibold text-slate-950">Invitations</h3>
+        </div>
+        {(teamQuery.data?.invitations ?? []).length === 0 ? (
+          <p className="p-4 text-sm text-slate-600">No invitations yet.</p>
+        ) : (
+          <div className="divide-y divide-slate-200">
+            {teamQuery.data?.invitations.map((invitation) => (
+              <div
+                className="flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between"
+                key={invitation.id}
+              >
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="truncate text-sm font-medium text-slate-950">
+                      {invitation.email}
+                    </p>
+                    <Badge variant={invitation.status === "PENDING" ? "warning" : "muted"}>
+                      {invitation.status}
+                    </Badge>
+                    <Badge variant="muted">{invitation.role}</Badge>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-600">
+                    {invitation.role === "ADMIN"
+                      ? "All projects"
+                      : invitation.projects.map((project) => project.name).join(", ") ||
+                        "No projects assigned"}
+                  </p>
+                </div>
+                {invitation.status === "PENDING" ? (
+                  <div className="flex gap-2">
+                    <Button
+                      aria-label={`Resend invitation to ${invitation.email}`}
+                      disabled={resendMutation.isPending}
+                      onClick={() => resendMutation.mutate(invitation.id)}
+                      title="Resend and copy new link"
+                      type="button"
+                      variant="secondary"
+                    >
+                      <RefreshCw aria-hidden="true" className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      aria-label={`Revoke invitation to ${invitation.email}`}
+                      disabled={revokeMutation.isPending}
+                      onClick={() => revokeMutation.mutate(invitation.id)}
+                      title="Revoke invitation"
+                      type="button"
+                      variant="ghost"
+                    >
+                      <Trash2 aria-hidden="true" className="h-4 w-4 text-red-700" />
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function TeamMemberRow({
+  actorRole,
+  member,
+  organizationId,
+  projects
+}: {
+  actorRole: "OWNER" | "ADMIN";
+  member: TeamMember;
+  organizationId: string;
+  projects: Project[];
+}) {
+  const queryClient = useQueryClient();
+  const [role, setRole] = React.useState<"ADMIN" | "MEMBER" | "VIEWER">(
+    member.role === "OWNER" ? "ADMIN" : member.role
+  );
+  const [projectIds, setProjectIds] = React.useState(member.projects.map((project) => project.id));
+  const updateMutation = useMutation({
+    mutationFn: () => api.updateTeamMember(organizationId, member.id, { projectIds, role }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["team", organizationId] })
+  });
+  const removeMutation = useMutation({
+    mutationFn: () => api.removeTeamMember(organizationId, member.id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["team", organizationId] })
+  });
+  const protectedMember =
+    member.role === "OWNER" || (actorRole !== "OWNER" && member.role === "ADMIN");
+
+  if (protectedMember) {
+    return (
+      <div className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium text-slate-950">{member.user.name}</p>
+          <p className="truncate text-xs text-slate-600">{member.user.email}</p>
+        </div>
+        <Badge>{member.role}</Badge>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3 px-4 py-4">
+      <div className="flex flex-col gap-3 md:flex-row md:items-end">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-slate-950">{member.user.name}</p>
+          <p className="truncate text-xs text-slate-600">{member.user.email}</p>
+        </div>
+        <label className="flex w-full flex-col gap-1 text-xs font-medium text-slate-700 md:w-40">
+          Role
+          <select
+            className="h-9 rounded-md border border-slate-300 bg-white px-2 text-sm"
+            onChange={(event) => {
+              const nextRole = event.target.value as "ADMIN" | "MEMBER" | "VIEWER";
+              setRole(nextRole);
+              if (nextRole === "ADMIN") setProjectIds([]);
+            }}
+            value={role}
+          >
+            {actorRole === "OWNER" ? <option value="ADMIN">Admin</option> : null}
+            <option value="MEMBER">Member</option>
+            <option value="VIEWER">Viewer</option>
+          </select>
+        </label>
+        <Button disabled={updateMutation.isPending} onClick={() => updateMutation.mutate()}>
+          Save
+        </Button>
+        <Button
+          aria-label={`Remove ${member.user.name}`}
+          disabled={removeMutation.isPending}
+          onClick={() => removeMutation.mutate()}
+          title="Remove member"
+          variant="ghost"
+        >
+          <Trash2 aria-hidden="true" className="h-4 w-4 text-red-700" />
+        </Button>
+      </div>
+      {role === "ADMIN" ? (
+        <p className="text-xs text-slate-600">Admins can access every project.</p>
+      ) : (
+        <ProjectCheckboxes
+          compact
+          projectIds={projectIds}
+          projects={projects}
+          setProjectIds={setProjectIds}
+        />
+      )}
+      {updateMutation.isError || removeMutation.isError ? (
+        <p className="text-sm text-red-700">
+          {((updateMutation.error ?? removeMutation.error) as Error).message}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function ProjectCheckboxes({
+  compact = false,
+  projectIds,
+  projects,
+  setProjectIds
+}: {
+  compact?: boolean;
+  projectIds: string[];
+  projects: Project[];
+  setProjectIds: React.Dispatch<React.SetStateAction<string[]>>;
+}) {
+  return (
+    <fieldset>
+      <legend className="mb-2 text-sm font-medium text-slate-700">Project access</legend>
+      <div className={`grid gap-2 ${compact ? "md:grid-cols-3" : "sm:grid-cols-2 lg:grid-cols-3"}`}>
+        {projects.map((project) => (
+          <label
+            className="flex min-w-0 items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700"
+            key={project.id}
+          >
+            <input
+              checked={projectIds.includes(project.id)}
+              onChange={(event) =>
+                setProjectIds((current) =>
+                  event.target.checked
+                    ? [...current, project.id]
+                    : current.filter((id) => id !== project.id)
+                )
+              }
+              type="checkbox"
+            />
+            <span className="truncate">{project.name}</span>
+          </label>
+        ))}
+      </div>
+      {projects.length === 0 ? (
+        <p className="text-sm text-slate-600">No projects available.</p>
+      ) : null}
+    </fieldset>
   );
 }
 
