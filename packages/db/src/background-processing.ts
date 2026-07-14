@@ -18,6 +18,7 @@ import {
 export interface QueueProcessingJobInput {
   correlationId?: string;
   maxAttempts?: number;
+  nextRunAt?: Date | null;
   organizationId: string;
   projectId?: string | null;
   sourceId: string;
@@ -43,7 +44,7 @@ export async function queueProcessingJob(
     create: {
       correlationId,
       maxAttempts: input.maxAttempts ?? 3,
-      nextRunAt: null,
+      nextRunAt: input.nextRunAt ?? null,
       organizationId: input.organizationId,
       projectId: input.projectId ?? null,
       sourceId: input.sourceId,
@@ -56,7 +57,7 @@ export async function queueProcessingJob(
       errorMessage: null,
       failedAt: null,
       maxAttempts: input.maxAttempts ?? 3,
-      nextRunAt: null,
+      nextRunAt: input.nextRunAt ?? null,
       organizationId: input.organizationId,
       projectId: input.projectId ?? null,
       sourceId: input.sourceId,
@@ -153,6 +154,22 @@ export async function queueWhatsAppDraftSendJob(
     maxAttempts: input.maxAttempts ?? 5,
     sourceType: "WHATSAPP_DRAFT",
     type: "WHATSAPP_DRAFT_SEND"
+  });
+}
+
+export async function queueWhatsAppConnectionAlertJob(
+  prisma: PrismaClient | Prisma.TransactionClient,
+  input: Omit<QueueProcessingJobInput, "sourceType" | "type"> & {
+    alertType: "DISCONNECT" | "RECOVERY";
+  }
+): Promise<ProcessingJob> {
+  const { alertType, ...job } = input;
+  return queueProcessingJob(prisma, {
+    ...job,
+    maxAttempts: input.maxAttempts ?? 5,
+    sourceType:
+      alertType === "DISCONNECT" ? "WHATSAPP_DISCONNECT_ALERT" : "WHATSAPP_RECOVERY_ALERT",
+    type: "WHATSAPP_CONNECTION_ALERT"
   });
 }
 

@@ -13,6 +13,7 @@ import {
   queueAIClassificationJob,
   queuePhotoAnalysisJob,
   queueSearchIndexJob,
+  queueWhatsAppConnectionAlertJob,
   queueVoiceTranscriptionJob,
   type Attachment,
   type PrismaClient
@@ -22,6 +23,10 @@ import { randomUUID } from "node:crypto";
 import pino from "pino";
 
 import { decideWhatsAppIngestion } from "./ingestion-policy.js";
+import {
+  getRecoveryAlertAction,
+  shouldRecordUnexpectedDisconnect
+} from "./connection-alert-state.js";
 import {
   getPreferredWhatsAppChatJid,
   isDirectContactJid,
@@ -35,6 +40,7 @@ import { BaileysFilesystemStorage } from "./storage.js";
 import type { BaileysSessionManagerOptions, NormalizedWhatsAppMessage } from "./types.js";
 
 const activeStatuses = ["PENDING_QR", "CONNECTING", "CONNECTED"] as const;
+const disconnectAlertGraceMs = 30_000;
 const baileysLogger = pino({ level: "silent" });
 
 interface ManagedSession {
@@ -62,6 +68,7 @@ export class BaileysWhatsAppSessionManager {
   private readonly sessions = new Map<string, ManagedSession>();
   private readonly storage: BaileysFilesystemStorage;
   private pollTimer: NodeJS.Timeout | undefined;
+  private stopping = false;
 
   constructor(
     private readonly prisma: PrismaClient,
@@ -78,6 +85,7 @@ export class BaileysWhatsAppSessionManager {
   private readonly pollIntervalMs: number;
 
   async start(): Promise<void> {
+    this.stopping = false;
     await this.reconcileSessions();
     this.pollTimer = setInterval(() => {
       this.reconcileSessions().catch((error: unknown) => {
@@ -87,6 +95,7 @@ export class BaileysWhatsAppSessionManager {
   }
 
   async stop(): Promise<void> {
+    this.stopping = true;
     if (this.pollTimer) {
       clearInterval(this.pollTimer);
     }
@@ -434,15 +443,42 @@ export class BaileysWhatsAppSessionManager {
           hasOpened = true;
           this.logger.info({ accountId: account.id }, "WhatsApp session connected");
           await this.qrStore.remove(account.id);
-          await this.prisma.whatsAppAccount.update({
-            data: {
-              displayName: socket.user?.name ?? account.displayName,
-              lastConnectedAt: new Date(),
-              phoneNumber: socket.user?.id ? normalizePhoneNumber(socket.user.id) : undefined,
-              status: "CONNECTED"
-            },
-            where: {
-              id: account.id
+          const connectedAt = new Date();
+          await this.prisma.$transaction(async (tx) => {
+            const previous = await tx.whatsAppAccount.findUnique({
+              select: {
+                disconnectAlertSentAt: true,
+                disconnectedAt: true,
+                recoveryAlertSentAt: true
+              },
+              where: { id: account.id }
+            });
+            const recoveryAction = previous ? getRecoveryAlertAction(previous) : "NONE";
+
+            await tx.whatsAppAccount.update({
+              data: {
+                ...(recoveryAction === "CLEAR"
+                  ? {
+                      disconnectedAt: null,
+                      disconnectAlertSentAt: null,
+                      lastDisconnectReason: null,
+                      recoveryAlertSentAt: null
+                    }
+                  : {}),
+                displayName: socket.user?.name ?? account.displayName,
+                lastConnectedAt: connectedAt,
+                phoneNumber: socket.user?.id ? normalizePhoneNumber(socket.user.id) : undefined,
+                status: "CONNECTED"
+              },
+              where: { id: account.id }
+            });
+
+            if (recoveryAction === "QUEUE") {
+              await queueWhatsAppConnectionAlertJob(tx, {
+                alertType: "RECOVERY",
+                organizationId: account.organizationId,
+                sourceId: account.id
+              });
             }
           });
         }
@@ -467,23 +503,70 @@ export class BaileysWhatsAppSessionManager {
             "WhatsApp session disconnected"
           );
           await this.qrStore.remove(account.id);
-          const updatedAccount = await this.prisma.whatsAppAccount.update({
-            data: {
-              lastDisconnectedAt: new Date(),
-              sessionKey: stalePrePairingSession
-                ? `baileys/${account.organizationId}/${randomUUID()}`
-                : undefined,
-              status: stalePrePairingSession ? "PENDING_QR" : nextStatus
-            },
+          const disconnectedAt = new Date();
+          const persistedAccount = await this.prisma.whatsAppAccount.findUnique({
+            select: { status: true },
+            where: { id: account.id }
+          });
+          const intentionalDisconnect = persistedAccount?.status === "DISCONNECTED";
+          const shouldAlert = shouldRecordUnexpectedDisconnect({
+            hasOpened: hasOpened && !this.stopping,
+            persistedStatus: persistedAccount?.status ?? null,
+            stalePrePairingSession
+          });
+
+          if (shouldAlert) {
+            await this.prisma.$transaction(async (tx) => {
+              const transitioned = await tx.whatsAppAccount.updateMany({
+                data: {
+                  disconnectedAt,
+                  disconnectAlertSentAt: null,
+                  lastDisconnectedAt: disconnectedAt,
+                  lastDisconnectReason: getDisconnectReason(statusCode),
+                  recoveryAlertSentAt: null,
+                  status: nextStatus
+                },
+                where: {
+                  id: account.id,
+                  status: "CONNECTED"
+                }
+              });
+
+              if (transitioned.count > 0) {
+                await queueWhatsAppConnectionAlertJob(tx, {
+                  alertType: "DISCONNECT",
+                  nextRunAt: new Date(disconnectedAt.getTime() + disconnectAlertGraceMs),
+                  organizationId: account.organizationId,
+                  sourceId: account.id
+                });
+              }
+            });
+          } else {
+            await this.prisma.whatsAppAccount.update({
+              data: {
+                lastDisconnectedAt: disconnectedAt,
+                sessionKey: stalePrePairingSession
+                  ? `baileys/${account.organizationId}/${randomUUID()}`
+                  : undefined,
+                status:
+                  stalePrePairingSession || (!hasOpened && hasQr)
+                    ? "PENDING_QR"
+                    : intentionalDisconnect || this.stopping
+                      ? "DISCONNECTED"
+                      : nextStatus
+              },
+              where: { id: account.id }
+            });
+          }
+
+          const updatedAccount = await this.prisma.whatsAppAccount.findUniqueOrThrow({
             select: {
               displayName: true,
               id: true,
               organizationId: true,
               sessionKey: true
             },
-            where: {
-              id: account.id
-            }
+            where: { id: account.id }
           });
           this.sessions.delete(account.id);
 
@@ -494,7 +577,7 @@ export class BaileysWhatsAppSessionManager {
             );
           }
 
-          if (recoverableDisconnect) {
+          if (recoverableDisconnect && !intentionalDisconnect && !this.stopping) {
             setTimeout(() => {
               if (this.sessions.has(account.id)) {
                 return;
@@ -1175,6 +1258,23 @@ function isRecoverableDisconnect(statusCode: number | undefined): boolean {
     statusCode === DisconnectReason.unavailableService ||
     statusCode === 515
   );
+}
+
+function getDisconnectReason(statusCode: number | undefined): string {
+  const reasons = new Map<number, string>([
+    [DisconnectReason.badSession, "WhatsApp rejected the saved session"],
+    [DisconnectReason.connectionClosed, "Connection closed unexpectedly"],
+    [DisconnectReason.connectionLost, "Network connection was lost"],
+    [DisconnectReason.connectionReplaced, "WhatsApp connection was replaced"],
+    [DisconnectReason.loggedOut, "WhatsApp logged out the linked device"],
+    [DisconnectReason.restartRequired, "WhatsApp requested a connection restart"],
+    [DisconnectReason.timedOut, "WhatsApp connection timed out"],
+    [DisconnectReason.unavailableService, "WhatsApp service was unavailable"]
+  ]);
+
+  return statusCode === undefined
+    ? "Connection closed unexpectedly"
+    : (reasons.get(statusCode) ?? `WhatsApp disconnect code ${statusCode}`);
 }
 
 function getChatMetadataTitle(chat: unknown): string | null {

@@ -29,11 +29,20 @@ import {
   weeklyReportToPdfBuffer
 } from "@fieldos/intelligence";
 
-import { buildProjectReportObjectKey, createLogger, createStorageProvider } from "@fieldos/shared";
+import {
+  buildProjectReportObjectKey,
+  createLogger,
+  createResendEmailSender,
+  createStorageProvider
+} from "@fieldos/shared";
 
 import { workerEnv } from "./env.js";
 import { PhotoAnalysisService } from "./photo-analysis.js";
 import { VoiceTranscriptionService } from "./voice-transcription.js";
+import {
+  createPrismaWhatsAppConnectionAlertStore,
+  WhatsAppConnectionAlertProcessor
+} from "./whatsapp-connection-alerts.js";
 
 class ProviderRequestThrottle {
   private nextAvailableAt = 0;
@@ -109,6 +118,15 @@ const coordinatorRuntime = new ProjectCoordinatorRuntime(prisma, {
   })
 });
 const aiProviderThrottle = new ProviderRequestThrottle(workerEnv.AI_PROVIDER_MIN_INTERVAL_MS);
+const whatsAppConnectionAlertProcessor = new WhatsAppConnectionAlertProcessor(
+  createPrismaWhatsAppConnectionAlertStore(prisma),
+  createResendEmailSender({ apiKey: workerEnv.RESEND_API_KEY }),
+  {
+    appUrl: workerEnv.APP_URL,
+    fromEmail: workerEnv.RESEND_FROM_EMAIL,
+    logger
+  }
+);
 const workerName = process.env.WORKER_NAME ?? "fieldos-worker";
 const workerVersion =
   process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) ?? process.env.npm_package_version ?? "0.0.0";
@@ -171,6 +189,10 @@ async function processBackgroundJobs(): Promise<void> {
     processWhatsAppDraftSendJob
   );
   const searchProcessed = await processJobsOfType("SEARCH_INDEX", processSearchJob);
+  const connectionAlertProcessed = await processJobsOfType(
+    "WHATSAPP_CONNECTION_ALERT",
+    processWhatsAppConnectionAlertJob
+  );
   const aiProcessed = await processJobsOfType("AI_CLASSIFICATION", processAIJob, {
     limit: workerEnv.AI_PROVIDER_JOBS_PER_POLL
   });
@@ -181,12 +203,14 @@ async function processBackgroundJobs(): Promise<void> {
     photoProcessed +
     reportProcessed +
     coordinatorProcessed +
-    draftSendProcessed;
+    draftSendProcessed +
+    connectionAlertProcessed;
 
   if (processed > 0) {
     logger.info(
       {
         aiProcessed,
+        connectionAlertProcessed,
         coordinatorProcessed,
         draftSendProcessed,
         photoProcessed,
@@ -232,6 +256,7 @@ async function processJobsOfType(
     | "PROJECT_COORDINATOR"
     | "REPORT_GENERATION"
     | "SEARCH_INDEX"
+    | "WHATSAPP_CONNECTION_ALERT"
     | "WHATSAPP_DRAFT_SEND"
     | "VOICE_TRANSCRIPTION",
   processor: (job: ProcessingJob) => Promise<void>,
@@ -305,6 +330,28 @@ async function processClaimedJob(
       return;
     }
 
+    if (job.type === "WHATSAPP_CONNECTION_ALERT") {
+      const errorMessage =
+        error instanceof Error ? error.message : "WhatsApp connection alert failed.";
+      const retryAfterMs = Math.min(60_000 * 2 ** Math.max(job.attempts - 1, 0), 15 * 60_000);
+      await deferProcessingJob(prisma, {
+        errorMessage,
+        job,
+        retryAfterMs
+      });
+      logger.warn(
+        {
+          accountId: job.sourceId,
+          correlationId: job.correlationId,
+          jobId: job.id,
+          organizationId: job.organizationId,
+          retryAfterMs
+        },
+        "WhatsApp connection alert deferred after delivery failure"
+      );
+      return;
+    }
+
     const errorMessage = error instanceof Error ? error.message : "Background job failed.";
     await markProcessingJobFailed(prisma, {
       errorMessage,
@@ -324,6 +371,24 @@ async function processClaimedJob(
       "background job failed"
     );
   }
+}
+
+async function processWhatsAppConnectionAlertJob(job: ProcessingJob): Promise<void> {
+  const alertType =
+    job.sourceType === "WHATSAPP_DISCONNECT_ALERT"
+      ? "DISCONNECT"
+      : job.sourceType === "WHATSAPP_RECOVERY_ALERT"
+        ? "RECOVERY"
+        : null;
+
+  if (!alertType) {
+    throw new Error(`Unsupported WhatsApp connection alert source: ${job.sourceType}`);
+  }
+
+  await whatsAppConnectionAlertProcessor.process({
+    accountId: job.sourceId,
+    alertType
+  });
 }
 
 async function processSearchJob(job: ProcessingJob): Promise<void> {

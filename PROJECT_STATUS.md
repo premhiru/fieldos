@@ -19,9 +19,16 @@
 
 ## Current Milestone
 
-FieldOS Design System 1.0 is implemented, validated, and deployed to production.
+WhatsApp connection-loss alerting is implemented and undergoing production deployment verification.
 
 ## Completed Tasks
+
+- WhatsApp disconnect and recovery email alerts.
+  - Persisted outage timestamps, reason, and one-time delivery markers on each WhatsApp account.
+  - Added a 30-second grace period so brief reconnects do not notify administrators.
+  - Added worker-owned Resend delivery to unique organization owners and administrators with provider idempotency and exponential retry.
+  - Suppressed notifications for QR pairing, intentional admin disconnects, and worker shutdown.
+  - Added focused tests for outage transitions, duplicate suppression, recovery, missing recipients, and provider failure.
 
 - Verified-domain transactional email delivery.
   - Standardized password-reset and team-invitation email on `FieldOS <no-reply@leesaapp.com>`.
@@ -262,7 +269,7 @@ FieldOS Design System 1.0 is implemented, validated, and deployed to production.
 
 ## In-Progress Tasks
 
-- None.
+- Deploy the WhatsApp connection alert migration and worker configuration, then complete a controlled production outage/recovery smoke test.
 
 ## Known Technical Debt
 
@@ -340,6 +347,7 @@ FieldOS Design System 1.0 is implemented, validated, and deployed to production.
 - ADR 0016: Require human approval for evidence-backed milestone changes, prefer existing milestone matching, and create business timeline events.
 - Sprint 14 implementation decision: Keep pilot readiness primitives small, tenant-scoped, and API-owned rather than introducing a product analytics service or tour framework before the first pilot.
 - UX Refactoring decision: Keep five stable primary destinations, organize projects around operational review order, and place support/admin capabilities under role-aware Settings.
+- WhatsApp reliability decision: persist each outage episode on `WhatsAppAccount`, apply a short grace period, and deliver one disconnect/recovery pair asynchronously through the existing worker job queue.
 
 ## Deployment Status
 

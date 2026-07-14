@@ -13,6 +13,13 @@
 
 ## Unreleased
 
+### WhatsApp Connection Reliability
+
+- Added durable, one-time owner/admin email alerts for unexpected WhatsApp connection loss and recovery.
+- Added a 30-second outage grace period, persistent deduplication state, and worker-owned Resend delivery with exponential retry.
+- Suppressed alerts during initial QR pairing, intentional disconnects, worker shutdown, and brief reconnects.
+- Moved the Resend transport into the shared package so API and worker email delivery use one provider boundary.
+
 ### Email Delivery
 
 - Configured FieldOS transactional email to send from the verified `leesaapp.com` domain.

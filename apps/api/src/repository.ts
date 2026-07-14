@@ -144,6 +144,10 @@ export interface WhatsAppAccountRecord {
   sessionKey: string;
   lastConnectedAt: Date | null;
   lastDisconnectedAt: Date | null;
+  disconnectedAt: Date | null;
+  disconnectAlertSentAt: Date | null;
+  recoveryAlertSentAt: Date | null;
+  lastDisconnectReason: string | null;
   lastMessageAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -2179,6 +2183,14 @@ export function createPrismaRepository(): AppRepository {
         data: {
           ...(status === "CONNECTED" ? { lastConnectedAt: now } : {}),
           ...(status === "DISCONNECTED" ? { lastDisconnectedAt: now } : {}),
+          ...(status === "DISCONNECTED"
+            ? {
+                disconnectedAt: null,
+                disconnectAlertSentAt: null,
+                lastDisconnectReason: null,
+                recoveryAlertSentAt: null
+              }
+            : {}),
           status
         },
         where: {
@@ -2200,6 +2212,10 @@ export function createPrismaRepository(): AppRepository {
 
       return prisma.whatsAppAccount.update({
         data: {
+          disconnectedAt: null,
+          disconnectAlertSentAt: null,
+          lastDisconnectReason: null,
+          recoveryAlertSentAt: null,
           sessionKey: `baileys/${account.organizationId}/${randomUUID()}`,
           status: "PENDING_QR"
         },

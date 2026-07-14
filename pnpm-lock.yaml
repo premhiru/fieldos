@@ -110,9 +110,6 @@ importers:
       ioredis:
         specifier: ^5.8.2
         version: 5.11.1
-      resend:
-        specifier: ^6.17.2
-        version: 6.17.2
       zod:
         specifier: ^4.2.1
         version: 4.4.3
@@ -310,6 +307,9 @@ importers:
       pino:
         specifier: ^10.1.0
         version: 10.3.1
+      resend:
+        specifier: ^6.17.2
+        version: 6.17.2
       zod:
         specifier: ^4.2.1
         version: 4.4.3

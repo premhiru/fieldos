@@ -1,4 +1,8 @@
-import { Resend } from "resend";
+import {
+  createResendEmailSender,
+  TransactionalEmailDeliveryError,
+  type ResendEmailClient
+} from "@fieldos/shared";
 
 export interface PasswordResetEmailInput {
   idempotencyKey: string;
@@ -8,27 +12,6 @@ export interface PasswordResetEmailInput {
 
 export interface PasswordResetEmailSender {
   send(input: PasswordResetEmailInput): Promise<"NOT_CONFIGURED" | "SENT">;
-}
-
-interface ResendError {
-  message: string;
-  name: string;
-  statusCode: number | null;
-}
-
-interface ResendEmailClient {
-  emails: {
-    send(
-      payload: {
-        from: string;
-        html: string;
-        subject: string;
-        text: string;
-        to: string;
-      },
-      options: { idempotencyKey: string }
-    ): Promise<{ error: ResendError | null }>;
-  };
 }
 
 export class PasswordResetEmailDeliveryError extends Error {
@@ -55,32 +38,37 @@ export function createPasswordResetEmailSender(config: {
     };
   }
 
-  const resend = config.client ?? new Resend(apiKey);
+  const resend = createResendEmailSender({ apiKey, client: config.client });
   const sleep = config.sleep ?? delay;
 
   return {
     async send(input) {
       for (let attempt = 1; attempt <= 3; attempt += 1) {
-        const { error } = await resend.emails.send(
-          {
+        try {
+          const result = await resend.send({
             from,
             html: passwordResetEmailHtml(input.resetUrl),
+            idempotencyKey: input.idempotencyKey,
             subject: "Reset your FieldOS password",
             text: `Reset your FieldOS password using this link: ${input.resetUrl}\n\nThis link expires in one hour. If you did not request it, you can ignore this email.`,
             to: input.recipient
-          },
-          { idempotencyKey: input.idempotencyKey }
-        );
+          });
 
-        if (!error) {
-          return "SENT";
+          if (result === "SENT") {
+            return "SENT";
+          }
+        } catch (error) {
+          if (!(error instanceof TransactionalEmailDeliveryError)) {
+            throw error;
+          }
+
+          if (!isRetryable(error) || attempt === 3) {
+            throw new PasswordResetEmailDeliveryError(error.providerCode, error.statusCode);
+          }
+
+          await sleep(250 * 2 ** (attempt - 1));
+          continue;
         }
-
-        if (!isRetryable(error) || attempt === 3) {
-          throw new PasswordResetEmailDeliveryError(error.name, error.statusCode);
-        }
-
-        await sleep(250 * 2 ** (attempt - 1));
       }
 
       throw new PasswordResetEmailDeliveryError("unknown", null);
@@ -88,12 +76,12 @@ export function createPasswordResetEmailSender(config: {
   };
 }
 
-function isRetryable(error: ResendError): boolean {
+function isRetryable(error: TransactionalEmailDeliveryError): boolean {
   return (
     error.statusCode === null ||
     error.statusCode === 429 ||
     error.statusCode >= 500 ||
-    error.name === "concurrent_idempotent_requests"
+    error.providerCode === "concurrent_idempotent_requests"
   );
 }
 

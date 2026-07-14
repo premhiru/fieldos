@@ -5,7 +5,7 @@
 | Purpose      | Track production readiness for the first FieldOS pilot. |
 | Owner        | Principal Engineering                                   |
 | Status       | Active                                                  |
-| Last Updated | 2026-07-10                                              |
+| Last Updated | 2026-07-14                                              |
 
 ## Table of Contents
 
@@ -35,6 +35,7 @@ Overall readiness: 88%.
 - Demo workspace data is tenant-scoped and marked as demo.
 - Feedback, notifications, onboarding, and analytics primitives are implemented.
 - Local validation covers format, lint, typecheck, tests, build, and Prisma migrations before deployment.
+- WhatsApp connection-loss alerts are durable, deduplicated, and isolated from the Baileys reconnect loop through worker-owned jobs.
 
 ## Checks Required Before Pilot
 
@@ -48,7 +49,9 @@ Overall readiness: 88%.
 - Reset demo workspace in production and confirm dashboard data loads.
 - Confirm no sensitive tokens are printed in logs.
 - Confirm Vercel has deployed the latest GitHub `main` commit.
+- Configure the production worker with `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `APP_URL`.
+- Verify one controlled disconnect/recovery email pair and confirm a repeated job does not send a duplicate.
 
 ## Operational Runbook
 
-Use Railway deployment logs for API/worker errors, `/admin/operations` for job and worker health, and R2 object listing for media/report storage verification. Roll back by redeploying the previous successful Railway/Vercel deployment and restoring the previous database migration state only if required.
+Use Railway deployment logs for API/worker errors, `/admin/operations` for job and worker health, and R2 object listing for media/report storage verification. WhatsApp connection alert delivery is represented by `WHATSAPP_CONNECTION_ALERT` jobs; inspect their retry state without logging recipient addresses or Resend credentials. Roll back by redeploying the previous successful Railway/Vercel deployment and restoring the previous database migration state only if required.

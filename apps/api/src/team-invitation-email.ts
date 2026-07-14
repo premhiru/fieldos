@@ -1,4 +1,4 @@
-import { Resend } from "resend";
+import { createResendEmailSender, TransactionalEmailDeliveryError } from "@fieldos/shared";
 
 export interface TeamInvitationEmailSender {
   send(input: {
@@ -19,26 +19,28 @@ export function createTeamInvitationEmailSender(config: {
   if (!apiKey || !from) {
     return { send: async () => "NOT_CONFIGURED" };
   }
-  const resend = new Resend(apiKey);
+  const resend = createResendEmailSender({ apiKey });
 
   return {
     async send(input) {
       for (let attempt = 1; attempt <= 3; attempt += 1) {
-        const { error } = await resend.emails.send(
-          {
+        try {
+          const result = await resend.send({
             from,
             html: invitationEmailHtml(input),
+            idempotencyKey: `team-invitation/${input.invitationId}/${input.deliveryKey}`,
             subject: `Join ${input.organizationName} on FieldOS`,
             text: `You have been invited to join ${input.organizationName} as ${input.role}. Accept the invitation: ${input.invitationUrl}\n\nThis invitation expires in seven days.`,
             to: input.recipient
-          },
-          { idempotencyKey: `team-invitation/${input.invitationId}/${input.deliveryKey}` }
-        );
-        if (!error) return "SENT";
-        const retryable =
-          error.statusCode === null || error.statusCode === 429 || error.statusCode >= 500;
-        if (!retryable || attempt === 3) {
-          throw new TeamInvitationEmailError(error.name, error.statusCode);
+          });
+          if (result === "SENT") return "SENT";
+        } catch (error) {
+          if (!(error instanceof TransactionalEmailDeliveryError)) throw error;
+          const retryable =
+            error.statusCode === null || error.statusCode === 429 || error.statusCode >= 500;
+          if (!retryable || attempt === 3) {
+            throw new TeamInvitationEmailError(error.providerCode, error.statusCode);
+          }
         }
         await new Promise((resolve) => setTimeout(resolve, 250 * 2 ** (attempt - 1)));
       }

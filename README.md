@@ -331,6 +331,8 @@ The current WhatsApp connector uses the maintained Baileys package for WhatsApp 
 
 FieldOS discovers WhatsApp chat and group metadata first. Discovered, ignored, and archived chats are not shown in the Inbox and do not store message bodies or attachments. Admins must explicitly activate a chat/group before new incoming messages are ingested. A project mapping is recommended, but active unmapped chats may ingest messages so FieldOS can create human-reviewed project suggestion Action Items.
 
+Unexpected connection loss is recorded durably and processed by the worker after a 30-second grace period. FieldOS emails the affected organization's owners and administrators once when a genuine outage persists, retries transient Resend failures with exponential backoff, and sends one recovery email when the connection returns. Initial QR pairing, worker shutdown, intentional admin disconnects, and brief reconnects do not generate alerts. Configure the worker with `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `APP_URL`; alert emails never contain authentication material or QR data.
+
 Use dedicated business numbers only. Do not connect personal WhatsApp accounts. FieldOS will add the official Meta WhatsApp Cloud API path for production enterprise deployments later.
 
 ## AI Classification

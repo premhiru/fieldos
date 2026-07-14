@@ -653,21 +653,25 @@ model WorkerHeartbeat {
 }
 
 model WhatsAppAccount {
-  id                 String                @id @default(cuid())
-  organizationId     String
-  displayName        String
-  phoneNumber        String?
-  connectorType      WhatsAppConnectorType @default(BAILEYS)
-  status             WhatsAppAccountStatus @default(PENDING_QR)
-  sessionKey         String
-  lastConnectedAt    DateTime?
-  lastDisconnectedAt DateTime?
-  lastMessageAt      DateTime?
-  createdAt          DateTime              @default(now())
-  updatedAt          DateTime              @updatedAt
-  chatMappings       WhatsAppChatMapping[]
-  drafts             WhatsAppDraft[]
-  organization       Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id                    String                @id @default(cuid())
+  organizationId        String
+  displayName           String
+  phoneNumber           String?
+  connectorType         WhatsAppConnectorType @default(BAILEYS)
+  status                WhatsAppAccountStatus @default(PENDING_QR)
+  sessionKey            String
+  lastConnectedAt       DateTime?
+  lastDisconnectedAt    DateTime?
+  disconnectedAt        DateTime?
+  disconnectAlertSentAt DateTime?
+  recoveryAlertSentAt   DateTime?
+  lastDisconnectReason  String?
+  lastMessageAt         DateTime?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  chatMappings          WhatsAppChatMapping[]
+  drafts                WhatsAppDraft[]
+  organization          Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([sessionKey])
   @@index([organizationId])
@@ -759,6 +763,7 @@ enum ProcessingJobType {
   MEDIA_DOWNLOAD
   PROJECT_COORDINATOR
   WHATSAPP_DRAFT_SEND
+  WHATSAPP_CONNECTION_ALERT
 }
 
 enum ProcessingJobStatus {

@@ -11,6 +11,10 @@ export interface WhatsAppAccountRecord {
   sessionKey: string;
   lastConnectedAt: Date | null;
   lastDisconnectedAt: Date | null;
+  disconnectedAt: Date | null;
+  disconnectAlertSentAt: Date | null;
+  recoveryAlertSentAt: Date | null;
+  lastDisconnectReason: string | null;
   lastMessageAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
