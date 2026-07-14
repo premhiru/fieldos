@@ -126,19 +126,23 @@ vi.mock("@tanstack/react-query", () => ({
   })
 }));
 
-describe("ProjectDetailPage AI sections", () => {
-  it("renders live project activity, AI insights, and pending Action Items", () => {
+describe("ProjectDetailPage", () => {
+  it("renders the project information architecture and supporting intelligence", () => {
     render(React.createElement(ProjectDetailPage));
 
+    expect(screen.getByRole("heading", { name: "Project Brief" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Recommendations" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Timeline" })).toBeTruthy();
     expect(screen.getByText("WhatsApp message received")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Evidence" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "WhatsApp Messages" })).toBeTruthy();
     expect(screen.getByText("Terminal 2 runway lighting completed.")).toBeTruthy();
     expect(screen.queryByText("Timeline coming soon")).toBeNull();
     expect(screen.queryByText("WhatsApp messages coming soon")).toBeNull();
-    expect(screen.getByRole("heading", { name: "AI Insights" })).toBeTruthy();
     expect(screen.getByText("A lobby light failed.")).toBeTruthy();
     expect(screen.getAllByText("High Confidence").length).toBeGreaterThan(0);
+    expect(screen.getByRole("heading", { name: "Milestones" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Reports" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Action Items" })).toBeTruthy();
     expect(screen.getByText("Fix lobby light")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Accept" })).toBeTruthy();

@@ -1,6 +1,16 @@
 "use client";
 
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@fieldos/ui";
+import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  PageHeader,
+  Skeleton
+} from "@fieldos/ui";
+import { Check, Clock3, MessageSquareText, X } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -70,61 +80,75 @@ function RecommendationDetailContent() {
     }
   }, [draft]);
 
-  if (recommendationQuery.isLoading) {
-    return <p className="text-sm text-slate-600">Loading recommendation...</p>;
-  }
+  if (recommendationQuery.isLoading) return <Skeleton className="h-[620px]" />;
 
   if (recommendationQuery.isError || !recommendation) {
     return <p className="text-sm text-red-600">Recommendation not found.</p>;
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <Link className="text-sm font-medium text-slate-600 hover:text-slate-950" href="/">
-          Back to Command Center
-        </Link>
-        <h1 className="mt-2 text-2xl font-semibold text-slate-950">{recommendation.title}</h1>
-        <div className="mt-2 flex flex-wrap gap-2">
-          <Badge variant="muted">{formatStatus(recommendation.priority)}</Badge>
-          <Badge variant="muted">{formatConfidence(recommendation.confidence)}</Badge>
-          <Badge variant="muted">{formatStatus(recommendation.sourceCoordinator)}</Badge>
-          <Badge variant={recommendation.status === "PENDING" ? "warning" : "muted"}>
-            {formatStatus(recommendation.status)}
-          </Badge>
-        </div>
+    <div className="mx-auto max-w-5xl space-y-7">
+      <Link className="text-sm font-medium text-slate-600 hover:text-slate-950" href="/">
+        Back to recommendations
+      </Link>
+      <PageHeader
+        description={recommendation.project.name}
+        eyebrow="Recommendation"
+        title={recommendation.title}
+      />
+      <div className="flex flex-wrap gap-2">
+        <Badge variant={recommendation.priority === "URGENT" ? "warning" : "muted"}>
+          {formatStatus(recommendation.priority)}
+        </Badge>
+        <Badge
+          variant={
+            recommendation.confidence === "HIGH"
+              ? "success"
+              : recommendation.confidence === "LOW"
+                ? "warning"
+                : "muted"
+          }
+        >
+          {formatConfidence(recommendation.confidence)}
+        </Badge>
+        <Badge variant={recommendation.status === "PENDING" ? "warning" : "muted"}>
+          {formatStatus(recommendation.status)}
+        </Badge>
       </div>
 
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
         <Card>
           <CardHeader>
-            <CardTitle>Recommendation Detail</CardTitle>
+            <CardTitle>What happened</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4 text-sm">
+              <p className="leading-6 text-slate-700">{recommendation.description}</p>
               <div>
-                <div className="font-medium text-slate-950">Explanation</div>
-                <p className="mt-1 text-slate-700">{recommendation.description}</p>
+                <div className="text-xs font-semibold uppercase text-slate-500">
+                  Why you are seeing this
+                </div>
+                <p className="mt-2 leading-6 text-slate-700">{recommendation.reason}</p>
               </div>
-              <div>
-                <div className="font-medium text-slate-950">Reason</div>
-                <p className="mt-1 text-slate-700">{recommendation.reason}</p>
-              </div>
-              <div>
-                <div className="font-medium text-slate-950">Evidence Used</div>
-                <p className="mt-1 text-slate-700">
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
+                <div className="text-xs font-semibold uppercase text-slate-500">
+                  Supporting evidence
+                </div>
+                <p className="mt-2 text-slate-700">
                   {recommendation.sourceEntityType ?? "Project state"}{" "}
-                  {recommendation.sourceEntityId ? `- ${recommendation.sourceEntityId}` : ""}
+                  {recommendation.sourceEntityId ? `· ${recommendation.sourceEntityId}` : ""}
                 </p>
               </div>
-              <div>
-                <div className="font-medium text-slate-950">Proposed Action</div>
-                <p className="mt-1 text-slate-700">
+              <div className="rounded-md border border-blue-100 bg-blue-50 p-4">
+                <div className="text-xs font-semibold uppercase text-blue-700">
+                  What approval will do
+                </div>
+                <p className="mt-2 font-medium text-slate-950">
                   {formatStatus(recommendation.proposedActionType)}
                 </p>
-                <pre className="mt-2 overflow-x-auto rounded-md bg-slate-950 p-3 text-xs text-white">
-                  {JSON.stringify(recommendation.proposedActionPayload ?? {}, null, 2)}
-                </pre>
+                <div className="mt-2 space-y-1 text-sm text-slate-700">
+                  {formatPayload(recommendation.proposedActionPayload)}
+                </div>
               </div>
             </div>
           </CardContent>
@@ -132,25 +156,31 @@ function RecommendationDetailContent() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Approval</CardTitle>
+            <CardTitle>Decision</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
               {recommendation.status === "PENDING" ? (
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2">
                   <Button
                     disabled={approveMutation.isPending}
                     onClick={() => approveMutation.mutate()}
                     type="button"
                   >
+                    <Check aria-hidden="true" className="size-4" />
                     Approve
+                  </Button>
+                  <Button onClick={() => window.history.back()} type="button" variant="secondary">
+                    <Clock3 aria-hidden="true" className="size-4" />
+                    Snooze 24h
                   </Button>
                   <Button
                     disabled={dismissMutation.isPending}
                     onClick={() => dismissMutation.mutate()}
                     type="button"
-                    variant="secondary"
+                    variant="ghost"
                   >
+                    <X aria-hidden="true" className="size-4" />
                     Dismiss
                   </Button>
                 </div>
@@ -173,7 +203,12 @@ function RecommendationDetailContent() {
       {draft ? (
         <Card>
           <CardHeader>
-            <CardTitle>WhatsApp Draft</CardTitle>
+            <CardTitle>
+              <span className="flex items-center gap-2">
+                <MessageSquareText aria-hidden="true" className="size-4" />
+                WhatsApp draft preview
+              </span>
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
@@ -258,4 +293,19 @@ function formatDraftStatus(value: string): string {
   }
 
   return formatStatus(value);
+}
+
+function formatPayload(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return <p>No additional fields are required.</p>;
+  }
+
+  const entries = Object.entries(value).filter(([, item]) => item !== null && item !== "");
+  if (entries.length === 0) return <p>No additional fields are required.</p>;
+
+  return entries.map(([key, item]) => (
+    <p key={key}>
+      <span className="font-medium">{formatStatus(key)}:</span> {String(item)}
+    </p>
+  ));
 }

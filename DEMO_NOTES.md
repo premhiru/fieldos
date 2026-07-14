@@ -5,10 +5,11 @@
 | Purpose      | Capture demo steps and verification notes for FieldOS changes. |
 | Owner        | Product Engineering                                            |
 | Status       | Active                                                         |
-| Last Updated | 2026-07-13                                                     |
+| Last Updated | 2026-07-14                                                     |
 
 ## Table of Contents
 
+- [UX Refactoring Sprint](#ux-refactoring-sprint)
 - [Milestone Intelligence](#milestone-intelligence)
 - [Task 013B: Cloudflare R2 Durable Storage](#task-013b-cloudflare-r2-durable-storage)
 - [Milestone 2: AI Project Coordinators](#milestone-2-ai-project-coordinators)
@@ -17,6 +18,32 @@
 - [Task 012: Photo Intelligence](#task-012-photo-intelligence)
 - [Task 011: Unified Evidence Processing](#task-011-unified-evidence-processing)
 - [Task 010B: Operations Health](#task-010b-operations-health)
+
+## UX Refactoring Sprint
+
+What changed:
+
+- Primary navigation is now Dashboard, Projects, Inbox, Search, and Reports.
+- Dashboard opens with the work that needs attention, not setup and system panels.
+- Project pages follow Brief, Recommendations, Timeline, Evidence, Milestones, and Reports.
+- Inbox supports All, Unread, Groups, Direct, and Unassigned filters with an in-page conversation preview.
+- Search presents the answer first, followed by evidence and source records.
+- Mobile uses a fixed five-item bottom navigation.
+
+How to test:
+
+1. Sign in and confirm the selected workspace remains active after a hard page navigation.
+2. Review the dashboard summary, approve or dismiss a recommendation, and complete an assigned Action Item inline.
+3. Open a project and confirm the six primary sections appear in the documented order.
+4. Open Inbox, apply each filter, and select a conversation without leaving the page.
+5. Press `Ctrl+K` or `Cmd+K`, ask a question, and confirm the answer is followed by evidence and source groups.
+6. Open Reports and navigate to a project's intelligence workspace.
+7. At a mobile viewport, confirm the bottom navigation remains usable and content is not obscured.
+
+Current limitations:
+
+- Inbox read state and recommendation snoozes are stored locally in the browser.
+- Action Item due dates are not yet part of the domain model.
 
 ## Milestone Intelligence
 

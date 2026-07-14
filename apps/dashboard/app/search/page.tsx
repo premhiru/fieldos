@@ -1,6 +1,7 @@
 "use client";
 
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@fieldos/ui";
+import { Badge, Button, EmptyState, PageHeader, Skeleton } from "@fieldos/ui";
+import { Clock3, Search as SearchIcon, Sparkles } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import Link from "next/link";
 import * as React from "react";
@@ -13,23 +14,11 @@ import { api, type SearchResult, type SearchSourceType } from "../../lib/api";
 import { useOrganizations, useProjects } from "../../lib/queries";
 import { useActiveOrganizationStore } from "../../store/active-organization-store";
 
-const exampleQuestions = [
-  "Show all defects this week.",
-  "What happened on Taxiway Alpha?",
+const suggestedSearches = [
   "Which projects need attention?",
-  "Show messages about CCR testing.",
-  "What action items are still pending?"
-];
-
-const sourceTypes: Array<{ label: string; value: SearchSourceType | "" }> = [
-  { label: "All sources", value: "" },
-  { label: "Projects", value: "PROJECT" },
-  { label: "Messages", value: "MESSAGE" },
-  { label: "Timeline Events", value: "TIMELINE_EVENT" },
-  { label: "Action Items", value: "ACTION_ITEM" },
-  { label: "AI Classifications", value: "AI_CLASSIFICATION" },
-  { label: "Photo Analysis", value: "PHOTO_ANALYSIS" },
-  { label: "Project Reports", value: "PROJECT_REPORT" }
+  "What changed this week?",
+  "Show pending approvals",
+  "Where are the current delays?"
 ];
 
 export default function SearchPage() {
@@ -46,259 +35,283 @@ function SearchContent() {
   const organizationsQuery = useOrganizations();
   const { activeOrganizationId, setActiveOrganizationId } = useActiveOrganizationStore();
   const organizations = organizationsQuery.data?.organizations ?? [];
-  const selectedOrganization =
-    organizations.find((organization) => organization.id === activeOrganizationId) ??
-    organizations[0];
-  const projectsQuery = useProjects(selectedOrganization?.id ?? null);
-  const projects = projectsQuery.data?.projects ?? [];
+  const organization =
+    organizations.find((item) => item.id === activeOrganizationId) ?? organizations[0];
+  const projectsQuery = useProjects(organization?.id ?? null);
   const [query, setQuery] = React.useState("");
   const [projectId, setProjectId] = React.useState("");
-  const [sourceType, setSourceType] = React.useState<SearchSourceType | "">("");
-  const [dateFrom, setDateFrom] = React.useState("");
-  const [dateTo, setDateTo] = React.useState("");
+  const [recentSearches, setRecentSearches] = React.useState<string[]>([]);
+  const inputRef = React.useRef<HTMLInputElement>(null);
   const searchMutation = useMutation({
     mutationFn: () =>
       api.search({
-        dateFrom: dateFrom || undefined,
-        dateTo: dateTo || undefined,
-        limit: 10,
-        organizationId: selectedOrganization?.id ?? "",
+        limit: 20,
+        organizationId: organization?.id ?? "",
         projectId: projectId || null,
         q: query,
-        type: sourceType
+        type: ""
       })
   });
   const askMutation = useMutation({
     mutationFn: () =>
       api.askSearch({
-        organizationId: selectedOrganization?.id ?? "",
+        organizationId: organization?.id ?? "",
         projectId: projectId || null,
         question: query
       })
   });
 
   React.useEffect(() => {
-    if (!activeOrganizationId && organizations[0]) {
-      setActiveOrganizationId(organizations[0].id);
-    }
+    if (!activeOrganizationId && organizations[0]) setActiveOrganizationId(organizations[0].id);
   }, [activeOrganizationId, organizations, setActiveOrganizationId]);
 
-  if (organizationsQuery.isLoading) {
-    return <p className="text-sm text-slate-600">Loading search...</p>;
-  }
-
-  if (organizations.length === 0) {
-    return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-semibold text-slate-950">Search</h1>
-        <OrganizationOnboarding />
-      </div>
+  React.useEffect(() => {
+    setRecentSearches(
+      JSON.parse(window.localStorage.getItem("fieldos-recent-searches") ?? "[]") as string[]
     );
-  }
+    inputRef.current?.focus();
+  }, []);
 
-  const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  if (organizationsQuery.isLoading) return <Skeleton className="h-[620px]" />;
+  if (organizations.length === 0) return <OrganizationOnboarding />;
 
-    if (!query.trim()) {
-      return;
-    }
-
+  function runSearch(value = query) {
+    const nextQuery = value.trim();
+    if (!nextQuery) return;
+    setQuery(nextQuery);
+    const nextRecent = [nextQuery, ...recentSearches.filter((item) => item !== nextQuery)].slice(
+      0,
+      5
+    );
+    setRecentSearches(nextRecent);
+    window.localStorage.setItem("fieldos-recent-searches", JSON.stringify(nextRecent));
     searchMutation.mutate();
     askMutation.mutate();
-  };
+  }
+
+  const results = searchMutation.data?.results ?? [];
+  const messages = results.filter((item) => item.sourceType === "MESSAGE");
+  const events = results.filter((item) => item.sourceType === "TIMELINE_EVENT");
+  const evidence = results.filter(
+    (item) => item.sourceType !== "MESSAGE" && item.sourceType !== "TIMELINE_EVENT"
+  );
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-950">Search</h1>
-          <p className="text-sm text-slate-600">Ask grounded questions across FieldOS records.</p>
-        </div>
-        <OrganizationSelector organizations={organizations} />
-      </div>
+    <div className="mx-auto max-w-4xl space-y-10">
+      <PageHeader
+        actions={<OrganizationSelector organizations={organizations} />}
+        description="Ask a question across projects, messages, evidence, and reports."
+        title="Search FieldOS"
+      />
 
-      <Card>
-        <CardContent>
-          <form className="space-y-4" onSubmit={onSubmit}>
-            <div className="flex flex-col gap-3 lg:flex-row">
-              <input
-                className="h-11 flex-1 rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-slate-950"
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Ask about projects, messages, defects, inspections, or action items..."
-                value={query}
-              />
-              <Button disabled={!query.trim() || searchMutation.isPending || askMutation.isPending}>
-                Search
-              </Button>
-            </div>
-            <div className="grid gap-3 md:grid-cols-4">
+      <section>
+        <form
+          className="rounded-lg border border-slate-300 bg-white p-3 shadow-sm focus-within:border-slate-950"
+          onSubmit={(event) => {
+            event.preventDefault();
+            runSearch();
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <SearchIcon aria-hidden="true" className="ml-2 size-5 shrink-0 text-slate-400" />
+            <input
+              className="h-12 min-w-0 flex-1 border-0 bg-transparent text-base text-slate-950 outline-none"
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Ask about project progress, delays, evidence, or decisions"
+              ref={inputRef}
+              value={query}
+            />
+            <Button disabled={!query.trim() || searchMutation.isPending || askMutation.isPending}>
+              Ask
+            </Button>
+          </div>
+          <div className="mt-2 border-t border-slate-100 px-2 pt-3">
+            <label className="flex items-center gap-2 text-xs text-slate-500">
+              Project
               <select
-                className="h-10 rounded-md border border-slate-300 px-3 text-sm"
+                className="h-8 rounded-md border border-slate-200 bg-slate-50 px-2 text-xs text-slate-700"
                 onChange={(event) => setProjectId(event.target.value)}
                 value={projectId}
               >
                 <option value="">All projects</option>
-                {projects.map((project) => (
+                {(projectsQuery.data?.projects ?? []).map((project) => (
                   <option key={project.id} value={project.id}>
                     {project.name}
                   </option>
                 ))}
               </select>
-              <select
-                className="h-10 rounded-md border border-slate-300 px-3 text-sm"
-                onChange={(event) => setSourceType(event.target.value as SearchSourceType | "")}
-                value={sourceType}
-              >
-                {sourceTypes.map((type) => (
-                  <option key={type.value || "all"} value={type.value}>
-                    {type.label}
-                  </option>
-                ))}
-              </select>
-              <input
-                className="h-10 rounded-md border border-slate-300 px-3 text-sm"
-                onChange={(event) => setDateFrom(event.target.value)}
-                type="date"
-                value={dateFrom}
-              />
-              <input
-                className="h-10 rounded-md border border-slate-300 px-3 text-sm"
-                onChange={(event) => setDateTo(event.target.value)}
-                type="date"
-                value={dateTo}
-              />
+            </label>
+          </div>
+        </form>
+
+        {!askMutation.data && !askMutation.isPending ? (
+          <div className="mt-6 grid gap-6 sm:grid-cols-2">
+            <SearchSuggestions
+              icon={<Sparkles aria-hidden="true" className="size-4" />}
+              items={suggestedSearches}
+              onSelect={runSearch}
+              title="Suggested"
+            />
+            <SearchSuggestions
+              icon={<Clock3 aria-hidden="true" className="size-4" />}
+              items={recentSearches}
+              onSelect={runSearch}
+              title="Recent"
+            />
+          </div>
+        ) : null}
+      </section>
+
+      {askMutation.isPending ? (
+        <AnswerSkeleton />
+      ) : askMutation.data ? (
+        <section aria-live="polite" className="space-y-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-blue-700">
+            <Sparkles aria-hidden="true" className="size-4" />
+            AI Answer
+          </div>
+          <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-6 sm:p-8">
+            <p className="text-base leading-8 text-slate-900">{askMutation.data.answer}</p>
+            <div className="mt-5">
+              <ConfidenceBadge value={askMutation.data.confidence} />
             </div>
-          </form>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {exampleQuestions.map((example) => (
-              <button
-                className="rounded-md bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-200"
-                key={example}
-                onClick={() => setQuery(example)}
-                type="button"
-              >
-                {example}
-              </button>
-            ))}
           </div>
-        </CardContent>
-      </Card>
+        </section>
+      ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Results</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {searchMutation.isPending ? (
-              <p className="text-sm text-slate-600">Searching...</p>
-            ) : searchMutation.data?.results.length ? (
-              <div className="space-y-3">
-                {searchMutation.data.results.map((result) => (
-                  <ResultCard key={result.id} result={result} />
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-slate-600">No search results yet.</p>
-            )}
-          </CardContent>
-        </Card>
+      {askMutation.data ? (
+        <ResultSection
+          results={askMutation.data.sources.map((source) => ({
+            ...source,
+            createdAt: "",
+            id: `${source.sourceType}-${source.sourceId}`,
+            metadata: null,
+            occurredAt: null,
+            organizationId: organization?.id ?? "",
+            project: null,
+            projectId: null,
+            sourceId: source.sourceId,
+            snippet: source.snippet,
+            sourceType: source.sourceType as SearchSourceType,
+            title: source.title,
+            updatedAt: ""
+          }))}
+          title="Supporting Evidence"
+        />
+      ) : null}
+      {messages.length > 0 ? <ResultSection results={messages} title="Related Messages" /> : null}
+      {events.length > 0 ? (
+        <ResultSection results={events} title="Related Timeline Events" />
+      ) : null}
+      {evidence.length > 0 ? <ResultSection results={evidence} title="Related Records" /> : null}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>AI Answer</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {askMutation.isPending ? (
-              <p className="text-sm text-slate-600">Grounding answer...</p>
-            ) : askMutation.data ? (
-              <div className="space-y-4">
-                <p className="text-sm leading-6 text-slate-800">{askMutation.data.answer}</p>
-                <Badge variant="muted">{askMutation.data.confidence} Confidence</Badge>
-                <div className="space-y-2">
-                  {askMutation.data.sources.map((source) => (
-                    <div
-                      className="rounded-md border border-slate-200 p-2 text-xs text-slate-600"
-                      key={`${source.sourceType}-${source.sourceId}`}
-                    >
-                      <div className="font-medium text-slate-950">{source.title}</div>
-                      <div>{source.snippet}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-slate-600">
-                Ask a question to generate a grounded answer.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      {searchMutation.isSuccess && results.length === 0 ? (
+        <EmptyState
+          description="Try a project name, location, milestone, or a shorter operational question."
+          icon={<SearchIcon aria-hidden="true" className="size-5" />}
+          title="No supporting records found"
+        />
+      ) : null}
     </div>
   );
 }
 
-function ResultCard({ result }: Readonly<{ result: SearchResult }>) {
+function SearchSuggestions({
+  icon,
+  items,
+  onSelect,
+  title
+}: {
+  icon: React.ReactNode;
+  items: string[];
+  onSelect: (value: string) => void;
+  title: string;
+}) {
+  if (items.length === 0) return null;
   return (
-    <div className="rounded-md border border-slate-200 p-4">
-      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="muted">{formatSourceType(result.sourceType)}</Badge>
-            {result.project ? (
-              <span className="text-xs text-slate-500">{result.project.name}</span>
-            ) : null}
-          </div>
-          <h2 className="mt-2 font-medium text-slate-950">{result.title}</h2>
-          <p className="mt-1 text-sm text-slate-600">{result.snippet}</p>
-          <p className="mt-2 text-xs text-slate-500">
-            {formatDate(result.occurredAt ?? result.createdAt)}
-          </p>
-        </div>
-        <Link
-          className="inline-flex h-9 shrink-0 items-center justify-center rounded-md bg-slate-100 px-3 text-xs font-medium text-slate-950 hover:bg-slate-200"
-          href={getSourceHref(result)}
-        >
-          Open Source
-        </Link>
+    <div>
+      <div className="flex items-center gap-2 text-xs font-semibold uppercase text-slate-500">
+        {icon}
+        {title}
+      </div>
+      <div className="mt-3 space-y-1">
+        {items.map((item) => (
+          <button
+            className="block w-full rounded-md px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 hover:text-slate-950"
+            key={item}
+            onClick={() => onSelect(item)}
+            type="button"
+          >
+            {item}
+          </button>
+        ))}
       </div>
     </div>
   );
 }
 
-function getSourceHref(result: SearchResult): string {
-  if (result.sourceType === "PROJECT") {
-    return `/projects/${result.sourceId}`;
-  }
+function ResultSection({ results, title }: { results: SearchResult[]; title: string }) {
+  return (
+    <section className="space-y-3">
+      <h2 className="text-lg font-semibold text-slate-950">{title}</h2>
+      <div className="divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
+        {results.map((result) => (
+          <ResultRow key={result.id} result={result} />
+        ))}
+      </div>
+    </section>
+  );
+}
 
+function ResultRow({ result }: { result: SearchResult }) {
+  return (
+    <Link className="block p-4 hover:bg-slate-50 sm:p-5" href={sourceHref(result)}>
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="muted">{formatLabel(result.sourceType)}</Badge>
+        {result.project ? (
+          <span className="text-xs text-slate-500">{result.project.name}</span>
+        ) : null}
+      </div>
+      <h3 className="mt-2 font-medium text-slate-950">{result.title}</h3>
+      <p className="mt-1 line-clamp-3 text-sm leading-6 text-slate-600">{result.snippet}</p>
+    </Link>
+  );
+}
+
+function ConfidenceBadge({ value }: { value: string }) {
+  return (
+    <Badge variant={value === "LOW" ? "warning" : value === "HIGH" ? "success" : "muted"}>
+      {value === "HIGH"
+        ? "High confidence"
+        : value === "MEDIUM"
+          ? "Needs review"
+          : "Low confidence"}
+    </Badge>
+  );
+}
+
+function AnswerSkeleton() {
+  return (
+    <div className="space-y-3">
+      <Skeleton className="h-4 w-28" />
+      <Skeleton className="h-44 w-full" />
+    </div>
+  );
+}
+
+function sourceHref(result: SearchResult) {
+  if (result.sourceType === "PROJECT") return `/projects/${result.sourceId}`;
   if (result.sourceType === "MESSAGE") {
     const metadata = result.metadata as { conversationId?: string } | null;
     return metadata?.conversationId ? `/inbox/${metadata.conversationId}` : "/inbox";
   }
-
-  if (result.sourceType === "PHOTO_ANALYSIS") {
-    return result.projectId ? `/projects/${result.projectId}/intelligence` : "/search";
-  }
-
-  if (result.sourceType === "PROJECT_REPORT") {
-    return result.projectId ? `/projects/${result.projectId}/intelligence` : "/search";
-  }
-
   return result.projectId ? `/projects/${result.projectId}` : "/search";
 }
 
-function formatSourceType(sourceType: SearchSourceType): string {
-  return sourceType
+function formatLabel(value: string) {
+  return value
     .toLowerCase()
     .split("_")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
-}
-
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short"
-  }).format(new Date(value));
 }

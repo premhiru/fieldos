@@ -1,10 +1,20 @@
 "use client";
 
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@fieldos/ui";
+import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  PageHeader,
+  Skeleton
+} from "@fieldos/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
 import { useRouter } from "next/navigation";
-import { RefreshCw, Trash2, UserPlus } from "lucide-react";
+import { Activity, RefreshCw, Trash2, UserPlus } from "lucide-react";
 import * as React from "react";
 
 import { AppShell } from "../../components/app-shell";
@@ -68,9 +78,7 @@ function SettingsContent() {
     }
   }, [activeOrganizationId, organizations, setActiveOrganizationId]);
 
-  if (organizationsQuery.isLoading) {
-    return <p className="text-sm text-slate-600">Loading settings...</p>;
-  }
+  if (organizationsQuery.isLoading) return <Skeleton className="h-[680px]" />;
 
   if (organizations.length === 0) {
     return (
@@ -87,15 +95,50 @@ function SettingsContent() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-950">Settings</h1>
-          <p className="text-sm text-slate-600">WhatsApp Connections</p>
-        </div>
-        <OrganizationSelector organizations={organizations} />
-      </div>
+      <PageHeader
+        actions={<OrganizationSelector organizations={organizations} />}
+        description="Account, team, integrations, and workspace administration."
+        title="Settings"
+      />
 
-      <PasswordSecurityCard />
+      <nav
+        aria-label="Settings sections"
+        className="flex gap-2 overflow-x-auto border-b border-slate-200 pb-3"
+      >
+        <a
+          className="shrink-0 rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+          href="#security"
+        >
+          User settings
+        </a>
+        {canManage ? (
+          <a
+            className="shrink-0 rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+            href="#team"
+          >
+            Team & access
+          </a>
+        ) : null}
+        <a
+          className="shrink-0 rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+          href="#whatsapp"
+        >
+          Integrations
+        </a>
+        {canManage ? (
+          <Link
+            className="inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+            href="/admin/operations"
+          >
+            <Activity aria-hidden="true" className="size-4" />
+            Operations health
+          </Link>
+        ) : null}
+      </nav>
+
+      <section className="scroll-mt-24" id="security">
+        <PasswordSecurityCard />
+      </section>
 
       {canManage ? (
         <TeamSettingsSection
@@ -105,70 +148,72 @@ function SettingsContent() {
         />
       ) : null}
 
-      <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-        This connector uses WhatsApp Web pairing through Baileys. Use dedicated business numbers
-        only. Do not connect personal WhatsApp accounts. For enterprise deployments, FieldOS will
-        support the official Meta WhatsApp Cloud API later.
-      </div>
+      <section className="scroll-mt-24 space-y-4" id="whatsapp">
+        <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+          This connector uses WhatsApp Web pairing through Baileys. Use dedicated business numbers
+          only. Do not connect personal WhatsApp accounts. For enterprise deployments, FieldOS will
+          support the official Meta WhatsApp Cloud API later.
+        </div>
 
-      {canManage ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Connect WhatsApp</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form
-              className="flex flex-col gap-3 md:flex-row md:items-end"
-              onSubmit={(event) => {
-                event.preventDefault();
-                createAccountMutation.mutate();
-              }}
-            >
-              <label className="flex flex-1 flex-col gap-1 text-sm font-medium text-slate-700">
-                Display name
-                <input
-                  className="h-10 rounded-md border border-slate-300 px-3 text-sm"
-                  value={displayName}
-                  onChange={(event) => setDisplayName(event.target.value)}
-                />
-              </label>
-              <Button
-                disabled={createAccountMutation.isPending || !displayName.trim()}
-                type="submit"
-              >
-                {createAccountMutation.isPending ? "Creating..." : "Connect WhatsApp"}
-              </Button>
-            </form>
-            {createAccountMutation.isError ? (
-              <p className="mt-3 text-sm text-red-600">
-                {(createAccountMutation.error as Error).message}
-              </p>
-            ) : null}
-          </CardContent>
-        </Card>
-      ) : null}
-
-      <div className="space-y-4">
-        {accountsQuery.isLoading ? (
-          <p className="text-sm text-slate-600">Loading WhatsApp accounts...</p>
-        ) : (accountsQuery.data?.accounts ?? []).length === 0 ? (
+        {canManage ? (
           <Card>
+            <CardHeader>
+              <CardTitle>Connect WhatsApp</CardTitle>
+            </CardHeader>
             <CardContent>
-              <p className="text-sm text-slate-600">No WhatsApp accounts connected.</p>
+              <form
+                className="flex flex-col gap-3 md:flex-row md:items-end"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  createAccountMutation.mutate();
+                }}
+              >
+                <label className="flex flex-1 flex-col gap-1 text-sm font-medium text-slate-700">
+                  Display name
+                  <input
+                    className="h-10 rounded-md border border-slate-300 px-3 text-sm"
+                    value={displayName}
+                    onChange={(event) => setDisplayName(event.target.value)}
+                  />
+                </label>
+                <Button
+                  disabled={createAccountMutation.isPending || !displayName.trim()}
+                  type="submit"
+                >
+                  {createAccountMutation.isPending ? "Creating..." : "Connect WhatsApp"}
+                </Button>
+              </form>
+              {createAccountMutation.isError ? (
+                <p className="mt-3 text-sm text-red-600">
+                  {(createAccountMutation.error as Error).message}
+                </p>
+              ) : null}
             </CardContent>
           </Card>
-        ) : (
-          accountsQuery.data?.accounts.map((account) => (
-            <WhatsAppAccountCard
-              key={account.id}
-              account={account}
-              canManage={canManage}
-              organizationId={activeOrganization?.id ?? ""}
-              projects={projects}
-            />
-          ))
-        )}
-      </div>
+        ) : null}
+
+        <div className="space-y-4">
+          {accountsQuery.isLoading ? (
+            <p className="text-sm text-slate-600">Loading WhatsApp accounts...</p>
+          ) : (accountsQuery.data?.accounts ?? []).length === 0 ? (
+            <Card>
+              <CardContent>
+                <p className="text-sm text-slate-600">No WhatsApp accounts connected.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            accountsQuery.data?.accounts.map((account) => (
+              <WhatsAppAccountCard
+                key={account.id}
+                account={account}
+                canManage={canManage}
+                organizationId={activeOrganization?.id ?? ""}
+                projects={projects}
+              />
+            ))
+          )}
+        </div>
+      </section>
     </div>
   );
 }
@@ -228,7 +273,7 @@ function TeamSettingsSection({
   }, [organizationId]);
 
   return (
-    <section className="space-y-4">
+    <section className="scroll-mt-24 space-y-4" id="team">
       <div>
         <h2 className="text-lg font-semibold text-slate-950">Team & Invitations</h2>
         <p className="text-sm text-slate-600">Manage organization roles and project access.</p>

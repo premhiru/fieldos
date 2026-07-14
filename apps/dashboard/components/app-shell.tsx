@@ -1,82 +1,169 @@
 "use client";
 
-import { Button, PageContainer } from "@fieldos/ui";
+import { Button, PageContainer, Skeleton } from "@fieldos/ui";
+import {
+  Bell,
+  FileText,
+  FolderKanban,
+  Inbox,
+  LayoutDashboard,
+  LogOut,
+  MessageSquarePlus,
+  Search,
+  Settings,
+  Users,
+  X,
+  type LucideIcon
+} from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 
 import { api, type FeedbackType, type UserNotification } from "../lib/api";
 import { useActiveOrganizationStore } from "../store/active-organization-store";
 
-const navItems = [
-  { href: "/", label: "Dashboard" },
-  { href: "/projects", label: "Projects" },
-  { href: "/inbox", label: "Inbox" },
-  { href: "/action-items", label: "Action Items" },
-  { href: "/search", label: "Search" },
-  { href: "/admin/operations", label: "Operations" },
-  { href: "/settings", label: "Settings" }
+interface NavigationItem {
+  href: string;
+  icon: LucideIcon;
+  label: string;
+}
+
+const primaryNavigation: NavigationItem[] = [
+  { href: "/", icon: LayoutDashboard, label: "Dashboard" },
+  { href: "/projects", icon: FolderKanban, label: "Projects" },
+  { href: "/inbox", icon: Inbox, label: "Inbox" },
+  { href: "/search", icon: Search, label: "Search" },
+  { href: "/reports", icon: FileText, label: "Reports" }
 ];
 
 export function AppShell({ children }: Readonly<{ children: React.ReactNode }>) {
   const pathname = usePathname();
+  const router = useRouter();
   const { activeOrganizationId } = useActiveOrganizationStore();
 
+  React.useEffect(() => {
+    function openSearch(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        router.push("/search");
+      }
+    }
+
+    window.addEventListener("keydown", openSearch);
+    return () => window.removeEventListener("keydown", openSearch);
+  }, [router]);
+
   return (
-    <div className="min-h-screen bg-slate-50">
-      <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-slate-200 bg-white px-5 py-6 md:block">
-        <div className="text-lg font-semibold text-slate-950">FieldOS Dashboard</div>
-        <nav className="mt-8 flex flex-col gap-1">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              className={
-                pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href))
-                  ? "rounded-md bg-slate-950 px-3 py-2 text-sm font-medium text-white"
-                  : "rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
-              }
-              href={item.href}
-            >
-              {item.label}
-            </Link>
+    <div className="min-h-screen bg-[#f6f7f9]">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 border-r border-slate-200 bg-white px-4 py-5 md:flex md:flex-col">
+        <Link className="flex items-center gap-3 px-2" href="/">
+          <span className="flex size-9 items-center justify-center rounded-md bg-slate-950 text-sm font-semibold text-white">
+            F
+          </span>
+          <span>
+            <span className="block text-base font-semibold text-slate-950">FieldOS</span>
+            <span className="block text-xs text-slate-500">Field operations</span>
+          </span>
+        </Link>
+        <nav aria-label="Primary navigation" className="mt-8 flex flex-col gap-1">
+          {primaryNavigation.map((item) => (
+            <NavigationLink item={item} key={item.href} pathname={pathname} />
           ))}
         </nav>
+        <div className="mt-7 border-t border-slate-200 pt-5">
+          <div className="px-3 text-xs font-semibold uppercase text-slate-400">Settings</div>
+          <nav aria-label="Settings navigation" className="mt-2 flex flex-col gap-1">
+            <NavigationLink
+              item={{ href: "/settings", icon: Settings, label: "Workspace settings" }}
+              pathname={pathname}
+            />
+            <NavigationLink
+              item={{ href: "/settings#team", icon: Users, label: "Team & access" }}
+              pathname={pathname}
+            />
+          </nav>
+        </div>
         <Link
-          className="mt-8 inline-flex h-10 w-full items-center justify-center rounded-md bg-slate-100 px-4 py-2 text-sm font-medium text-slate-950 hover:bg-slate-200"
+          className="mt-auto flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-950"
           href="/logout"
         >
+          <LogOut aria-hidden="true" className="size-4" />
           Log out
         </Link>
       </aside>
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur md:hidden">
         <div className="flex items-center justify-between gap-3">
-          <div className="font-semibold text-slate-950">FieldOS</div>
-          <Link className="text-sm font-medium text-slate-600" href="/logout">
-            Log out
+          <Link className="flex items-center gap-2 font-semibold text-slate-950" href="/">
+            <span className="flex size-8 items-center justify-center rounded-md bg-slate-950 text-xs text-white">
+              F
+            </span>
+            FieldOS
+          </Link>
+          <Link
+            aria-label="Open settings"
+            className="flex size-10 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100"
+            href="/settings"
+            title="Settings"
+          >
+            <Settings aria-hidden="true" className="size-5" />
           </Link>
         </div>
-        <nav className="mt-3 flex gap-2 overflow-x-auto pb-1">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              className={
-                pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href))
-                  ? "shrink-0 rounded-md bg-slate-950 px-3 py-2 text-xs font-medium text-white"
-                  : "shrink-0 rounded-md bg-slate-100 px-3 py-2 text-xs font-medium text-slate-700"
-              }
-              href={item.href}
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
       </header>
-      <div className="md:pl-64">
+      <div className="md:pl-60">
         <PageContainer>{children}</PageContainer>
       </div>
+      <nav
+        aria-label="Mobile navigation"
+        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-slate-200 bg-white px-1 pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1 md:hidden"
+      >
+        {primaryNavigation.map((item) => {
+          const Icon = item.icon;
+          const active = isActivePath(pathname, item.href);
+          return (
+            <Link
+              aria-current={active ? "page" : undefined}
+              className={
+                active
+                  ? "flex min-h-14 flex-col items-center justify-center gap-1 rounded-md text-xs font-medium text-slate-950"
+                  : "flex min-h-14 flex-col items-center justify-center gap-1 rounded-md text-xs font-medium text-slate-500"
+              }
+              href={item.href}
+              key={item.href}
+            >
+              <Icon aria-hidden="true" className={active ? "size-5" : "size-5"} />
+              {item.label}
+            </Link>
+          );
+        })}
+      </nav>
       {activeOrganizationId ? <PilotUtilities organizationId={activeOrganizationId} /> : null}
     </div>
   );
+}
+
+function NavigationLink({ item, pathname }: { item: NavigationItem; pathname: string }) {
+  const Icon = item.icon;
+  const active = isActivePath(pathname, item.href);
+
+  return (
+    <Link
+      aria-current={active ? "page" : undefined}
+      className={
+        active
+          ? "flex h-10 items-center gap-3 rounded-md bg-slate-100 px-3 text-sm font-medium text-slate-950"
+          : "flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+      }
+      href={item.href}
+    >
+      <Icon aria-hidden="true" className="size-4" />
+      {item.label}
+    </Link>
+  );
+}
+
+function isActivePath(pathname: string, href: string) {
+  const path = href.split("#")[0] ?? href;
+  return pathname === path || (path !== "/" && pathname.startsWith(path));
 }
 
 function PilotUtilities({ organizationId }: Readonly<{ organizationId: string }>) {
@@ -144,22 +231,26 @@ function PilotUtilities({ organizationId }: Readonly<{ organizationId: string }>
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-30 flex max-w-[calc(100vw-2rem)] flex-col items-end gap-2">
+    <div className="fixed right-14 top-2 z-30 flex max-w-[calc(100vw-4.5rem)] flex-col-reverse items-end gap-2 md:bottom-4 md:right-4 md:top-auto md:max-w-[calc(100vw-2rem)] md:flex-col">
       {panel === "notifications" ? (
         <div className="w-80 max-w-full rounded-md border border-slate-200 bg-white p-4 shadow-lg">
           <div className="flex items-center justify-between gap-3">
             <div className="text-sm font-semibold text-slate-950">Notifications</div>
             <button
-              className="text-xs font-medium text-slate-500"
+              aria-label="Close notifications"
+              className="flex size-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100"
               onClick={() => setPanel(null)}
               type="button"
             >
-              Close
+              <X aria-hidden="true" className="size-4" />
             </button>
           </div>
           <div className="mt-3 space-y-3">
             {isLoadingNotifications ? (
-              <p className="text-sm text-slate-600">Loading updates...</p>
+              <div className="space-y-2">
+                <Skeleton className="h-14 w-full" />
+                <Skeleton className="h-14 w-full" />
+              </div>
             ) : notifications.length === 0 ? (
               <p className="text-sm text-slate-600">No notifications yet.</p>
             ) : (
@@ -209,11 +300,12 @@ function PilotUtilities({ organizationId }: Readonly<{ organizationId: string }>
           <div className="flex items-center justify-between gap-3">
             <div className="text-sm font-semibold text-slate-950">Send feedback</div>
             <button
-              className="text-xs font-medium text-slate-500"
+              aria-label="Close feedback"
+              className="flex size-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100"
               onClick={() => setPanel(null)}
               type="button"
             >
-              Close
+              <X aria-hidden="true" className="size-4" />
             </button>
           </div>
           <label className="mt-3 block text-xs font-medium text-slate-600">
@@ -250,23 +342,27 @@ function PilotUtilities({ organizationId }: Readonly<{ organizationId: string }>
 
       <div className="flex gap-2">
         <button
-          className="relative rounded-md bg-white px-3 py-2 text-sm font-medium text-slate-950 shadow-sm ring-1 ring-slate-200"
+          aria-label="Open notifications"
+          className="relative flex size-10 items-center justify-center rounded-md bg-white text-slate-700 shadow-sm ring-1 ring-slate-200 hover:bg-slate-50"
           onClick={() => setPanel(panel === "notifications" ? null : "notifications")}
+          title="Notifications"
           type="button"
         >
-          Notifications
+          <Bell aria-hidden="true" className="size-4" />
           {unreadCount > 0 ? (
-            <span className="ml-2 rounded-full bg-slate-950 px-2 py-0.5 text-xs text-white">
+            <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-red-600 px-1 text-center text-xs leading-5 text-white">
               {unreadCount}
             </span>
           ) : null}
         </button>
         <button
-          className="rounded-md bg-slate-950 px-3 py-2 text-sm font-medium text-white shadow-sm"
+          aria-label="Send feedback"
+          className="flex size-10 items-center justify-center rounded-md bg-slate-950 text-white shadow-sm hover:bg-slate-800"
           onClick={() => setPanel(panel === "feedback" ? null : "feedback")}
+          title="Feedback"
           type="button"
         >
-          Feedback
+          <MessageSquarePlus aria-hidden="true" className="size-4" />
         </button>
       </div>
     </div>

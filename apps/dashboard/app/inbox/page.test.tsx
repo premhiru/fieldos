@@ -4,6 +4,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import InboxPage from "./page";
 
+vi.mock("../../components/app-shell", () => ({
+  AppShell: ({ children }: { children: React.ReactNode }) =>
+    React.createElement("div", null, children)
+}));
+
 vi.mock("next/navigation", () => ({
   usePathname: () => "/inbox",
   useRouter: () => ({

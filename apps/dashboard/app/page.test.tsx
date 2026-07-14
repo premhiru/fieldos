@@ -49,7 +49,7 @@ describe("DashboardPage", () => {
       )
     );
 
-    expect(screen.getByRole("heading", { name: "Operations Command Center" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Dashboard" })).toBeTruthy();
     expect(screen.getByText("Create your first organization")).toBeTruthy();
   });
 });

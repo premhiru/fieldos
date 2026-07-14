@@ -1,6 +1,15 @@
 "use client";
 
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@fieldos/ui";
+import { Badge, Button, EmptyState, PageHeader, Skeleton } from "@fieldos/ui";
+import {
+  Activity,
+  Check,
+  CheckCircle2,
+  ClipboardCheck,
+  Inbox,
+  Sparkles,
+  TriangleAlert
+} from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import * as React from "react";
@@ -9,15 +18,12 @@ import { AppShell } from "../components/app-shell";
 import { AuthGuard } from "../components/auth-guard";
 import { OrganizationOnboarding } from "../components/organization-onboarding";
 import { OrganizationSelector } from "../components/organization-selector";
-import {
-  api,
-  type ActionItem,
-  type DashboardHealth,
-  type Recommendation,
-  type RecommendationPriority
-} from "../lib/api";
+import { RecommendationCard } from "../components/recommendation-card";
+import { api, type ActionItem, type Recommendation } from "../lib/api";
 import { useMe, useOperationsDashboard, useOrganizations } from "../lib/queries";
 import { useActiveOrganizationStore } from "../store/active-organization-store";
+
+const snoozeStorageKey = "fieldos-snoozed-recommendations";
 
 export default function DashboardPage() {
   return (
@@ -30,67 +36,21 @@ export default function DashboardPage() {
 }
 
 function DashboardContent() {
+  const queryClient = useQueryClient();
   const organizationsQuery = useOrganizations();
   const meQuery = useMe();
   const { activeOrganizationId, setActiveOrganizationId } = useActiveOrganizationStore();
   const organizations = organizationsQuery.data?.organizations ?? [];
-  const selectedOrganization =
-    organizations.find((organization) => organization.id === activeOrganizationId) ??
-    organizations[0];
-  const dashboardQuery = useOperationsDashboard(selectedOrganization?.id ?? null);
+  const organization =
+    organizations.find((item) => item.id === activeOrganizationId) ?? organizations[0];
+  const dashboardQuery = useOperationsDashboard(organization?.id ?? null);
   const recommendationsQuery = useQuery({
-    enabled: Boolean(selectedOrganization?.id),
-    queryFn: () => api.listRecommendations(selectedOrganization?.id ?? "", "PENDING"),
-    queryKey: ["recommendations", selectedOrganization?.id, "PENDING"],
+    enabled: Boolean(organization?.id),
+    queryFn: () => api.listRecommendations(organization?.id ?? "", "PENDING"),
+    queryKey: ["recommendations", organization?.id, "PENDING"],
     retry: false
   });
-  const onboardingQuery = useQuery({
-    enabled: Boolean(selectedOrganization?.id),
-    queryFn: () => api.getOnboardingState(selectedOrganization?.id ?? ""),
-    queryKey: ["onboarding", selectedOrganization?.id],
-    retry: false
-  });
-  const dashboard = dashboardQuery.data?.dashboard;
-  const queryClient = useQueryClient();
-
-  const invalidateDashboard = React.useCallback(() => {
-    if (selectedOrganization) {
-      void queryClient.invalidateQueries({
-        queryKey: ["operations-dashboard", selectedOrganization.id]
-      });
-    }
-  }, [queryClient, selectedOrganization]);
-
-  const acceptMutation = useMutation({
-    mutationFn: (actionItemId: string) => api.acceptActionItem(actionItemId),
-    onSuccess: invalidateDashboard
-  });
-  const completeMutation = useMutation({
-    mutationFn: (actionItemId: string) => api.completeActionItem(actionItemId),
-    onSuccess: invalidateDashboard
-  });
-  const dismissMutation = useMutation({
-    mutationFn: (actionItemId: string) => api.ignoreActionItem(actionItemId),
-    onSuccess: invalidateDashboard
-  });
-  const approveRecommendationMutation = useMutation({
-    mutationFn: (recommendationId: string) => api.approveRecommendation(recommendationId),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: ["recommendations", selectedOrganization?.id, "PENDING"]
-      });
-      invalidateDashboard();
-    }
-  });
-  const dismissRecommendationMutation = useMutation({
-    mutationFn: (recommendationId: string) => api.dismissRecommendation(recommendationId),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: ["recommendations", selectedOrganization?.id, "PENDING"]
-      });
-      invalidateDashboard();
-    }
-  });
+  const [snoozed, setSnoozed] = React.useState<Record<string, number>>({});
 
   React.useEffect(() => {
     if (!activeOrganizationId && organizations[0]) {
@@ -98,324 +58,215 @@ function DashboardContent() {
     }
   }, [activeOrganizationId, organizations, setActiveOrganizationId]);
 
+  React.useEffect(() => {
+    const stored = window.localStorage.getItem(snoozeStorageKey);
+    if (!stored) return;
+    try {
+      const parsed = JSON.parse(stored) as Record<string, number>;
+      setSnoozed(
+        Object.fromEntries(Object.entries(parsed).filter(([, until]) => until > Date.now()))
+      );
+    } catch {
+      window.localStorage.removeItem(snoozeStorageKey);
+    }
+  }, []);
+
+  const refresh = React.useCallback(async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["operations-dashboard", organization?.id] }),
+      queryClient.invalidateQueries({
+        queryKey: ["recommendations", organization?.id, "PENDING"]
+      })
+    ]);
+  }, [organization?.id, queryClient]);
+
+  const approveMutation = useMutation({
+    mutationFn: (id: string) => api.approveRecommendation(id),
+    onSuccess: refresh
+  });
+  const dismissMutation = useMutation({
+    mutationFn: (id: string) => api.dismissRecommendation(id),
+    onSuccess: refresh
+  });
+  const completeMutation = useMutation({
+    mutationFn: (id: string) => api.completeActionItem(id),
+    onSuccess: refresh
+  });
+
   if (organizationsQuery.isLoading) {
-    return <p className="text-sm text-slate-600">Loading command center...</p>;
+    return <DashboardSkeleton />;
   }
 
   if (organizations.length === 0) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-semibold text-slate-950">Operations Command Center</h1>
+        <PageHeader title="Dashboard" />
         <OrganizationOnboarding />
       </div>
     );
   }
 
-  const greetingName = meQuery.data?.user.name ?? "there";
-  const pendingRecommendations = recommendationsQuery.data?.recommendations ?? [];
-  const milestoneRecommendations = pendingRecommendations.filter(
-    (recommendation) => recommendation.sourceCoordinator === "MILESTONE"
+  const dashboard = dashboardQuery.data?.dashboard;
+  const recommendations = (recommendationsQuery.data?.recommendations ?? []).filter(
+    (recommendation) => !snoozed[recommendation.id]
   );
-  const generalRecommendations = pendingRecommendations.filter(
-    (recommendation) => recommendation.sourceCoordinator !== "MILESTONE"
-  );
+  const actionItems = dashboard
+    ? [
+        ...dashboard.actionItems.urgent,
+        ...dashboard.actionItems.high,
+        ...dashboard.actionItems.medium,
+        ...dashboard.actionItems.low
+      ].filter((item) => item.assignedToUserId === meQuery.data?.user.id)
+    : [];
+  const recentMessages =
+    dashboard?.recentActivity.filter((item) => item.sourceType === "MESSAGE").length ?? 0;
+
+  function snoozeRecommendation(id: string) {
+    const next = { ...snoozed, [id]: Date.now() + 24 * 60 * 60 * 1000 };
+    setSnoozed(next);
+    window.localStorage.setItem(snoozeStorageKey, JSON.stringify(next));
+  }
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <p className="text-sm font-medium text-slate-500">
-            {getGreeting()}, {greetingName}
-          </p>
-          <h1 className="text-2xl font-semibold text-slate-950">Operations Command Center</h1>
-          <p className="text-sm text-slate-600">{selectedOrganization?.name}</p>
-        </div>
-        <OrganizationSelector organizations={organizations} />
-      </div>
-
-      {selectedOrganization ? (
-        <PilotReadinessPanel
-          isLoading={onboardingQuery.isLoading}
-          progress={onboardingQuery.data?.onboarding.progress ?? 0}
-          steps={onboardingQuery.data?.onboarding.steps ?? []}
-        />
-      ) : null}
+    <div className="space-y-9">
+      <PageHeader
+        actions={<OrganizationSelector organizations={organizations} />}
+        description={organization?.name}
+        eyebrow={`${getGreeting()}, ${meQuery.data?.user.name ?? "there"}`}
+        title="What needs your attention today"
+      />
 
       {dashboardQuery.isLoading ? (
-        <DashboardLoadingState />
+        <DashboardSkeleton />
       ) : dashboardQuery.isError || !dashboard ? (
-        <Card>
-          <CardContent>
-            <p className="text-sm font-medium text-slate-950">Unable to load operations data.</p>
-            <p className="mt-1 text-sm text-slate-600">
-              Refresh the page or check the API health panel if this continues.
-            </p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          action={
+            <Button onClick={() => dashboardQuery.refetch()} variant="secondary">
+              Try again
+            </Button>
+          }
+          description="FieldOS could not load your operational summary. Your project data is unchanged."
+          icon={<Activity aria-hidden="true" className="size-5" />}
+          title="Dashboard temporarily unavailable"
+        />
       ) : (
         <>
-          <Card>
-            <CardHeader>
-              <CardTitle>AI Recommendations</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {recommendationsQuery.isLoading ? (
-                <p className="text-sm text-slate-600">Loading recommendations...</p>
-              ) : recommendationsQuery.isError ? (
-                <p className="text-sm text-red-600">Unable to load AI recommendations.</p>
-              ) : generalRecommendations.length === 0 ? (
-                <p className="text-sm text-slate-600">
-                  No pending recommendations. FieldOS will surface the next action here.
-                </p>
+          <section
+            aria-label="Today's summary"
+            className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+          >
+            <SummaryMetric
+              href="/projects"
+              icon={TriangleAlert}
+              label="Projects needing attention"
+              tone="amber"
+              value={
+                dashboard.summary.projectsNeedingAttention + dashboard.summary.criticalProjects
+              }
+            />
+            <SummaryMetric
+              href="/inbox"
+              icon={Inbox}
+              label="Unread messages"
+              value={recentMessages}
+            />
+            <SummaryMetric
+              href="#recommendations"
+              icon={Sparkles}
+              label="Pending recommendations"
+              tone="blue"
+              value={recommendations.length}
+            />
+            <SummaryMetric
+              href="/action-items"
+              icon={ClipboardCheck}
+              label="Outstanding Action Items"
+              tone="red"
+              value={actionItems.length}
+            />
+          </section>
+
+          <section id="recommendations" className="scroll-mt-24 space-y-4">
+            <SectionHeader
+              count={recommendations.length}
+              description="Review the next best actions suggested from project evidence."
+              title="My Recommendations"
+            />
+            {recommendationsQuery.isLoading ? (
+              <div className="grid gap-4 xl:grid-cols-2">
+                <Skeleton className="h-80" />
+                <Skeleton className="h-80" />
+              </div>
+            ) : recommendations.length === 0 ? (
+              <EmptyState
+                description="New recommendations will appear here when FieldOS identifies a decision or follow-up in your project evidence."
+                icon={<CheckCircle2 aria-hidden="true" className="size-5" />}
+                title="You are all caught up"
+              />
+            ) : (
+              <div className="grid gap-4 xl:grid-cols-2">
+                {sortRecommendations(recommendations).map((recommendation) => (
+                  <RecommendationCard
+                    busy={approveMutation.isPending || dismissMutation.isPending}
+                    key={recommendation.id}
+                    onApprove={() => approveMutation.mutate(recommendation.id)}
+                    onDismiss={() => dismissMutation.mutate(recommendation.id)}
+                    onSnooze={() => snoozeRecommendation(recommendation.id)}
+                    recommendation={recommendation}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.7fr)]">
+            <div className="space-y-4">
+              <SectionHeader
+                actionHref="/action-items"
+                actionLabel="View all"
+                count={actionItems.length}
+                title="My Action Items"
+              />
+              {actionItems.length === 0 ? (
+                <EmptyState
+                  description="Items assigned to you will appear here for quick completion."
+                  icon={<ClipboardCheck aria-hidden="true" className="size-5" />}
+                  title="No assigned Action Items"
+                />
               ) : (
-                <div className="space-y-5">
-                  {(["URGENT", "HIGH", "MEDIUM", "LOW"] as const).map((priority) => (
-                    <RecommendationGroup
-                      disabled={
-                        approveRecommendationMutation.isPending ||
-                        dismissRecommendationMutation.isPending
-                      }
-                      key={priority}
-                      onApprove={(id) => approveRecommendationMutation.mutate(id)}
-                      onDismiss={(id) => dismissRecommendationMutation.mutate(id)}
-                      priority={priority}
-                      recommendations={generalRecommendations.filter(
-                        (recommendation) => recommendation.priority === priority
-                      )}
+                <div className="divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
+                  {actionItems.slice(0, 6).map((item) => (
+                    <ActionItemRow
+                      actionItem={item}
+                      busy={completeMutation.isPending}
+                      key={item.id}
+                      onComplete={() => completeMutation.mutate(item.id)}
                     />
                   ))}
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Milestone Recommendations</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {recommendationsQuery.isLoading ? (
-                <p className="text-sm text-slate-600">Reviewing field evidence...</p>
-              ) : milestoneRecommendations.length === 0 ? (
-                <p className="text-sm text-slate-600">
-                  No milestone changes are awaiting approval.
-                </p>
-              ) : (
-                <div className="grid gap-3 xl:grid-cols-2">
-                  {milestoneRecommendations.map((recommendation) => (
-                    <MilestoneRecommendationCard
-                      disabled={
-                        approveRecommendationMutation.isPending ||
-                        dismissRecommendationMutation.isPending
-                      }
-                      key={recommendation.id}
-                      onApprove={() => approveRecommendationMutation.mutate(recommendation.id)}
-                      onDismiss={() => dismissRecommendationMutation.mutate(recommendation.id)}
-                      recommendation={recommendation}
-                    />
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <SummaryCard label="Active Projects" value={dashboard.summary.activeProjects} />
-            <SummaryCard label="Healthy Projects" value={dashboard.summary.healthyProjects} />
-            <SummaryCard
-              label="Needs Attention"
-              value={dashboard.summary.projectsNeedingAttention}
-            />
-            <SummaryCard label="Critical Projects" value={dashboard.summary.criticalProjects} />
-            <SummaryCard label="Open Action Items" value={dashboard.summary.openActionItems} />
-            <SummaryCard
-              label="High Priority Items"
-              value={dashboard.summary.highPriorityActionItems}
-            />
-            <SummaryCard label="Today's Activity" value={dashboard.summary.todaysActivityCount} />
-            <SummaryCard label="Pending AI Reviews" value={dashboard.summary.pendingAIReviews} />
-          </section>
-
-          <section className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(360px,0.8fr)]">
-            <Card>
-              <CardHeader>
-                <CardTitle>Projects Requiring Attention</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {dashboard.projects.length === 0 ? (
-                  <p className="text-sm text-slate-600">No active projects yet.</p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[760px] text-left text-sm">
-                      <thead className="border-b border-slate-200 text-xs uppercase text-slate-500">
-                        <tr>
-                          <th className="py-2 pr-4 font-medium">Project</th>
-                          <th className="py-2 pr-4 font-medium">Health</th>
-                          <th className="py-2 pr-4 font-medium">Last Activity</th>
-                          <th className="py-2 pr-4 font-medium">Highest Priority Issue</th>
-                          <th className="py-2 pr-4 font-medium">Open Items</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {dashboard.projects.slice(0, 8).map((project) => (
-                          <tr key={project.id}>
-                            <td className="py-3 pr-4">
-                              <Link
-                                className="font-medium text-slate-950 hover:text-slate-700"
-                                href={`/projects/${project.id}`}
-                              >
-                                {project.name}
-                              </Link>
-                              <div className="text-xs text-slate-500">{project.code}</div>
-                            </td>
-                            <td className="py-3 pr-4">
-                              <HealthBadge health={project.health} />
-                            </td>
-                            <td className="py-3 pr-4 text-slate-600">
-                              {formatTime(project.lastActivityAt)}
-                            </td>
-                            <td className="max-w-[260px] py-3 pr-4 text-slate-600">
-                              {project.highestPriorityIssue ?? "No open issue"}
-                            </td>
-                            <td className="py-3 pr-4 text-slate-950">
-                              {project.openActionItemCount}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>AI Daily Brief</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {dashboard.brief.bullets.map((bullet) => (
-                    <div
-                      key={bullet}
-                      className="rounded-md border border-slate-200 p-3 text-sm text-slate-700"
-                    >
-                      {bullet}
+            <div className="space-y-4">
+              <SectionHeader title="Recent Activity" />
+              <div className="rounded-lg border border-slate-200 bg-white px-5">
+                {dashboard.recentActivity.slice(0, 10).map((activity) => (
+                  <Link
+                    className="block border-b border-slate-100 py-4 last:border-b-0 hover:text-slate-700"
+                    href={
+                      activity.conversationId
+                        ? `/inbox/${activity.conversationId}`
+                        : `/projects/${activity.projectId}`
+                    }
+                    key={activity.id}
+                  >
+                    <div className="text-sm font-medium text-slate-950">{activity.title}</div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      {activity.projectName} · {formatTime(activity.occurredAt)}
                     </div>
-                  ))}
-                  <Badge variant="muted">
-                    {dashboard.brief.generatedBy === "AI"
-                      ? "AI Generated"
-                      : "Deterministic Fallback"}
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
-          </section>
-
-          <section className="grid gap-6 xl:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>My Action Items</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-5">
-                  {(["urgent", "high", "medium", "low"] as const).map((group) => (
-                    <ActionItemGroup
-                      key={group}
-                      actionItems={dashboard.actionItems[group]}
-                      disabled={
-                        acceptMutation.isPending ||
-                        completeMutation.isPending ||
-                        dismissMutation.isPending
-                      }
-                      label={group}
-                      onAccept={(id) => acceptMutation.mutate(id)}
-                      onComplete={(id) => completeMutation.mutate(id)}
-                      onDismiss={(id) => dismissMutation.mutate(id)}
-                    />
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Recent Evidence</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {dashboard.recentActivity.length === 0 ? (
-                    <p className="text-sm text-slate-600">No recent evidence updates.</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {dashboard.recentActivity.map((activity) => (
-                        <div
-                          key={activity.id}
-                          className="flex items-center justify-between gap-3 rounded-md border border-slate-200 p-3"
-                        >
-                          <div className="min-w-0">
-                            <div className="text-sm font-medium text-slate-950">
-                              {activity.title}
-                            </div>
-                            {activity.description ? (
-                              <div className="mt-1 line-clamp-2 text-xs text-slate-600">
-                                {extractVisualSummary(activity.description)}
-                              </div>
-                            ) : null}
-                            <div className="text-xs text-slate-500">
-                              {activity.projectName} - {formatTime(activity.occurredAt)}
-                            </div>
-                          </div>
-                          <Link
-                            className="inline-flex h-9 shrink-0 items-center justify-center rounded-md bg-slate-100 px-3 text-xs font-medium text-slate-950 hover:bg-slate-200"
-                            href={
-                              activity.conversationId
-                                ? `/inbox/${activity.conversationId}`
-                                : `/projects/${activity.projectId}`
-                            }
-                          >
-                            {activity.conversationId ? "Open Update" : "View Project"}
-                          </Link>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Upcoming &amp; Delayed Milestones</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {dashboard.milestones.length === 0 ? (
-                    <p className="text-sm text-slate-600">No upcoming milestones.</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {dashboard.milestones.map((milestone) => (
-                        <div
-                          key={milestone.id}
-                          className="flex items-center justify-between gap-3 rounded-md border border-slate-200 p-3"
-                        >
-                          <div>
-                            <div className="text-sm font-medium text-slate-950">
-                              {milestone.title}
-                            </div>
-                            <div className="text-xs text-slate-500">
-                              {milestone.project?.name ?? "Project"} -{" "}
-                              {formatMilestoneDate(milestone)}
-                            </div>
-                          </div>
-                          <Badge variant={milestone.status === "DELAYED" ? "warning" : "muted"}>
-                            {formatStatus(milestone.status)}
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                  </Link>
+                ))}
+              </div>
             </div>
           </section>
         </>
@@ -424,466 +275,144 @@ function DashboardContent() {
   );
 }
 
-function PilotReadinessPanel({
-  isLoading,
-  progress,
-  steps
-}: Readonly<{
-  isLoading: boolean;
-  progress: number;
-  steps: Array<{
-    completed: boolean;
-    href: string;
-    key: string;
-    label: string;
-  }>;
-}>) {
-  const [tourIndex, setTourIndex] = React.useState(0);
-  const queryClient = useQueryClient();
-  const setActiveOrganizationId = useActiveOrganizationStore(
-    (state) => state.setActiveOrganizationId
-  );
-  const demoMutation = useMutation({
-    mutationFn: api.resetDemoWorkspace,
-    onSuccess: async ({ demo }) => {
-      setActiveOrganizationId(demo.organization.id);
-      await queryClient.invalidateQueries({ queryKey: ["organizations"] });
-      await queryClient.invalidateQueries({ queryKey: ["operations-dashboard"] });
-      await queryClient.invalidateQueries({ queryKey: ["onboarding"] });
-    }
-  });
-  const tour = [
-    { href: "/", label: "Dashboard" },
-    { href: "/projects", label: "Project Command Center" },
-    { href: "/inbox", label: "Inbox" },
-    { href: "/search", label: "AI Search" },
-    { href: "/projects", label: "Reports" }
-  ];
-  const currentTour = tour[tourIndex] ?? { href: "/", label: "Dashboard" };
-
-  return (
-    <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(300px,0.8fr)]">
-      <Card>
-        <CardHeader>
-          <CardTitle>Pilot Setup</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="space-y-3">
-              <div className="h-2 rounded bg-slate-200" />
-              <div className="h-16 rounded bg-slate-100" />
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium text-slate-700">Progress</span>
-                  <span className="text-slate-500">{progress}%</span>
-                </div>
-                <div className="mt-2 h-2 rounded-full bg-slate-200">
-                  <div
-                    className="h-2 rounded-full bg-slate-950"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-              </div>
-              <Button
-                className="h-9 px-3 text-xs"
-                disabled={demoMutation.isPending}
-                onClick={() => demoMutation.mutate()}
-                type="button"
-                variant="secondary"
-              >
-                {demoMutation.isPending ? "Resetting..." : "Reset demo workspace"}
-              </Button>
-              {demoMutation.isError ? (
-                <p className="text-sm text-red-600">
-                  Demo reset failed. Please check API health and try again.
-                </p>
-              ) : null}
-              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                {steps.map((step) => (
-                  <Link
-                    key={step.key}
-                    className="rounded-md border border-slate-200 p-3 text-sm hover:bg-slate-50"
-                    href={step.href}
-                  >
-                    <span
-                      className={
-                        step.completed
-                          ? "font-semibold text-emerald-700"
-                          : "font-semibold text-slate-500"
-                      }
-                    >
-                      {step.completed ? "Complete" : "Open"}
-                    </span>
-                    <div className="mt-1 font-medium text-slate-950">{step.label}</div>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Pilot Tour</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-sm font-medium text-slate-950">{currentTour.label}</div>
-          <div className="mt-3 flex gap-2">
-            <Button
-              className="h-9 px-3 text-xs"
-              disabled={tourIndex === 0}
-              onClick={() => setTourIndex((value) => Math.max(0, value - 1))}
-              variant="secondary"
-            >
-              Previous
-            </Button>
-            <Button
-              className="h-9 px-3 text-xs"
-              onClick={() => setTourIndex((value) => (value + 1) % tour.length)}
-              variant="secondary"
-            >
-              Next
-            </Button>
-            <Link
-              className="inline-flex h-9 items-center justify-center rounded-md bg-slate-950 px-3 text-xs font-medium text-white"
-              href={currentTour.href}
-            >
-              Open
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
-    </section>
-  );
-}
-
-function DashboardLoadingState() {
-  return (
-    <div className="space-y-6">
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {Array.from({ length: 8 }, (_, index) => (
-          <Card key={index}>
-            <CardContent>
-              <div className="h-4 w-24 rounded bg-slate-200" />
-              <div className="mt-3 h-8 w-14 rounded bg-slate-100" />
-            </CardContent>
-          </Card>
-        ))}
-      </section>
-      <div className="h-72 rounded-md border border-slate-200 bg-white" />
-    </div>
-  );
-}
-
-function SummaryCard({ label, value }: Readonly<{ label: string; value: number }>) {
-  return (
-    <Card>
-      <CardContent>
-        <div className="text-sm font-medium text-slate-500">{label}</div>
-        <div className="mt-2 text-3xl font-semibold text-slate-950">{value}</div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function HealthBadge({ health }: Readonly<{ health: DashboardHealth }>) {
-  if (health === "CRITICAL") {
-    return <Badge variant="warning">Critical</Badge>;
-  }
-
-  if (health === "NEEDS_ATTENTION") {
-    return <Badge variant="warning">Needs Attention</Badge>;
-  }
-
-  return <Badge variant="success">Healthy</Badge>;
-}
-
-function RecommendationGroup({
-  disabled,
-  onApprove,
-  onDismiss,
-  priority,
-  recommendations
-}: Readonly<{
-  disabled: boolean;
-  onApprove: (id: string) => void;
-  onDismiss: (id: string) => void;
-  priority: RecommendationPriority;
-  recommendations: Recommendation[];
-}>) {
-  if (recommendations.length === 0) {
-    return null;
-  }
-
-  return (
-    <div className="space-y-3">
-      <div className="text-xs font-semibold uppercase text-slate-500">{formatStatus(priority)}</div>
-      <div className="grid gap-3 xl:grid-cols-2">
-        {recommendations.map((recommendation) => (
-          <div key={recommendation.id} className="rounded-md border border-slate-200 p-3">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-sm font-semibold text-slate-950">{recommendation.title}</h3>
-                  <Badge variant={priority === "URGENT" ? "warning" : "muted"}>
-                    {formatStatus(priority)}
-                  </Badge>
-                  <Badge variant="muted">{formatConfidence(recommendation.confidence)}</Badge>
-                </div>
-                <p className="mt-2 text-sm text-slate-700">{recommendation.reason}</p>
-                <p className="mt-1 text-xs text-slate-500">
-                  {recommendation.project.name} - {formatStatus(recommendation.sourceCoordinator)} -{" "}
-                  {formatStatus(recommendation.proposedActionType)}
-                </p>
-                <Link
-                  className="mt-2 inline-flex text-xs font-medium text-slate-600 hover:text-slate-950"
-                  href={`/recommendations/${recommendation.id}`}
-                >
-                  View details
-                </Link>
-              </div>
-              <div className="flex shrink-0 flex-wrap gap-2">
-                <Button
-                  className="h-8 px-3 text-xs"
-                  disabled={disabled}
-                  onClick={() => onDismiss(recommendation.id)}
-                  type="button"
-                  variant="ghost"
-                >
-                  Dismiss
-                </Button>
-                <Button
-                  className="h-8 px-3 text-xs"
-                  disabled={disabled}
-                  onClick={() => onApprove(recommendation.id)}
-                  type="button"
-                  variant="secondary"
-                >
-                  Approve
-                </Button>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function MilestoneRecommendationCard({
-  disabled,
-  onApprove,
-  onDismiss,
-  recommendation
-}: Readonly<{
-  disabled: boolean;
-  onApprove: () => void;
-  onDismiss: () => void;
-  recommendation: Recommendation;
-}>) {
-  const payload = readRecommendationPayload(recommendation.proposedActionPayload);
-  const proposedDate =
-    payload.actualEndDate ??
-    payload.actualStartDate ??
-    payload.plannedStartDate ??
-    payload.plannedEndDate;
-
-  return (
-    <div className="rounded-md border border-emerald-200 p-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="muted">Milestone Update Suggested</Badge>
-        <Badge variant={recommendation.confidence === "LOW" ? "warning" : "muted"}>
-          {formatConfidence(recommendation.confidence)}
-        </Badge>
-        <Badge variant={recommendation.priority === "URGENT" ? "warning" : "muted"}>
-          {formatStatus(recommendation.priority)}
-        </Badge>
-      </div>
-      <div className="mt-3 text-sm font-semibold text-slate-950">
-        {payload.milestoneTitle ?? recommendation.title}
-      </div>
-      <p className="mt-1 text-sm text-slate-700">{recommendation.reason}</p>
-      <p className="mt-2 text-xs text-slate-500">
-        {recommendation.project.name}
-        {proposedDate ? ` - ${formatDate(proposedDate)}` : " - Date needs review"}
-      </p>
-      <div className="mt-4 flex flex-wrap gap-2">
-        <Link
-          className="inline-flex h-8 items-center rounded-md bg-slate-100 px-3 text-xs font-medium text-slate-950 hover:bg-slate-200"
-          href={`/projects/${recommendation.project.id}#milestones`}
-        >
-          Review evidence
-        </Link>
-        <Button className="h-8 px-3 text-xs" disabled={disabled} onClick={onApprove}>
-          Approve
-        </Button>
-        <Button
-          className="h-8 px-3 text-xs"
-          disabled={disabled}
-          onClick={onDismiss}
-          variant="ghost"
-        >
-          Dismiss
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function ActionItemGroup({
-  actionItems,
-  disabled,
+function SummaryMetric({
+  href,
+  icon: Icon,
   label,
-  onAccept,
-  onComplete,
-  onDismiss
-}: Readonly<{
-  actionItems: ActionItem[];
-  disabled: boolean;
-  label: "urgent" | "high" | "medium" | "low";
-  onAccept: (id: string) => void;
-  onComplete: (id: string) => void;
-  onDismiss: (id: string) => void;
-}>) {
-  if (actionItems.length === 0) {
-    return null;
-  }
-
+  tone = "slate",
+  value
+}: {
+  href: string;
+  icon: typeof Activity;
+  label: string;
+  tone?: "amber" | "blue" | "red" | "slate";
+  value: number;
+}) {
+  const tones = {
+    amber: "bg-amber-50 text-amber-700",
+    blue: "bg-blue-50 text-blue-700",
+    red: "bg-red-50 text-red-700",
+    slate: "bg-slate-100 text-slate-600"
+  };
   return (
-    <div className="space-y-3">
-      <div className="text-xs font-semibold uppercase text-slate-500">{label}</div>
-      {actionItems.map((actionItem) => (
-        <div key={actionItem.id} className="rounded-md border border-slate-200 p-3">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div className="min-w-0">
-              <div className="text-sm font-medium text-slate-950">{actionItem.title}</div>
-              <div className="mt-1 text-xs text-slate-500">
-                {actionItem.project?.name ?? actionItem.suggestedProject?.name ?? "No project"} -{" "}
-                {formatTime(actionItem.createdAt)} - {formatStatus(actionItem.type)} -{" "}
-                {formatStatus(actionItem.status)}
-              </div>
-              {actionItem.description ? (
-                <p className="mt-2 text-sm text-slate-600">{actionItem.description}</p>
-              ) : null}
-            </div>
-            <div className="flex shrink-0 flex-wrap gap-2">
-              <Button
-                className="h-8 px-3 text-xs"
-                disabled={disabled}
-                onClick={() => onAccept(actionItem.id)}
-                variant="secondary"
-              >
-                Accept
-              </Button>
-              <Button
-                className="h-8 px-3 text-xs"
-                disabled={disabled}
-                onClick={() => onComplete(actionItem.id)}
-                variant="secondary"
-              >
-                Complete
-              </Button>
-              <Button
-                className="h-8 px-3 text-xs"
-                disabled={disabled}
-                onClick={() => onDismiss(actionItem.id)}
-                variant="ghost"
-              >
-                Dismiss
-              </Button>
-            </div>
-          </div>
+    <Link
+      className="rounded-lg border border-slate-200 bg-white p-4 hover:border-slate-300"
+      href={href}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <span className={`flex size-9 items-center justify-center rounded-md ${tones[tone]}`}>
+          <Icon aria-hidden="true" className="size-4" />
+        </span>
+        <span className="text-2xl font-semibold text-slate-950">{value}</span>
+      </div>
+      <div className="mt-3 text-sm font-medium text-slate-600">{label}</div>
+    </Link>
+  );
+}
+
+function SectionHeader({
+  actionHref,
+  actionLabel,
+  count,
+  description,
+  title
+}: {
+  actionHref?: string;
+  actionLabel?: string;
+  count?: number;
+  description?: string;
+  title: string;
+}) {
+  return (
+    <div className="flex items-end justify-between gap-4">
+      <div>
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-semibold text-slate-950">{title}</h2>
+          {typeof count === "number" && count > 0 ? <Badge variant="muted">{count}</Badge> : null}
         </div>
-      ))}
+        {description ? <p className="mt-1 text-sm text-slate-600">{description}</p> : null}
+      </div>
+      {actionHref && actionLabel ? (
+        <Link className="text-sm font-medium text-slate-600 hover:text-slate-950" href={actionHref}>
+          {actionLabel}
+        </Link>
+      ) : null}
     </div>
   );
 }
 
-function getGreeting(): string {
+function ActionItemRow({
+  actionItem,
+  busy,
+  onComplete
+}: {
+  actionItem: ActionItem;
+  busy: boolean;
+  onComplete: () => void;
+}) {
+  return (
+    <div className="flex gap-3 p-4">
+      <button
+        aria-label={`Complete ${actionItem.title}`}
+        className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md border border-slate-300 text-slate-400 hover:border-emerald-500 hover:bg-emerald-50 hover:text-emerald-700"
+        disabled={busy}
+        onClick={onComplete}
+        type="button"
+      >
+        <Check aria-hidden="true" className="size-4" />
+      </button>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="font-medium text-slate-950">{actionItem.title}</div>
+          <Badge variant={actionItem.priority === "URGENT" ? "warning" : "muted"}>
+            {formatLabel(actionItem.priority)}
+          </Badge>
+        </div>
+        <div className="mt-1 text-xs text-slate-500">
+          {actionItem.project?.name ?? "No project"} · Opened {formatTime(actionItem.createdAt)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-8" aria-label="Loading dashboard">
+      <Skeleton className="h-16 w-full max-w-lg" />
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 4 }, (_, index) => (
+          <Skeleton className="h-28" key={index} />
+        ))}
+      </div>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Skeleton className="h-80" />
+        <Skeleton className="h-80" />
+      </div>
+    </div>
+  );
+}
+
+function sortRecommendations(recommendations: Recommendation[]) {
+  const rank = { HIGH: 1, LOW: 3, MEDIUM: 2, URGENT: 0 };
+  return [...recommendations].sort((a, b) => rank[a.priority] - rank[b.priority]);
+}
+
+function getGreeting() {
   const hour = new Date().getHours();
-
-  if (hour < 12) {
-    return "Good morning";
-  }
-
-  if (hour < 18) {
-    return "Good afternoon";
-  }
-
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
   return "Good evening";
 }
 
-function formatTime(value: string | null): string {
-  if (!value) {
-    return "No activity";
-  }
-
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short"
-  }).format(new Date(value));
+function formatTime(value: string) {
+  return new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date(value));
 }
 
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium"
-  }).format(new Date(value));
-}
-
-function formatMilestoneDate(milestone: {
-  actualEndDate: string | null;
-  actualStartDate: string | null;
-  plannedEndDate: string | null;
-  plannedStartDate: string | null;
-}): string {
-  const value =
-    milestone.actualEndDate ??
-    milestone.actualStartDate ??
-    milestone.plannedStartDate ??
-    milestone.plannedEndDate;
-  return value ? formatDate(value) : "Date not set";
-}
-
-function readRecommendationPayload(value: unknown): Record<string, string | null> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return {};
-  }
-
-  return Object.fromEntries(
-    Object.entries(value).map(([key, item]) => [key, typeof item === "string" ? item : null])
-  );
-}
-
-function formatStatus(value: string): string {
+function formatLabel(value: string) {
   return value
     .toLowerCase()
     .split("_")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
-}
-
-function formatConfidence(value: string): string {
-  if (value === "HIGH") {
-    return "High Confidence";
-  }
-
-  if (value === "MEDIUM") {
-    return "Needs Review";
-  }
-
-  return "Low Confidence";
-}
-
-function extractVisualSummary(description: string): string {
-  return (
-    description
-      .split("\n")
-      .find((line) => line.startsWith("Visual Summary:"))
-      ?.replace("Visual Summary:", "")
-      .trim() ?? description
-  );
 }

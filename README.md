@@ -5,7 +5,7 @@
 | Purpose      | Introduce the FieldOS engineering foundation, repository layout, and development workflow. |
 | Owner        | Founding Engineering                                                                       |
 | Status       | Active                                                                                     |
-| Last Updated | 2026-07-08                                                                                 |
+| Last Updated | 2026-07-14                                                                                 |
 
 ## Table of Contents
 
@@ -23,6 +23,7 @@
 - [AI Project Coordinators](#ai-project-coordinators)
 - [Milestone Intelligence](#milestone-intelligence)
 - [Pilot Readiness](#pilot-readiness)
+- [Product Experience](#product-experience)
 - [Repository Layout](#repository-layout)
 - [Development Philosophy](#development-philosophy)
 - [Tech Stack](#tech-stack)
@@ -204,6 +205,12 @@ Pilot documents:
 - [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md)
 - [docs/PILOT_READINESS_REPORT.md](./docs/PILOT_READINESS_REPORT.md)
 - [docs/KNOWN_LIMITATIONS.md](./docs/KNOWN_LIMITATIONS.md)
+
+## Product Experience
+
+FieldOS uses five primary product destinations: Dashboard, Projects, Inbox, Search, and Reports. Account security, team access, WhatsApp integrations, and role-gated operations tooling live under Settings.
+
+The dashboard answers "What needs my attention today?" with recommendations, assigned Action Items, and recent activity. Project pages follow a stable operational order: Brief, Recommendations, Timeline, Evidence, Milestones, and Reports. See [docs/UX_AUDIT.md](./docs/UX_AUDIT.md) for the full pilot UX audit, information architecture, screenshots, and deferred gaps.
 
 ## Repository Layout
 

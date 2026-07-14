@@ -1,6 +1,17 @@
 "use client";
 
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@fieldos/ui";
+import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  EmptyState,
+  PageHeader,
+  Skeleton
+} from "@fieldos/ui";
+import { Camera, ChevronDown, FileText, Sparkles } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -9,6 +20,7 @@ import * as React from "react";
 import { AppShell } from "../../../components/app-shell";
 import { AuthGuard } from "../../../components/auth-guard";
 import { MilestoneSection } from "../../../components/milestone-section";
+import { RecommendationCard } from "../../../components/recommendation-card";
 import {
   api,
   type AIMessageClassification,
@@ -88,6 +100,24 @@ function ProjectDetailContent() {
       });
     }
   });
+  const approveRecommendationMutation = useMutation({
+    mutationFn: api.approveRecommendation,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["project-recommendations", params.projectId, "PENDING"]
+      });
+      await queryClient.invalidateQueries({ queryKey: ["project-state", params.projectId] });
+    }
+  });
+  const dismissRecommendationMutation = useMutation({
+    mutationFn: (id: string) => api.dismissRecommendation(id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["project-recommendations", params.projectId, "PENDING"]
+      });
+    }
+  });
+  const [snoozedRecommendationIds, setSnoozedRecommendationIds] = React.useState<string[]>([]);
   const [projectQuestion, setProjectQuestion] = React.useState("");
   const projectSearchMutation = useMutation({
     mutationFn: () =>
@@ -115,139 +145,194 @@ function ProjectDetailContent() {
   const timelineEvents = project?.timelineEvents ?? [];
   const whatsAppMessages = project?.whatsAppMessages ?? [];
 
-  if (projectQuery.isLoading) {
-    return <p className="text-sm text-slate-600">Loading project...</p>;
-  }
+  if (projectQuery.isLoading) return <Skeleton className="h-[720px]" />;
 
   if (projectQuery.isError || !project) {
     return <p className="text-sm text-red-600">Project not found.</p>;
   }
 
+  const recommendations = (recommendationsQuery.data?.recommendations ?? []).filter(
+    (item) => !snoozedRecommendationIds.includes(item.id)
+  );
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div className="space-y-2">
-          <h1 className="text-2xl font-semibold text-slate-950">{project.name}</h1>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-slate-500">{project.code}</span>
-            <Badge variant="muted">{project.status}</Badge>
+    <div className="space-y-10">
+      <PageHeader
+        actions={
+          <Link
+            className="inline-flex h-10 items-center gap-2 rounded-md bg-slate-950 px-4 text-sm font-medium text-white hover:bg-slate-800"
+            href={`/projects/${project.id}/intelligence`}
+          >
+            <FileText aria-hidden="true" className="size-4" />
+            Reports
+          </Link>
+        }
+        description={
+          <span className="flex flex-wrap items-center gap-2">
+            <span>{project.code}</span>
+            <Badge variant="muted">{formatStatus(project.status)}</Badge>
+          </span>
+        }
+        title={project.name}
+      />
+
+      <section
+        aria-labelledby="project-brief-heading"
+        className="rounded-lg border border-slate-200 bg-white p-5 sm:p-6"
+      >
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950" id="project-brief-heading">
+              Project Brief
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Last updated {formatTime(projectState?.lastActivityAt ?? null)}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={projectState?.health === "CRITICAL" ? "warning" : "success"}>
+              {formatStatus(projectState?.health ?? "UNKNOWN")}
+            </Badge>
+            <Badge variant="muted">{projectState?.completionPercent ?? 0}% complete</Badge>
           </div>
         </div>
-        <Link
-          className="inline-flex h-10 items-center justify-center rounded-md bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
-          href={`/projects/${project.id}/intelligence`}
-        >
-          Project Intelligence
-        </Link>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-3">
-        <ProjectTimelineCard events={timelineEvents} />
-        <ProjectWhatsAppMessagesCard messages={whatsAppMessages} />
-        <Card>
-          <CardHeader>
-            <CardTitle>Reports</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Link
-              className="text-sm font-medium text-slate-700 hover:text-slate-950"
-              href={`/projects/${project.id}/intelligence`}
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <ProjectStateSummary label="Progress" value={projectState?.recentProgressSummary} />
+          <ProjectStateSummary label="Risks" value={projectState?.recentRiskSummary} />
+          <ProjectStateSummary label="Evidence" value={projectState?.recentEvidenceSummary} />
+          <ProjectStateSummary label="Decisions" value={projectState?.pendingDecisionSummary} />
+        </div>
+        <details className="mt-5 border-t border-slate-100 pt-4">
+          <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-950">
+            <ChevronDown aria-hidden="true" className="size-4" />
+            Coordinator details
+          </summary>
+          <div className="mt-4 flex flex-col gap-4">
+            <Button
+              className="w-fit"
+              disabled={runCoordinatorsMutation.isPending}
+              onClick={() => runCoordinatorsMutation.mutate()}
+              variant="secondary"
             >
-              Open Project Intelligence
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Project Coordinator</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-5">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant={projectState?.health === "CRITICAL" ? "warning" : "muted"}>
-                  {formatStatus(projectState?.health ?? "UNKNOWN")}
-                </Badge>
-                <Badge variant="muted">{projectState?.completionPercent ?? 0}% Complete</Badge>
-                <span className="text-sm text-slate-500">
-                  Last update {formatTime(projectState?.lastActivityAt ?? null)}
+              {runCoordinatorsMutation.isPending ? "Refreshing brief..." : "Refresh project brief"}
+            </Button>
+            {(coordinatorRunsQuery.data?.runs ?? []).slice(0, 5).map((run) => (
+              <div className="flex flex-wrap justify-between gap-2 text-sm" key={run.id}>
+                <span>
+                  {formatStatus(run.coordinatorType)} · {formatStatus(run.status)}
                 </span>
+                <span className="text-slate-500">{formatTime(run.startedAt)}</span>
               </div>
-              <Button
-                disabled={runCoordinatorsMutation.isPending}
-                onClick={() => runCoordinatorsMutation.mutate()}
-                type="button"
-                variant="secondary"
-              >
-                {runCoordinatorsMutation.isPending ? "Running..." : "Run Coordinators Now"}
-              </Button>
-            </div>
-            <div className="grid gap-3 md:grid-cols-2">
-              <ProjectStateSummary
-                label="Recent progress"
-                value={projectState?.recentProgressSummary}
+            ))}
+          </div>
+        </details>
+      </section>
+
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-950">Recommendations</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Decisions suggested from this project's latest evidence.
+          </p>
+        </div>
+        {recommendations.length === 0 ? (
+          <EmptyState
+            description="FieldOS has not identified a project decision that needs your approval."
+            icon={<Sparkles aria-hidden="true" className="size-5" />}
+            title="No recommendations to review"
+          />
+        ) : (
+          <div className="grid gap-4 xl:grid-cols-2">
+            {recommendations.map((item) => (
+              <RecommendationCard
+                busy={
+                  approveRecommendationMutation.isPending || dismissRecommendationMutation.isPending
+                }
+                key={item.id}
+                onApprove={() => approveRecommendationMutation.mutate(item.id)}
+                onDismiss={() => dismissRecommendationMutation.mutate(item.id)}
+                onSnooze={() => setSnoozedRecommendationIds((ids) => [...ids, item.id])}
+                recommendation={item}
               />
-              <ProjectStateSummary label="Recent risks" value={projectState?.recentRiskSummary} />
-              <ProjectStateSummary label="Evidence" value={projectState?.recentEvidenceSummary} />
-              <ProjectStateSummary
-                label="Pending decisions"
-                value={projectState?.pendingDecisionSummary}
-              />
-            </div>
-            <div>
-              <div className="text-sm font-semibold text-slate-950">Pending recommendations</div>
-              {(recommendationsQuery.data?.recommendations ?? []).length === 0 ? (
-                <p className="mt-2 text-sm text-slate-600">No pending recommendations.</p>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-lg font-semibold text-slate-950">Timeline</h2>
+        <ProjectTimelineCard events={timelineEvents} />
+      </section>
+
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-950">Evidence</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Messages, photos, and interpreted field updates.
+          </p>
+        </div>
+        <div className="grid gap-4 xl:grid-cols-2">
+          <ProjectWhatsAppMessagesCard messages={whatsAppMessages} />
+          <Card>
+            <CardHeader>
+              <CardTitle>Photo Intelligence</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {photoAnalysisQuery.isLoading ? (
+                <Skeleton className="h-36" />
+              ) : photoAnalyses.length === 0 ? (
+                <EmptyState
+                  description="Image analysis will appear after project photos are received."
+                  icon={<Camera aria-hidden="true" className="size-5" />}
+                  title="No photo evidence yet"
+                />
               ) : (
-                <div className="mt-2 space-y-2">
-                  {(recommendationsQuery.data?.recommendations ?? []).slice(0, 4).map((item) => (
-                    <Link
-                      className="block rounded-md border border-slate-200 p-3 text-sm hover:bg-slate-50"
-                      href={`/recommendations/${item.id}`}
-                      key={item.id}
-                    >
-                      <span className="font-medium text-slate-950">{item.title}</span>
-                      <span className="ml-2 text-xs text-slate-500">
-                        {formatStatus(item.priority)} - {formatStatus(item.sourceCoordinator)}
-                      </span>
-                    </Link>
+                <div className="space-y-3">
+                  {photoAnalyses.slice(0, 4).map((analysis) => (
+                    <PhotoAnalysisRow analysis={analysis} key={analysis.id} />
                   ))}
                 </div>
               )}
-            </div>
-            <details className="rounded-md border border-slate-200 p-3">
-              <summary className="cursor-pointer text-sm font-medium text-slate-950">
-                View Coordinator History
-              </summary>
-              <div className="mt-3 space-y-2">
-                {(coordinatorRunsQuery.data?.runs ?? []).slice(0, 8).map((run) => (
-                  <div
-                    className="flex flex-wrap items-center justify-between gap-2 text-sm"
-                    key={run.id}
-                  >
-                    <span>
-                      {formatStatus(run.coordinatorType)} - {formatStatus(run.status)}
-                    </span>
-                    <span className="text-slate-500">
-                      {run.recommendationsCreated} created - {formatTime(run.startedAt)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </details>
+            </CardContent>
+          </Card>
+        </div>
+        <details className="rounded-lg border border-slate-200 bg-white p-5">
+          <summary className="cursor-pointer text-sm font-medium text-slate-950">
+            AI evidence classifications
+          </summary>
+          <div className="mt-4 space-y-3">
+            {classifications.map((classification) => (
+              <AIInsightRow classification={classification} key={classification.id} />
+            ))}
           </div>
-        </CardContent>
-      </Card>
+        </details>
+      </section>
 
       <MilestoneSection projectId={project.id} projectState={projectState} />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Ask about this project</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <section className="space-y-4">
+        <h2 className="text-lg font-semibold text-slate-950">Reports</h2>
+        <Link
+          className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-5 hover:border-slate-300"
+          href={`/projects/${project.id}/intelligence`}
+        >
+          <span>
+            <span className="block font-semibold text-slate-950">
+              Project intelligence and reports
+            </span>
+            <span className="mt-1 block text-sm text-slate-600">
+              Review summaries, risks, pending decisions, and generated exports.
+            </span>
+          </span>
+          <FileText aria-hidden="true" className="size-5 text-slate-400" />
+        </Link>
+      </section>
+
+      <details className="rounded-lg border border-slate-200 bg-white p-5">
+        <summary className="cursor-pointer text-sm font-semibold text-slate-950">
+          Ask FieldOS and review Action Items
+        </summary>
+        <div className="mt-5 space-y-6">
           <form
             className="space-y-3"
             onSubmit={(event) => {
@@ -291,71 +376,28 @@ function ProjectDetailContent() {
               </div>
             </div>
           ) : null}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>AI Insights</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {classificationsQuery.isLoading ? (
-            <p className="text-sm text-slate-600">Loading AI insights...</p>
-          ) : classifications.length === 0 ? (
-            <p className="text-sm text-slate-600">No AI insights yet.</p>
-          ) : (
-            <div className="space-y-3">
-              {classifications.map((classification) => (
-                <AIInsightRow key={classification.id} classification={classification} />
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Photo Intelligence</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {photoAnalysisQuery.isLoading ? (
-            <p className="text-sm text-slate-600">Loading photo intelligence...</p>
-          ) : photoAnalyses.length === 0 ? (
-            <p className="text-sm text-slate-600">No photo analysis yet.</p>
-          ) : (
-            <div className="space-y-3">
-              {photoAnalyses.map((analysis) => (
-                <PhotoAnalysisRow analysis={analysis} key={analysis.id} />
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Action Items</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {actionItemsQuery.isLoading ? (
-            <p className="text-sm text-slate-600">Loading Action Items...</p>
-          ) : actionItems.length === 0 ? (
-            <p className="text-sm text-slate-600">No Action Items yet.</p>
-          ) : (
-            <div className="space-y-3">
-              {actionItems.map((actionItem) => (
-                <ActionItemRow
-                  key={actionItem.id}
-                  actionItem={actionItem}
-                  onAccept={() => acceptMutation.mutate(actionItem.id)}
-                  onIgnore={() => ignoreMutation.mutate(actionItem.id)}
-                  pending={acceptMutation.isPending || ignoreMutation.isPending}
-                />
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          <div>
+            <h3 className="font-semibold text-slate-950">Action Items</h3>
+            {actionItemsQuery.isLoading ? (
+              <Skeleton className="mt-3 h-32" />
+            ) : actionItems.length === 0 ? (
+              <p className="mt-2 text-sm text-slate-600">No Action Items for this project.</p>
+            ) : (
+              <div className="mt-3 space-y-3">
+                {actionItems.map((actionItem) => (
+                  <ActionItemRow
+                    key={actionItem.id}
+                    actionItem={actionItem}
+                    onAccept={() => acceptMutation.mutate(actionItem.id)}
+                    onIgnore={() => ignoreMutation.mutate(actionItem.id)}
+                    pending={acceptMutation.isPending || ignoreMutation.isPending}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </details>
     </div>
   );
 }
@@ -364,7 +406,7 @@ function ProjectTimelineCard({ events }: { events: ProjectTimelineEvent[] }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Timeline</CardTitle>
+        <CardTitle>Project activity</CardTitle>
       </CardHeader>
       <CardContent>
         {events.length === 0 ? (

@@ -5,13 +5,23 @@
 | Purpose      | Track notable FieldOS product and platform work. |
 | Owner        | Engineering                                      |
 | Status       | Active                                           |
-| Last Updated | 2026-07-13                                       |
+| Last Updated | 2026-07-14                                       |
 
 ## Table of Contents
 
 - [Unreleased](#unreleased)
 
 ## Unreleased
+
+### UX Refactoring
+
+- Reduced primary navigation to Dashboard, Projects, Inbox, Search, and Reports, with utilities and role-gated administration under Settings.
+- Rebuilt the dashboard around attention signals, recommendations, assigned Action Items, and recent activity.
+- Reordered project detail around Brief, Recommendations, Timeline, Evidence, Milestones, and Reports.
+- Added a responsive two-pane inbox with unread cues and All, Unread, Groups, Direct, and Unassigned filters.
+- Added shared recommendation cards, inline Action Item completion, a vertical answer-first search experience, and a reports hub.
+- Added shared PageHeader, Skeleton, and EmptyState components plus persisted workspace selection and mobile bottom navigation.
+- Added `docs/UX_AUDIT.md` with the audit, navigation model, screenshots, accessibility review, and known issues.
 
 ### Milestone Intelligence
 

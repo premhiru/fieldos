@@ -19,7 +19,7 @@
 
 ## Current Milestone
 
-Milestone Intelligence is implemented, validated, and deployed to production.
+The FieldOS pilot UX refactor is implemented and undergoing final validation and production deployment.
 
 ## Completed Tasks
 
@@ -239,10 +239,18 @@ Milestone Intelligence is implemented, validated, and deployed to production.
   - Owners can assign administrators; administrators cannot manage other administrators or the owner.
   - Members and viewers can be restricted to selected projects across Projects, Dashboard, Search, and Inbox access paths.
   - Production migration `20260713030000_team_invitations` is applied and the invitation lifecycle passed a disposable production database smoke test.
+- UX Refactoring Sprint: Make FieldOS Feel Like a Product.
+  - Reduced primary navigation to Dashboard, Projects, Inbox, Search, and Reports; moved support and role-gated administration under Settings.
+  - Focused Dashboard on recommendations, assigned Action Items, and ten recent events.
+  - Reordered project detail around Brief, Recommendations, Timeline, Evidence, Milestones, and Reports.
+  - Added a responsive two-pane inbox, operational filters, local unread cues, and in-page conversation preview.
+  - Added shared recommendation cards, inline Action Item completion, answer-first AI Search, and a product-level Reports hub.
+  - Added consistent page headers, loading skeletons, empty states, mobile bottom navigation, keyboard search access, and persisted workspace selection.
+  - Added `docs/UX_AUDIT.md` with ranked findings, information architecture, accessibility review, screenshots, and deferred gaps.
 
 ## In-Progress Tasks
 
-- None.
+- Final CI, Vercel deployment, and production smoke verification for the UX Refactoring Sprint.
 
 ## Known Technical Debt
 
@@ -273,9 +281,14 @@ Milestone Intelligence is implemented, validated, and deployed to production.
 - Quick-start screenshots are static in-repo visual references and should be replaced with production screenshots after deployment.
 - WhatsApp draft sending now runs through worker-owned Baileys jobs, but live success still requires the dedicated WhatsApp line to be paired and connected.
 - Running `railway run pnpm deploy:migrate` from the local shell currently returns a generic Prisma schema engine error, even though the API service startup migration path succeeds in Railway logs.
+- Inbox unread state is browser-local and does not synchronize across devices or users.
+- Action Items do not yet have domain-level due dates, so overdue work cannot be derived reliably.
+- Recommendation snoozes are browser-local until the Recommendation API exposes durable snooze state.
 
 ## Upcoming Milestones
 
+- Validate the redesigned product shell with pilot users and prioritize findings from real workflows.
+- Add server-backed unread state, Action Item due dates, and durable recommendation snoozes when workflow telemetry confirms the required semantics.
 - Verify a FieldOS sending domain in Resend and replace the testing sender before onboarding users with other email addresses.
 - Capture refreshed production quick-start screenshots for the Milestone Intelligence workflow.
 - Pair the dedicated pilot WhatsApp line and verify one live `WHATSAPP_DRAFT_SEND` job reaches `COMPLETED`.
@@ -314,6 +327,7 @@ Milestone Intelligence is implemented, validated, and deployed to production.
 - ADR 0015: Use hashed team invitations, organization roles, and explicit project access for restricted members.
 - ADR 0016: Require human approval for evidence-backed milestone changes, prefer existing milestone matching, and create business timeline events.
 - Sprint 14 implementation decision: Keep pilot readiness primitives small, tenant-scoped, and API-owned rather than introducing a product analytics service or tour framework before the first pilot.
+- UX Refactoring decision: Keep five stable primary destinations, organize projects around operational review order, and place support/admin capabilities under role-aware Settings.
 
 ## Deployment Status
 

@@ -4,8 +4,8 @@
 
 :root {
   color-scheme: light;
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --background: #f6f7f9;
+  --foreground: #17202a;
 }
 
 * {
@@ -25,4 +25,21 @@ body {
     BlinkMacSystemFont,
     "Segoe UI",
     sans-serif;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:focus-visible {
+  scroll-margin: 6rem;
+}
+
+::selection {
+  background: #dbeafe;
+  color: #17202a;
 }
