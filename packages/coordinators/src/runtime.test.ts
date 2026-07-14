@@ -231,17 +231,100 @@ describe("ProjectCoordinatorRuntime", () => {
       })
     );
   });
+
+  it("edits and approves a milestone recommendation with a business event and state refresh", async () => {
+    const prisma = createPrismaStub();
+    const runtime = new ProjectCoordinatorRuntime(prisma as never, { now: () => now });
+    const recommendation = {
+      id: "recommendation_milestone_1",
+      organizationId: "org_1",
+      projectId: "project_1",
+      proposedActionPayload: {
+        evidenceMessageId: "message_1",
+        milestoneTitle: "Foundation Pour",
+        proposedStatus: "COMPLETED"
+      },
+      proposedActionType: "CREATE_MILESTONE",
+      sourceCoordinator: "MILESTONE",
+      status: "PENDING"
+    };
+    const milestone = {
+      actualEndDate: new Date("2026-07-08T00:00:00.000Z"),
+      actualStartDate: null,
+      createdAt: now,
+      createdByUserId: null,
+      description: "Confirmed by the project manager.",
+      id: "milestone_1",
+      organizationId: "org_1",
+      plannedEndDate: null,
+      plannedStartDate: null,
+      priority: "HIGH",
+      projectId: "project_1",
+      source: "AI_RECOMMENDATION",
+      sourceMessageId: "message_1",
+      sourceRecommendationId: recommendation.id,
+      status: "COMPLETED",
+      title: "Foundation Concrete Pour",
+      updatedAt: now
+    };
+    prisma.recommendation.findUnique.mockResolvedValue(recommendation);
+    prisma.recommendation.update.mockResolvedValue({ ...recommendation, status: "COMPLETED" });
+    prisma.milestone.create.mockResolvedValue(milestone);
+    prisma.milestone.findMany.mockResolvedValue([milestone]);
+    prisma.event.create.mockResolvedValue({
+      id: "event_1",
+      organizationId: "org_1",
+      projectId: "project_1"
+    });
+
+    const result = await runtime.approveMilestoneRecommendation({
+      edits: {
+        actualEndDate: new Date("2026-07-08T00:00:00.000Z"),
+        description: "Confirmed by the project manager.",
+        priority: "HIGH",
+        status: "COMPLETED",
+        title: "Foundation Concrete Pour"
+      },
+      recommendationId: recommendation.id,
+      userId: "user_1"
+    });
+
+    expect(result.milestone.id).toBe("milestone_1");
+    expect(prisma.milestone.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          source: "AI_RECOMMENDATION",
+          sourceMessageId: "message_1",
+          title: "Foundation Concrete Pour"
+        })
+      })
+    );
+    expect(prisma.event.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          sourceType: "MILESTONE",
+          title: "Milestone completed: Foundation Concrete Pour"
+        })
+      })
+    );
+    expect(prisma.projectState.upsert).toHaveBeenCalled();
+  });
 });
 
 function createPrismaStub() {
   const project = {
+    createdAt: now,
     id: "project_1",
     name: "Terminal 2",
-    organizationId: "org_1"
+    organizationId: "org_1",
+    status: "ACTIVE",
+    timezone: "UTC",
+    updatedAt: now
   };
 
-  return {
-    $transaction: vi.fn((callback) => callback(createPrismaStub())),
+  const transaction = vi.fn();
+  const stub = {
+    $transaction: transaction,
     aIMessageClassification: {
       findMany: vi.fn().mockResolvedValue([])
     },
@@ -263,12 +346,19 @@ function createPrismaStub() {
     },
     event: {
       count: vi.fn().mockResolvedValue(0),
+      create: vi.fn(),
       findFirst: vi.fn().mockResolvedValue(null),
       findMany: vi.fn().mockResolvedValue([])
     },
     message: {
       findFirst: vi.fn().mockResolvedValue(null),
       findMany: vi.fn().mockResolvedValue([])
+    },
+    milestone: {
+      create: vi.fn(),
+      findFirst: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn().mockResolvedValue([]),
+      update: vi.fn()
     },
     photoAnalysis: {
       findMany: vi.fn().mockResolvedValue([])
@@ -313,4 +403,6 @@ function createPrismaStub() {
       update: vi.fn()
     }
   };
+  transaction.mockImplementation((callback: (client: typeof stub) => unknown) => callback(stub));
+  return stub;
 }

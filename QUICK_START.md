@@ -5,7 +5,7 @@
 | Purpose      | Help a pilot user start FieldOS in under ten minutes. |
 | Owner        | Product Engineering                                   |
 | Status       | Active                                                |
-| Last Updated | 2026-07-10                                            |
+| Last Updated | 2026-07-13                                            |
 
 ## Table of Contents
 
@@ -13,6 +13,7 @@
 - [Demo Workspace](#demo-workspace)
 - [Recommended Pilot Scope](#recommended-pilot-scope)
 - [Final Smoke Test](#final-smoke-test)
+- [Approve a Milestone Update](#approve-a-milestone-update)
 - [Screenshots](#screenshots)
 - [Production Checks](#production-checks)
 
@@ -50,6 +51,16 @@ The demo workspace creates aviation project data, WhatsApp-style conversations, 
 7. Run project coordinators and approve one recommendation.
 8. Review the generated WhatsApp draft, confirm send, and verify the worker marks it sent or exposes a retryable failure.
 9. Open Operations Health and confirm no critical worker, AI, media, or draft-send failures remain.
+
+## Approve a Milestone Update
+
+1. Open a project and scroll to `Milestones`.
+2. Review the original field message, sender, timestamp, attachments, original date phrase, resolved date, and confidence state.
+3. Click `Approve` when the proposed fields are correct.
+4. Click `Review evidence` to edit the title, status, dates, description, or priority before approval.
+5. Confirm the milestone timeline, Project State summary, and Operations Command Center refresh after approval.
+
+Milestone recommendations are advisory. Dismiss unclear suggestions; FieldOS never changes milestones from AI evidence alone.
 
 ## Screenshots
 

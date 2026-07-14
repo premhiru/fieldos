@@ -2,6 +2,9 @@ import type {
   CoordinatorType,
   Prisma,
   PrismaClient,
+  Milestone,
+  MilestonePriority,
+  MilestoneStatus,
   ProjectState,
   Recommendation,
   RecommendationActionType,
@@ -51,7 +54,96 @@ export interface WhatsAppDraftSender {
 
 export interface ProjectCoordinatorRuntimeOptions {
   draftSender?: WhatsAppDraftSender;
+  milestoneDetector?: MilestoneDetectorPort;
   now?: () => Date;
+}
+
+export interface MilestoneDetectionCandidate {
+  action: "CREATE" | "UPDATE" | "COMPLETE" | "START" | "DELAY" | "NONE";
+  actualEndDate: string | null;
+  actualStartDate: string | null;
+  confidence: "HIGH" | "MEDIUM" | "LOW";
+  description: string | null;
+  hasMilestoneChange: boolean;
+  milestoneTitle: string;
+  originalDatePhrase: string | null;
+  plannedEndDate: string | null;
+  plannedStartDate: string | null;
+  reason: string;
+  status: MilestoneStatus | null;
+}
+
+export interface MilestoneDetectorPort {
+  detectMilestones(input: {
+    existingMilestones: Array<{
+      id: string;
+      plannedEndDate: string | null;
+      plannedStartDate: string | null;
+      status: MilestoneStatus;
+      title: string;
+    }>;
+    messageText: string | null;
+    occurredAt: Date;
+    project: { id: string; name: string; timezone: string };
+    projectState: {
+      nextMilestone: string | null;
+      pendingDecisionSummary: string | null;
+      recentProgressSummary: string | null;
+    } | null;
+    recentTimelineEvents: Array<{
+      description: string | null;
+      occurredAt: Date;
+      title: string;
+    }>;
+    relativeDateHints: Record<string, string | null>;
+    sender: string;
+    voiceTranscript: string | null;
+  }): Promise<MilestoneDetectionCandidate[]>;
+}
+
+export interface MilestoneWriteInput {
+  actualEndDate?: Date | null;
+  actualStartDate?: Date | null;
+  description?: string | null;
+  plannedEndDate?: Date | null;
+  plannedStartDate?: Date | null;
+  priority?: MilestonePriority;
+  status?: MilestoneStatus;
+  title: string;
+}
+
+export interface MilestoneRecommendationEdit {
+  actualEndDate?: Date | null;
+  actualStartDate?: Date | null;
+  description?: string | null;
+  plannedEndDate?: Date | null;
+  plannedStartDate?: Date | null;
+  priority?: MilestonePriority;
+  status?: MilestoneStatus;
+  title?: string;
+}
+
+export interface MilestoneRecommendationView extends RecommendationWithProject {
+  evidence: {
+    attachments: Array<{ filename: string; id: string; mimeType: string }>;
+    conversationId: string;
+    messageBody: string | null;
+    messageId: string;
+    occurredAt: Date;
+    sender: string;
+    timelineEvent: {
+      description: string | null;
+      id: string;
+      occurredAt: Date;
+      title: string;
+    } | null;
+    voiceTranscript: string | null;
+  } | null;
+}
+
+export interface MilestoneApprovalResult {
+  milestone: Milestone;
+  recommendation: Recommendation;
 }
 
 export interface RecommendationWithProject extends Recommendation {
@@ -86,6 +178,7 @@ export type DraftSendResult =
 export interface RecommendationApprovalResult {
   actionItemId?: string;
   draft?: WhatsAppDraft;
+  milestone?: Milestone;
   recommendation: Recommendation;
   reportId?: string;
 }

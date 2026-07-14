@@ -107,9 +107,10 @@ function context(): ProjectIntelligenceContext {
     generatedAt,
     milestones: [
       {
-        dueDate: new Date("2026-07-09T00:00:00.000Z"),
         id: "milestone_1",
-        status: "UPCOMING",
+        plannedEndDate: new Date("2026-07-09T00:00:00.000Z"),
+        plannedStartDate: null,
+        status: "PLANNED",
         title: "Inspection"
       }
     ],

@@ -7,6 +7,8 @@ import type {
   EventSourceType,
   FeedbackType,
   MembershipRole,
+  MilestonePriority,
+  MilestoneSource,
   MilestoneStatus,
   ProcessingJobStatus,
   ProcessingJobType,
@@ -105,6 +107,7 @@ export interface ProjectRecord {
   name: string;
   code: string;
   status: Status;
+  timezone?: string;
   createdAt: Date;
   updatedAt: Date;
   timelineEvents?: ProjectTimelineEventRecord[];
@@ -245,8 +248,17 @@ export interface MilestoneRecord {
   organizationId: string;
   projectId: string;
   title: string;
-  dueDate: Date;
+  description: string | null;
   status: MilestoneStatus;
+  plannedStartDate: Date | null;
+  plannedEndDate: Date | null;
+  actualStartDate: Date | null;
+  actualEndDate: Date | null;
+  priority: MilestonePriority;
+  source: MilestoneSource;
+  createdByUserId: string | null;
+  sourceRecommendationId: string | null;
+  sourceMessageId: string | null;
   createdAt: Date;
   updatedAt: Date;
   project: {
@@ -559,6 +571,7 @@ export interface AppRepository extends MessagingRepository {
     name: string;
     organizationId: string;
     status: Status;
+    timezone?: string;
   }): Promise<ProjectRecord>;
   createUser(input: { email: string; name: string; passwordHash: string }): Promise<SafeUser>;
   createPasswordResetToken(input: {
@@ -1437,7 +1450,7 @@ export function createPrismaRepository(): AppRepository {
                 ...(projectIdFilter ?? { not: null })
               },
               sourceType: {
-                in: ["MESSAGE", "ACTION_ITEM", "REPORT"]
+                in: ["MESSAGE", "ACTION_ITEM", "MILESTONE", "REPORT"]
               }
             }
           }),
@@ -1451,16 +1464,12 @@ export function createPrismaRepository(): AppRepository {
                 }
               }
             },
-            orderBy: {
-              dueDate: "asc"
-            },
+            orderBy: [{ plannedEndDate: "asc" }, { plannedStartDate: "asc" }],
             take: 12,
             where: {
               organizationId: input.organizationId,
               ...(projectIdFilter ? { projectId: projectIdFilter } : {}),
-              status: {
-                not: "COMPLETED"
-              }
+              status: { notIn: ["CANCELLED", "COMPLETED"] }
             }
           }),
           prisma.aIMessageClassification.count({
@@ -2867,10 +2876,10 @@ async function resetDemoWorkspace(
       await tx.milestone.createMany({
         data: [
           {
-            dueDate: addDays(now, 3 + projectIndex),
+            plannedEndDate: addDays(now, 3 + projectIndex),
             organizationId: organization.id,
             projectId: project.id,
-            status: projectIndex === 2 ? "DUE_SOON" : "UPCOMING",
+            status: "PLANNED",
             title:
               projectIndex === 0
                 ? "Night works inspection"
@@ -2879,10 +2888,10 @@ async function resetDemoWorkspace(
                   : "Factory acceptance pack"
           },
           {
-            dueDate: addDays(now, 9 + projectIndex),
+            plannedEndDate: addDays(now, 9 + projectIndex),
             organizationId: organization.id,
             projectId: project.id,
-            status: "UPCOMING",
+            status: "PLANNED",
             title:
               projectIndex === 0
                 ? "Cable continuity sign-off"
@@ -3241,7 +3250,9 @@ function buildDashboardProject(input: {
     ["HIGH", "URGENT"].includes(actionItem.priority)
   ).length;
   const overdueMilestoneCount = projectMilestones.filter(
-    (milestone) => milestone.status === "OVERDUE" || isPastDue(milestone.dueDate)
+    (milestone) =>
+      milestone.status === "DELAYED" ||
+      (milestone.status !== "COMPLETED" && isPastDue(milestone.plannedEndDate))
   ).length;
   const hasSafetyIssue = projectClassifications.some(
     (classification) => classification.category === "SAFETY_ISSUE"
@@ -3340,7 +3351,9 @@ function getHighestPriorityIssue(
   }
 
   const overdueMilestone = milestones.find(
-    (milestone) => milestone.status === "OVERDUE" || isPastDue(milestone.dueDate)
+    (milestone) =>
+      milestone.status === "DELAYED" ||
+      (milestone.status !== "COMPLETED" && isPastDue(milestone.plannedEndDate))
   );
 
   return overdueMilestone ? `Overdue milestone: ${overdueMilestone.title}` : null;
@@ -3377,6 +3390,7 @@ function getActivityIcon(sourceType: EventSourceType): string {
   const icons = {
     ACTION_ITEM: "check-circle",
     MESSAGE: "message-circle",
+    MILESTONE: "flag",
     RECOMMENDATION: "sparkles",
     REPORT: "file-text",
     SYSTEM: "settings"
@@ -3417,8 +3431,8 @@ function buildFallbackBrief(
   };
 }
 
-function isPastDue(date: Date): boolean {
-  return date.getTime() < Date.now();
+function isPastDue(date: Date | null): boolean {
+  return Boolean(date && date.getTime() < Date.now());
 }
 
 function toConversationRecord(

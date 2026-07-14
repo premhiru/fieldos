@@ -165,6 +165,87 @@ export interface AIProvider {
   }): Promise<unknown>;
 }
 
+export const milestoneDetectionActionSchema = z.enum([
+  "CREATE",
+  "UPDATE",
+  "COMPLETE",
+  "START",
+  "DELAY",
+  "NONE"
+]);
+
+export const milestoneDetectionChangeSchema = z.object({
+  action: milestoneDetectionActionSchema,
+  actualEndDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable(),
+  actualStartDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable(),
+  confidence: z.enum(["HIGH", "MEDIUM", "LOW"]),
+  description: z.string().trim().min(1).max(500).nullable(),
+  hasMilestoneChange: z.boolean(),
+  milestoneTitle: z.string().trim().min(1).max(160),
+  originalDatePhrase: z.string().trim().min(1).max(80).nullable(),
+  plannedEndDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable(),
+  plannedStartDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable(),
+  reason: z.string().trim().min(1).max(500),
+  status: z.enum(["PLANNED", "IN_PROGRESS", "COMPLETED", "DELAYED", "CANCELLED"]).nullable()
+});
+
+export const milestoneDetectionInputSchema = z.object({
+  existingMilestones: z.array(
+    z.object({
+      id: z.string().trim().min(1),
+      plannedEndDate: z.string().nullable(),
+      plannedStartDate: z.string().nullable(),
+      status: z.enum(["PLANNED", "IN_PROGRESS", "COMPLETED", "DELAYED", "CANCELLED"]),
+      title: z.string().trim().min(1)
+    })
+  ),
+  messageText: z.string().nullable(),
+  occurredAt: z.coerce.date(),
+  project: z.object({
+    id: z.string().trim().min(1),
+    name: z.string().trim().min(1),
+    timezone: z.string().trim().min(1)
+  }),
+  projectState: z
+    .object({
+      nextMilestone: z.string().nullable(),
+      pendingDecisionSummary: z.string().nullable(),
+      recentProgressSummary: z.string().nullable()
+    })
+    .nullable(),
+  recentTimelineEvents: z.array(
+    z.object({
+      description: z.string().nullable(),
+      occurredAt: z.coerce.date(),
+      title: z.string().trim().min(1)
+    })
+  ),
+  relativeDateHints: z.record(z.string(), z.string().nullable()),
+  sender: z.string().trim().min(1),
+  voiceTranscript: z.string().nullable()
+});
+
+export const milestoneDetectionResultSchema = z.object({
+  changes: z.array(milestoneDetectionChangeSchema).max(5)
+});
+
+export type MilestoneDetectionAction = z.infer<typeof milestoneDetectionActionSchema>;
+export type MilestoneDetectionChange = z.infer<typeof milestoneDetectionChangeSchema>;
+export type MilestoneDetectionInput = z.infer<typeof milestoneDetectionInputSchema>;
+export type MilestoneDetectionResult = z.infer<typeof milestoneDetectionResultSchema>;
+
 export interface VisionProvider {
   analyze(input: VisionRequest): Promise<VisionResult>;
 }

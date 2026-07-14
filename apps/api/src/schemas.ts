@@ -59,6 +59,37 @@ export const recommendationParamsSchema = z.object({
   id: z.string().min(1)
 });
 
+export const milestoneParamsSchema = z.object({
+  milestoneId: z.string().min(1)
+});
+
+const milestoneStatusSchema = z.enum([
+  "PLANNED",
+  "IN_PROGRESS",
+  "COMPLETED",
+  "DELAYED",
+  "CANCELLED"
+]);
+const milestonePrioritySchema = z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]);
+const optionalMilestoneDateSchema = z.coerce.date().nullable().optional();
+
+export const createMilestoneSchema = z.object({
+  actualEndDate: optionalMilestoneDateSchema,
+  actualStartDate: optionalMilestoneDateSchema,
+  description: z.string().trim().max(1000).nullable().optional(),
+  plannedEndDate: optionalMilestoneDateSchema,
+  plannedStartDate: optionalMilestoneDateSchema,
+  priority: milestonePrioritySchema.default("MEDIUM"),
+  status: milestoneStatusSchema.default("PLANNED"),
+  title: z.string().trim().min(1).max(160)
+});
+
+export const updateMilestoneSchema = createMilestoneSchema
+  .partial()
+  .refine((value) => Object.keys(value).length > 0, "Provide at least one milestone field.");
+
+export const editMilestoneRecommendationSchema = updateMilestoneSchema;
+
 export const whatsappDraftParamsSchema = z.object({
   id: z.string().min(1)
 });
@@ -204,5 +235,6 @@ export const createProjectSchema = z.object({
     .max(40)
     .regex(/^[A-Z0-9-]+$/, "Use uppercase letters, numbers, and hyphens."),
   name: z.string().trim().min(1).max(160),
-  status: z.enum(["ACTIVE", "PAUSED", "COMPLETED", "ARCHIVED"]).default("ACTIVE")
+  status: z.enum(["ACTIVE", "PAUSED", "COMPLETED", "ARCHIVED"]).default("ACTIVE"),
+  timezone: z.string().trim().min(1).max(100).default("UTC")
 });

@@ -67,6 +67,7 @@ import {
   activateWhatsAppChatMappingSchema,
   adminOperationsQuerySchema,
   createOrganizationSchema,
+  createMilestoneSchema,
   createProjectSchema,
   createTeamInvitationSchema,
   conversationParamsSchema,
@@ -78,6 +79,7 @@ import {
   invitationTokenHeadersSchema,
   mediaParamsSchema,
   mediaQuerySchema,
+  milestoneParamsSchema,
   messageParamsSchema,
   notificationParamsSchema,
   notificationsQuerySchema,
@@ -97,6 +99,8 @@ import {
   searchQuerySchema,
   dismissRecommendationSchema,
   updateWhatsAppDraftSchema,
+  updateMilestoneSchema,
+  editMilestoneRecommendationSchema,
   updateTeamMemberSchema,
   updateWhatsAppChatMappingSchema,
   whatsappAccountParamsSchema,
@@ -135,20 +139,27 @@ export interface BuildServerOptions {
 type CoordinatorRuntimePort = Pick<
   ProjectCoordinatorRuntime,
   | "approveRecommendation"
+  | "approveMilestoneRecommendation"
   | "cancelWhatsAppDraft"
   | "completeRecommendation"
   | "dismissRecommendation"
   | "getOperationsMetrics"
+  | "getMilestone"
   | "getProjectState"
   | "getRecommendation"
   | "getWhatsAppDraft"
   | "listProjectCoordinatorRuns"
+  | "listMilestoneRecommendations"
+  | "listMilestones"
   | "listRecommendations"
   | "listWhatsAppDrafts"
   | "rebuildProjectState"
   | "runProjectCoordinators"
+  | "createMilestone"
+  | "deleteMilestone"
   | "sendWhatsAppDraft"
   | "updateWhatsAppDraft"
+  | "updateMilestone"
 >;
 
 declare module "fastify" {
@@ -906,6 +917,67 @@ export function buildServer(options: BuildServerOptions = {}) {
     };
   });
 
+  server.get("/projects/:projectId/milestones", { preHandler: requireAuth }, async (request) => {
+    const params = projectParamsSchema.parse(request.params);
+    const project = await requireProjectForRequest(request, params.projectId);
+    return { milestones: await coordinatorRuntime.listMilestones(project.id) };
+  });
+
+  server.post("/projects/:projectId/milestones", { preHandler: requireAuth }, async (request) => {
+    const params = projectParamsSchema.parse(request.params);
+    const body = createMilestoneSchema.parse(request.body);
+    const user = requireCurrentUser(request);
+    const project = await requireProjectForRequest(request, params.projectId);
+    await requireProjectContributorRole(user.id, project.organizationId);
+    return {
+      milestone: await coordinatorRuntime.createMilestone({
+        createdByUserId: user.id,
+        data: body,
+        organizationId: project.organizationId,
+        projectId: project.id
+      })
+    };
+  });
+
+  server.patch("/milestones/:milestoneId", { preHandler: requireAuth }, async (request) => {
+    const params = milestoneParamsSchema.parse(request.params);
+    const body = updateMilestoneSchema.parse(request.body);
+    const user = requireCurrentUser(request);
+    const milestone = await coordinatorRuntime.getMilestone(params.milestoneId);
+    if (!milestone) throw notFound("Milestone not found.");
+    const project = await requireProjectForRequest(request, milestone.projectId);
+    await requireProjectContributorRole(user.id, project.organizationId);
+    return {
+      milestone: await coordinatorRuntime.updateMilestone({
+        data: body,
+        milestoneId: milestone.id
+      })
+    };
+  });
+
+  server.delete("/milestones/:milestoneId", { preHandler: requireAuth }, async (request) => {
+    const params = milestoneParamsSchema.parse(request.params);
+    const user = requireCurrentUser(request);
+    const milestone = await coordinatorRuntime.getMilestone(params.milestoneId);
+    if (!milestone) throw notFound("Milestone not found.");
+    const project = await requireProjectForRequest(request, milestone.projectId);
+    await requireProjectContributorRole(user.id, project.organizationId);
+    await coordinatorRuntime.deleteMilestone(milestone.id);
+    return { ok: true };
+  });
+
+  server.get(
+    "/projects/:projectId/milestone-recommendations",
+    { preHandler: requireAuth },
+    async (request) => {
+      const params = projectParamsSchema.parse(request.params);
+      const project = await requireProjectForRequest(request, params.projectId);
+      return {
+        recommendations: await coordinatorRuntime.listMilestoneRecommendations(project.id)
+      };
+    }
+  );
+
   server.get("/projects/:projectId/state", { preHandler: requireAuth }, async (request) => {
     const params = projectParamsSchema.parse(request.params);
     const project = await requireProjectForRequest(request, params.projectId);
@@ -1015,6 +1087,42 @@ export function buildServer(options: BuildServerOptions = {}) {
       })
     };
   });
+
+  server.post(
+    "/recommendations/:id/approve-milestone",
+    { preHandler: requireAuth },
+    async (request) => {
+      const params = recommendationParamsSchema.parse(request.params);
+      const user = requireCurrentUser(request);
+      const recommendation = await requireRecommendationAccess(user.id, params.id);
+      await requireProjectContributorRole(user.id, recommendation.organizationId);
+      return {
+        approval: await coordinatorRuntime.approveMilestoneRecommendation({
+          recommendationId: recommendation.id,
+          userId: user.id
+        })
+      };
+    }
+  );
+
+  server.post(
+    "/recommendations/:id/edit-and-approve-milestone",
+    { preHandler: requireAuth },
+    async (request) => {
+      const params = recommendationParamsSchema.parse(request.params);
+      const body = editMilestoneRecommendationSchema.parse(request.body);
+      const user = requireCurrentUser(request);
+      const recommendation = await requireRecommendationAccess(user.id, params.id);
+      await requireProjectContributorRole(user.id, recommendation.organizationId);
+      return {
+        approval: await coordinatorRuntime.approveMilestoneRecommendation({
+          edits: body,
+          recommendationId: recommendation.id,
+          userId: user.id
+        })
+      };
+    }
+  );
 
   server.post("/recommendations/:id/dismiss", { preHandler: requireAuth }, async (request) => {
     const params = recommendationParamsSchema.parse(request.params);
@@ -1827,6 +1935,16 @@ export function buildServer(options: BuildServerOptions = {}) {
     return membership;
   }
 
+  async function requireProjectContributorRole(userId: string, organizationId: string) {
+    const membership = await requireOrganizationMembership(userId, organizationId);
+
+    if (membership.role === "VIEWER") {
+      throw forbidden("Viewers cannot change project milestones.");
+    }
+
+    return membership;
+  }
+
   async function requireAdminOrganizationMembership(userId: string, organizationId: string) {
     const membership = await requireOrganizationMembership(userId, organizationId);
 
@@ -2194,9 +2312,15 @@ function toSafeUser(user: SafeUser): SafeUser {
 
 function createNoopCoordinatorRuntime(): CoordinatorRuntimePort {
   return {
+    approveMilestoneRecommendation: async () => ({
+      milestone: null as never,
+      recommendation: null as never
+    }),
     approveRecommendation: async () => ({ recommendation: null as never }),
     cancelWhatsAppDraft: async () => null as never,
     completeRecommendation: async () => null as never,
+    createMilestone: async () => null as never,
+    deleteMilestone: async () => undefined,
     dismissRecommendation: async () => null as never,
     getOperationsMetrics: async () => ({
       approvalRate: 0,
@@ -2206,10 +2330,13 @@ function createNoopCoordinatorRuntime(): CoordinatorRuntimePort {
       recommendationsCreatedToday: 0,
       runsToday: 0
     }),
+    getMilestone: async () => null,
     getProjectState: async () => null as never,
     getRecommendation: async () => null,
     getWhatsAppDraft: async () => null,
     listProjectCoordinatorRuns: async () => [],
+    listMilestoneRecommendations: async () => [],
+    listMilestones: async () => [],
     listRecommendations: async () => [],
     listWhatsAppDrafts: async () => [],
     rebuildProjectState: async () => null as never,
@@ -2219,6 +2346,7 @@ function createNoopCoordinatorRuntime(): CoordinatorRuntimePort {
       error: "Not configured.",
       sent: false
     }),
+    updateMilestone: async () => null as never,
     updateWhatsAppDraft: async () => null as never
   };
 }

@@ -112,6 +112,13 @@ function DashboardContent() {
   }
 
   const greetingName = meQuery.data?.user.name ?? "there";
+  const pendingRecommendations = recommendationsQuery.data?.recommendations ?? [];
+  const milestoneRecommendations = pendingRecommendations.filter(
+    (recommendation) => recommendation.sourceCoordinator === "MILESTONE"
+  );
+  const generalRecommendations = pendingRecommendations.filter(
+    (recommendation) => recommendation.sourceCoordinator !== "MILESTONE"
+  );
 
   return (
     <div className="space-y-8">
@@ -156,7 +163,7 @@ function DashboardContent() {
                 <p className="text-sm text-slate-600">Loading recommendations...</p>
               ) : recommendationsQuery.isError ? (
                 <p className="text-sm text-red-600">Unable to load AI recommendations.</p>
-              ) : (recommendationsQuery.data?.recommendations ?? []).length === 0 ? (
+              ) : generalRecommendations.length === 0 ? (
                 <p className="text-sm text-slate-600">
                   No pending recommendations. FieldOS will surface the next action here.
                 </p>
@@ -172,9 +179,39 @@ function DashboardContent() {
                       onApprove={(id) => approveRecommendationMutation.mutate(id)}
                       onDismiss={(id) => dismissRecommendationMutation.mutate(id)}
                       priority={priority}
-                      recommendations={(recommendationsQuery.data?.recommendations ?? []).filter(
+                      recommendations={generalRecommendations.filter(
                         (recommendation) => recommendation.priority === priority
                       )}
+                    />
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Milestone Recommendations</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {recommendationsQuery.isLoading ? (
+                <p className="text-sm text-slate-600">Reviewing field evidence...</p>
+              ) : milestoneRecommendations.length === 0 ? (
+                <p className="text-sm text-slate-600">
+                  No milestone changes are awaiting approval.
+                </p>
+              ) : (
+                <div className="grid gap-3 xl:grid-cols-2">
+                  {milestoneRecommendations.map((recommendation) => (
+                    <MilestoneRecommendationCard
+                      disabled={
+                        approveRecommendationMutation.isPending ||
+                        dismissRecommendationMutation.isPending
+                      }
+                      key={recommendation.id}
+                      onApprove={() => approveRecommendationMutation.mutate(recommendation.id)}
+                      onDismiss={() => dismissRecommendationMutation.mutate(recommendation.id)}
+                      recommendation={recommendation}
                     />
                   ))}
                 </div>
@@ -349,7 +386,7 @@ function DashboardContent() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Upcoming Milestones</CardTitle>
+                  <CardTitle>Upcoming &amp; Delayed Milestones</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {dashboard.milestones.length === 0 ? (
@@ -366,10 +403,11 @@ function DashboardContent() {
                               {milestone.title}
                             </div>
                             <div className="text-xs text-slate-500">
-                              {milestone.project.name} - {formatDate(milestone.dueDate)}
+                              {milestone.project?.name ?? "Project"} -{" "}
+                              {formatMilestoneDate(milestone)}
                             </div>
                           </div>
-                          <Badge variant={milestone.status === "OVERDUE" ? "warning" : "muted"}>
+                          <Badge variant={milestone.status === "DELAYED" ? "warning" : "muted"}>
                             {formatStatus(milestone.status)}
                           </Badge>
                         </div>
@@ -636,6 +674,66 @@ function RecommendationGroup({
   );
 }
 
+function MilestoneRecommendationCard({
+  disabled,
+  onApprove,
+  onDismiss,
+  recommendation
+}: Readonly<{
+  disabled: boolean;
+  onApprove: () => void;
+  onDismiss: () => void;
+  recommendation: Recommendation;
+}>) {
+  const payload = readRecommendationPayload(recommendation.proposedActionPayload);
+  const proposedDate =
+    payload.actualEndDate ??
+    payload.actualStartDate ??
+    payload.plannedStartDate ??
+    payload.plannedEndDate;
+
+  return (
+    <div className="rounded-md border border-emerald-200 p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="muted">Milestone Update Suggested</Badge>
+        <Badge variant={recommendation.confidence === "LOW" ? "warning" : "muted"}>
+          {formatConfidence(recommendation.confidence)}
+        </Badge>
+        <Badge variant={recommendation.priority === "URGENT" ? "warning" : "muted"}>
+          {formatStatus(recommendation.priority)}
+        </Badge>
+      </div>
+      <div className="mt-3 text-sm font-semibold text-slate-950">
+        {payload.milestoneTitle ?? recommendation.title}
+      </div>
+      <p className="mt-1 text-sm text-slate-700">{recommendation.reason}</p>
+      <p className="mt-2 text-xs text-slate-500">
+        {recommendation.project.name}
+        {proposedDate ? ` - ${formatDate(proposedDate)}` : " - Date needs review"}
+      </p>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Link
+          className="inline-flex h-8 items-center rounded-md bg-slate-100 px-3 text-xs font-medium text-slate-950 hover:bg-slate-200"
+          href={`/projects/${recommendation.project.id}#milestones`}
+        >
+          Review evidence
+        </Link>
+        <Button className="h-8 px-3 text-xs" disabled={disabled} onClick={onApprove}>
+          Approve
+        </Button>
+        <Button
+          className="h-8 px-3 text-xs"
+          disabled={disabled}
+          onClick={onDismiss}
+          variant="ghost"
+        >
+          Dismiss
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function ActionItemGroup({
   actionItems,
   disabled,
@@ -734,6 +832,30 @@ function formatDate(value: string): string {
   return new Intl.DateTimeFormat("en", {
     dateStyle: "medium"
   }).format(new Date(value));
+}
+
+function formatMilestoneDate(milestone: {
+  actualEndDate: string | null;
+  actualStartDate: string | null;
+  plannedEndDate: string | null;
+  plannedStartDate: string | null;
+}): string {
+  const value =
+    milestone.actualEndDate ??
+    milestone.actualStartDate ??
+    milestone.plannedStartDate ??
+    milestone.plannedEndDate;
+  return value ? formatDate(value) : "Date not set";
+}
+
+function readRecommendationPayload(value: unknown): Record<string, string | null> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [key, typeof item === "string" ? item : null])
+  );
 }
 
 function formatStatus(value: string): string {

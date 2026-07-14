@@ -74,9 +74,7 @@ export async function buildProjectIntelligenceContext(
         }
       }),
       prisma.milestone.findMany({
-        orderBy: {
-          dueDate: "asc"
-        },
+        orderBy: [{ plannedEndDate: "asc" }, { plannedStartDate: "asc" }],
         take: 30,
         where: {
           projectId
@@ -129,8 +127,9 @@ export async function buildProjectIntelligenceContext(
     })),
     generatedAt,
     milestones: milestones.map((milestone) => ({
-      dueDate: milestone.dueDate,
       id: milestone.id,
+      plannedEndDate: milestone.plannedEndDate,
+      plannedStartDate: milestone.plannedStartDate,
       status: milestone.status,
       title: milestone.title
     })),

@@ -5,10 +5,11 @@
 | Purpose      | Capture demo steps and verification notes for FieldOS changes. |
 | Owner        | Product Engineering                                            |
 | Status       | Active                                                         |
-| Last Updated | 2026-07-10                                                     |
+| Last Updated | 2026-07-13                                                     |
 
 ## Table of Contents
 
+- [Milestone Intelligence](#milestone-intelligence)
 - [Task 013B: Cloudflare R2 Durable Storage](#task-013b-cloudflare-r2-durable-storage)
 - [Milestone 2: AI Project Coordinators](#milestone-2-ai-project-coordinators)
 - [Sprint 14: Pilot Readiness](#sprint-14-pilot-readiness)
@@ -16,6 +17,30 @@
 - [Task 012: Photo Intelligence](#task-012-photo-intelligence)
 - [Task 011: Unified Evidence Processing](#task-011-unified-evidence-processing)
 - [Task 010B: Operations Health](#task-010b-operations-health)
+
+## Milestone Intelligence
+
+What changed:
+
+- WhatsApp messages and voice transcripts can produce milestone recommendations without changing project state automatically.
+- Project pages show milestone summaries, chronological milestones, original evidence, resolved dates, confidence, and edit-before-approval controls.
+- The Operations Command Center shows milestone recommendations, upcoming work, and delays.
+- Approval creates or updates the milestone, records a business timeline event, and refreshes Project State.
+
+How to test:
+
+1. Map an active WhatsApp chat to a project and create an existing `Foundation Pour` milestone.
+2. Send `We finished the foundation pour today, starting walls Monday.`
+3. Wait for classification and the Project Coordinator job to complete.
+4. Open the project Milestones section and confirm two recommendations appear with original and resolved dates.
+5. Review the completion evidence, edit the milestone if needed, and approve it.
+6. Confirm `Foundation Pour` is completed, the business timeline includes the completion, and Project State counts refresh.
+7. Approve the wall recommendation and confirm the planned start is explicit.
+8. Send `Work is moving along.` and confirm no milestone recommendation is created.
+
+Current limitation:
+
+- Milestone Intelligence does not implement scheduling dependencies, recurrence, resource planning, or automatic milestone mutation.
 
 ## Task 013B: Cloudflare R2 Durable Storage
 

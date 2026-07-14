@@ -408,21 +408,31 @@ Key indexes:
 
 ## Milestone Model
 
-`Milestone` is intentionally lightweight. It supports command-center visibility into upcoming and overdue project deadlines without introducing a full scheduling domain.
+`Milestone` stores human-approved project checkpoints. AI may propose changes, but only an explicit user action creates or updates a milestone.
 
 Fields:
 
 - `organizationId`: Required tenant scope.
 - `projectId`: Owning project.
 - `title`: User-facing milestone name.
-- `dueDate`: Deadline used for ordering and overdue checks.
-- `status`: `UPCOMING`, `DUE_SOON`, `OVERDUE`, or `COMPLETED`.
+- `description`: Optional user-facing context.
+- `status`: `PLANNED`, `IN_PROGRESS`, `COMPLETED`, `DELAYED`, or `CANCELLED`.
+- `plannedStartDate`, `plannedEndDate`: Optional expected schedule.
+- `actualStartDate`, `actualEndDate`: Optional approved actual dates.
+- `priority`: `LOW`, `MEDIUM`, `HIGH`, or `CRITICAL`.
+- `source`: `MANUAL`, `AI_RECOMMENDATION`, or `IMPORTED`.
+- `createdByUserId`: Optional user who manually created the milestone.
+- `sourceRecommendationId`: Optional unique recommendation approval link.
+- `sourceMessageId`: Optional evidence message link.
 
 Key indexes:
 
-- `organizationId, dueDate`
-- `projectId, dueDate`
-- `status, dueDate`
+- `organizationId, status, plannedEndDate`
+- `projectId, status, plannedStartDate`
+- `projectId, status, plannedEndDate`
+- `sourceMessageId`
+
+`ProjectState` stores `nextMilestone`, `nextMilestoneDate`, and completed, delayed, and upcoming milestone counts for command-center reads. `Event.sourceType` supports `MILESTONE` so approvals create meaningful business timeline records rather than technical audit text.
 
 ## Search Model
 

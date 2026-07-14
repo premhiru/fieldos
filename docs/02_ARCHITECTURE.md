@@ -5,7 +5,7 @@
 | Purpose      | Describe the FieldOS system architecture, boundaries, integration points, and evolution plan. |
 | Owner        | Engineering                                                                                   |
 | Status       | Draft                                                                                         |
-| Last Updated | 2026-07-08                                                                                    |
+| Last Updated | 2026-07-13                                                                                    |
 
 ## Table of Contents
 
@@ -21,6 +21,7 @@
 - [Photo Intelligence](#photo-intelligence)
 - [Project Intelligence and Reporting](#project-intelligence-and-reporting)
 - [AI Project Coordinators](#ai-project-coordinators)
+- [Milestone Intelligence](#milestone-intelligence)
 - [Media Serving](#media-serving)
 - [Operations Command Center](#operations-command-center)
 - [Background Processing and Operations Health](#background-processing-and-operations-health)
@@ -208,7 +209,7 @@ Report generation can run synchronously for ad hoc export or asynchronously thro
 
 ## AI Project Coordinators
 
-AI Project Coordinators are the active recommendation layer. They use `ProjectState` as a shared snapshot so the Progress, Follow-up, Inspection, and Report coordinators do not repeatedly scan full project history.
+AI Project Coordinators are the active recommendation layer. They use `ProjectState` as a shared snapshot so the Progress, Follow-up, Inspection, Report, and Milestone coordinators do not repeatedly scan full project history.
 
 Coordinator logic is deterministic-first:
 
@@ -229,6 +230,19 @@ Project intelligence API endpoints:
 - `POST /projects/:projectId/reports/generate`
 
 Dashboard intelligence surfaces must remain presentation-oriented. They call API endpoints, render report sections, request exports, and open evidence through the reusable Evidence Viewer.
+
+## Milestone Intelligence
+
+`MilestoneCoordinator` lives in `packages/coordinators`. It reads classified message evidence, voice transcripts, recent timeline events, Project State, existing milestones, and project timezone context. Deterministic extraction handles common completion, start, delay, and reschedule phrases; `packages/ai` provides a strict JSON fallback for language that deterministic rules do not cover. Messaging and the WhatsApp adapter remain unaware of milestone business rules.
+
+The workflow is recommendation-first:
+
+1. The worker runs project coordinators after evidence processing and during the hourly scan.
+2. The Milestone Coordinator resolves evidence-backed changes and deduplicates pending recommendations by project, normalized title, action, source message, and target date.
+3. The API authorizes project contributors and exposes review, manual CRUD, approve, and edit-and-approve operations.
+4. Approval creates or changes a milestone in a transaction, marks the recommendation complete, writes a business `Event` with source type `MILESTONE`, queues search indexing, and rebuilds `ProjectState`.
+
+Project and Operations Command Center components only render API state and issue explicit user actions. They do not parse evidence or mutate milestone state locally.
 
 ## Media Serving
 

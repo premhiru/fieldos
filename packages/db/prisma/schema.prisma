@@ -50,6 +50,7 @@ model User {
   analyticsEvents               ProductAnalyticsEvent[]
   feedback                      UserFeedback[]
   ignoredActionItems            ActionItem[]            @relation("ActionItemIgnoredBy")
+  createdMilestones             Milestone[]             @relation("MilestoneCreatedBy")
   memberships                   Membership[]
   acceptedTeamInvitations       TeamInvitation[]        @relation("TeamInvitationAcceptedBy")
   sentTeamInvitations           TeamInvitation[]        @relation("TeamInvitationInvitedBy")
@@ -141,6 +142,7 @@ model Project {
   name                     String
   code                     String
   status                   ProjectStatus             @default(ACTIVE)
+  timezone                 String                    @default("UTC")
   createdAt                DateTime                  @default(now())
   updatedAt                DateTime                  @updatedAt
   aiMessageClassifications AIMessageClassification[]
@@ -220,6 +222,7 @@ model Message {
   attachments         Attachment[]
   conversation        Conversation             @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   photoAnalyses       PhotoAnalysis[]
+  sourceMilestones    Milestone[]
   senderParticipant   Participant              @relation(fields: [senderParticipantId], references: [id], onDelete: Restrict)
 
   @@unique([conversationId, externalMessageId])
@@ -343,20 +346,34 @@ model ActionItem {
 }
 
 model Milestone {
-  id             String          @id @default(cuid())
-  organizationId String
-  projectId      String
-  title          String
-  dueDate        DateTime
-  status         MilestoneStatus @default(UPCOMING)
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id                     String            @id @default(cuid())
+  organizationId         String
+  projectId              String
+  title                  String
+  description            String?
+  status                 MilestoneStatus   @default(PLANNED)
+  plannedStartDate       DateTime?
+  plannedEndDate         DateTime?
+  actualStartDate        DateTime?
+  actualEndDate          DateTime?
+  priority               MilestonePriority @default(MEDIUM)
+  source                 MilestoneSource   @default(MANUAL)
+  createdByUserId        String?
+  sourceRecommendationId String?           @unique
+  sourceMessageId        String?
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+  createdBy              User?             @relation("MilestoneCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  organization           Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project                Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sourceMessage          Message?          @relation(fields: [sourceMessageId], references: [id], onDelete: SetNull)
+  sourceRecommendation   Recommendation?   @relation(fields: [sourceRecommendationId], references: [id], onDelete: SetNull)
 
-  @@index([organizationId, dueDate])
-  @@index([projectId, dueDate])
-  @@index([status, dueDate])
+  @@index([organizationId, status, plannedEndDate])
+  @@index([projectId, status, plannedStartDate])
+  @@index([projectId, status, plannedEndDate])
+  @@index([createdByUserId])
+  @@index([sourceMessageId])
 }
 
 model Event {
@@ -438,6 +455,11 @@ model ProjectState {
   openActionItemCount         Int                @default(0)
   urgentActionItemCount       Int                @default(0)
   highPriorityActionItemCount Int                @default(0)
+  nextMilestone               String?
+  nextMilestoneDate           DateTime?
+  completedMilestonesCount    Int                @default(0)
+  delayedMilestonesCount      Int                @default(0)
+  upcomingMilestonesCount     Int                @default(0)
   recentProgressSummary       String?
   recentRiskSummary           String?
   recentEvidenceSummary       String?
@@ -482,6 +504,7 @@ model Recommendation {
   organization          Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   project               Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   whatsAppDrafts        WhatsAppDraft[]
+  milestones            Milestone[]
 
   @@index([organizationId, status, priority, createdAt])
   @@index([projectId, status, priority, createdAt])
@@ -825,16 +848,31 @@ enum ActionItemPriority {
 enum EventSourceType {
   MESSAGE
   ACTION_ITEM
+  MILESTONE
   REPORT
   RECOMMENDATION
   SYSTEM
 }
 
 enum MilestoneStatus {
-  UPCOMING
-  DUE_SOON
-  OVERDUE
+  PLANNED
+  IN_PROGRESS
   COMPLETED
+  DELAYED
+  CANCELLED
+}
+
+enum MilestonePriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum MilestoneSource {
+  MANUAL
+  AI_RECOMMENDATION
+  IMPORTED
 }
 
 enum ProjectReportType {
@@ -882,6 +920,11 @@ enum RecommendationType {
   CLIENT_UPDATE
   SUPPLIER_DELAY
   GENERAL
+  CREATE_MILESTONE
+  UPDATE_MILESTONE
+  COMPLETE_MILESTONE
+  START_MILESTONE
+  DELAY_MILESTONE
 }
 
 enum RecommendationStatus {
@@ -913,6 +956,10 @@ enum RecommendationActionType {
   MARK_PROGRESS_REVIEWED
   REQUEST_PROGRESS_UPDATE
   REVIEW_EVIDENCE
+  CREATE_MILESTONE
+  UPDATE_MILESTONE
+  COMPLETE_MILESTONE
+  START_MILESTONE
 }
 
 enum CoordinatorType {
@@ -920,6 +967,7 @@ enum CoordinatorType {
   FOLLOW_UP
   INSPECTION
   REPORT
+  MILESTONE
   RUNTIME
 }
 

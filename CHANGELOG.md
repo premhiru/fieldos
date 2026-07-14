@@ -5,13 +5,22 @@
 | Purpose      | Track notable FieldOS product and platform work. |
 | Owner        | Engineering                                      |
 | Status       | Active                                           |
-| Last Updated | 2026-07-10                                       |
+| Last Updated | 2026-07-13                                       |
 
 ## Table of Contents
 
 - [Unreleased](#unreleased)
 
 ## Unreleased
+
+### Milestone Intelligence
+
+- Expanded milestones with planned and actual dates, lifecycle status, priority, source, creator, recommendation, and evidence links.
+- Added deterministic-first `MilestoneCoordinator` extraction with strict AI fallback, timezone-aware relative dates, matching, and pending recommendation deduplication.
+- Added manual milestone CRUD plus one-click and edit-before-approval APIs with contributor authorization.
+- Added business timeline events and Project State milestone aggregates after approval.
+- Added polished Project and Operations Command Center milestone review surfaces.
+- Added QA coverage for completion, future work, delays, ambiguous dates, matching, deduplication, approval, timeline creation, state refresh, and permissions.
 
 ### AI Project Coordinators
 

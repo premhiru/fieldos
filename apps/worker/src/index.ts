@@ -2,6 +2,7 @@ import { Redis } from "ioredis";
 import { createHash } from "node:crypto";
 import {
   AIClassificationProcessor,
+  MilestoneDetector,
   MessageClassifier,
   OpenAICompatibleVisionProvider,
   isAIProviderRateLimitError,
@@ -100,7 +101,12 @@ const projectIntelligenceService = new ProjectIntelligenceService();
 const coordinatorRuntime = new ProjectCoordinatorRuntime(prisma, {
   draftSender: {
     send: (input) => whatsappSessionManager.sendDraft(input)
-  }
+  },
+  milestoneDetector: new MilestoneDetector({
+    apiKey: workerEnv.OPENROUTER_API_KEY ?? workerEnv.OPENAI_API_KEY,
+    baseUrl: workerEnv.AI_BASE_URL,
+    model: workerEnv.AI_MODEL
+  })
 });
 const aiProviderThrottle = new ProviderRequestThrottle(workerEnv.AI_PROVIDER_MIN_INTERVAL_MS);
 const workerName = process.env.WORKER_NAME ?? "fieldos-worker";
@@ -571,6 +577,7 @@ async function processAIJob(job: ProcessingJob): Promise<void> {
 }
 
 async function processCoordinatorJob(job: ProcessingJob): Promise<void> {
+  await aiProviderThrottle.wait();
   await coordinatorRuntime.runProjectCoordinators(job.sourceId);
 }
 

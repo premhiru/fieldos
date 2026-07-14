@@ -21,6 +21,7 @@
 - [Photo Intelligence](#photo-intelligence)
 - [Project Intelligence and Reporting](#project-intelligence-and-reporting)
 - [AI Project Coordinators](#ai-project-coordinators)
+- [Milestone Intelligence](#milestone-intelligence)
 - [Pilot Readiness](#pilot-readiness)
 - [Repository Layout](#repository-layout)
 - [Development Philosophy](#development-philosophy)
@@ -276,14 +277,23 @@ Reports are grounded in stored FieldOS records. They do not invent status from m
 
 AI Project Coordinators turn stored project evidence into human-approved recommendations. The shared `ProjectState` snapshot tracks health, last activity, evidence/report timestamps, open Action Item counts, and concise summaries so coordinators do not repeatedly scan full project history.
 
-FieldOS includes four coordinators:
+FieldOS includes five coordinators:
 
 - Progress Coordinator: detects meaningful progress and recommends review.
 - Follow-up Coordinator: detects stale active WhatsApp conversations and drafts follow-up messages.
 - Inspection Coordinator: detects completion or inspection-readiness signals.
 - Report Coordinator: recommends weekly report generation when enough project activity exists.
+- Milestone Coordinator: detects evidence-backed milestone creation, starts, completion, delays, and date changes.
 
 Recommendations are first-class records. Users can approve, dismiss, complete, inspect details, and review WhatsApp drafts. FieldOS recommends; humans approve. WhatsApp drafts require a second explicit send action and are not sent automatically.
+
+## Milestone Intelligence
+
+Milestone Intelligence converts explicit WhatsApp field updates and voice transcripts into reviewable project milestone recommendations. It uses deterministic phrase detection and title normalization first, with a strict OpenRouter-compatible AI prompt as a fallback. Relative dates are resolved from the message timestamp and project timezone; ambiguous phrases remain unset and are labeled for review.
+
+No recommendation changes project state automatically. Project contributors can review original evidence, edit the title, status, dates, description, and priority, then approve. Approval creates or updates a milestone, records a business timeline event, refreshes `ProjectState`, and updates the Project and Operations Command Centers.
+
+Milestones support planned and actual start/end dates, status, priority, source, and links to the source message and recommendation. Scheduling dependencies, recurrence, and resource planning remain outside the MVP.
 
 ## Auth and Tenancy
 

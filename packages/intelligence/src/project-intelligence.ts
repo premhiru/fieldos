@@ -11,6 +11,23 @@ import type {
 
 const dayMs = 86_400_000;
 
+function milestoneDate(milestone: {
+  plannedEndDate: Date | null;
+  plannedStartDate: Date | null;
+}): Date | null {
+  return milestone.plannedEndDate ?? milestone.plannedStartDate;
+}
+
+function compareMilestoneDates(
+  left: { plannedEndDate: Date | null; plannedStartDate: Date | null },
+  right: { plannedEndDate: Date | null; plannedStartDate: Date | null }
+): number {
+  return (
+    (milestoneDate(left)?.getTime() ?? Number.MAX_SAFE_INTEGER) -
+    (milestoneDate(right)?.getTime() ?? Number.MAX_SAFE_INTEGER)
+  );
+}
+
 export class ProjectIntelligenceService {
   generateMorningBrief(context: ProjectIntelligenceContext): MorningBrief {
     const yesterdayStart = startOfDay(new Date(context.generatedAt.getTime() - dayMs));
@@ -20,8 +37,11 @@ export class ProjectIntelligenceService {
     );
     const openActionItems = pendingActionItems(context).slice(0, 3);
     const upcomingMilestones = context.milestones
-      .filter((milestone) => milestone.status !== "COMPLETED" && milestone.dueDate >= todayStart)
-      .sort((left, right) => left.dueDate.getTime() - right.dueDate.getTime())
+      .filter((milestone) => {
+        const date = milestoneDate(milestone);
+        return !["CANCELLED", "COMPLETED"].includes(milestone.status) && date && date >= todayStart;
+      })
+      .sort(compareMilestoneDates)
       .slice(0, 2);
     const risks = this.generateRiskSummary(context).slice(0, 2);
     const bullets: IntelligenceBullet[] = [
@@ -36,9 +56,10 @@ export class ProjectIntelligenceService {
         bullet(`Priority: ${item.title}`, [source("ACTION_ITEM", item.id, item.title)])
       ),
       ...upcomingMilestones.map((milestone) =>
-        bullet(`Upcoming milestone: ${milestone.title} due ${formatDate(milestone.dueDate)}`, [
-          source("MILESTONE", milestone.id, milestone.title)
-        ])
+        bullet(
+          `Upcoming milestone: ${milestone.title} due ${formatDate(milestoneDate(milestone)!)}`,
+          [source("MILESTONE", milestone.id, milestone.title)]
+        )
       ),
       ...risks.map((risk) => bullet(`Risk to watch: ${risk.title}`, risk.sources))
     ].slice(0, 8);
@@ -156,11 +177,14 @@ export class ProjectIntelligenceService {
         .map((item) => bullet(item.filename, [source("EVIDENCE", item.id, item.filename)])),
       title: `${context.project.name} Weekly Progress Report`,
       upcomingWork: context.milestones
-        .filter((milestone) => milestone.status !== "COMPLETED")
-        .sort((left, right) => left.dueDate.getTime() - right.dueDate.getTime())
+        .filter(
+          (milestone) =>
+            !["CANCELLED", "COMPLETED"].includes(milestone.status) && milestoneDate(milestone)
+        )
+        .sort(compareMilestoneDates)
         .slice(0, 6)
         .map((milestone) =>
-          bullet(`${milestone.title} due ${formatDate(milestone.dueDate)}`, [
+          bullet(`${milestone.title} due ${formatDate(milestoneDate(milestone)!)}`, [
             source("MILESTONE", milestone.id, milestone.title)
           ])
         )

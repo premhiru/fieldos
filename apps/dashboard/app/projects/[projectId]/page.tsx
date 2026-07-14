@@ -8,6 +8,7 @@ import * as React from "react";
 
 import { AppShell } from "../../../components/app-shell";
 import { AuthGuard } from "../../../components/auth-guard";
+import { MilestoneSection } from "../../../components/milestone-section";
 import {
   api,
   type AIMessageClassification,
@@ -239,6 +240,8 @@ function ProjectDetailContent() {
           </div>
         </CardContent>
       </Card>
+
+      <MilestoneSection projectId={project.id} projectState={projectState} />
 
       <Card>
         <CardHeader>

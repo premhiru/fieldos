@@ -19,9 +19,16 @@
 
 ## Current Milestone
 
-Go-Live QA Sprint is implemented, validated locally, and deployed to the Railway backend for pilot release verification.
+Milestone Intelligence is implemented and undergoing final production deployment verification.
 
 ## Completed Tasks
+
+- Milestone Intelligence: Draft Milestones from WhatsApp Evidence.
+  - Expanded `Milestone` with planned and actual dates, lifecycle status, priority, source, creator, recommendation, and source-message links.
+  - Added deterministic-first milestone extraction, strict AI fallback, project-timezone date resolution, normalized matching, and duplicate suppression.
+  - Added manual CRUD, one-click approval, edit-before-approval, contributor authorization, business timeline events, and Project State refresh.
+  - Added polished Project and Operations Command Center milestone summaries and recommendation review.
+  - Added tests for the required field-message scenarios, ambiguity, matching, deduplication, approval, timeline events, Project State, UI, and permissions.
 
 - Invitation authentication reliability.
   - Dashboard API requests now use a same-origin proxy so production session cookies are first-party.
@@ -242,7 +249,7 @@ Go-Live QA Sprint is implemented, validated locally, and deployed to the Railway
 - CODEOWNERS references `@fieldos/engineering`, which must be replaced or backed by a real GitHub team after the organization is created.
 - Git author identity is configured locally as `FieldOS Engineering <engineering@fieldos.local>` and should be replaced with the company identity when available.
 - Vitest is configured with `--passWithNoTests`; real tests should be added with the first product and infrastructure behavior.
-- Invite, membership administration, and email verification flows are not implemented yet.
+- Email verification is not implemented yet; invitation and membership administration are live.
 - Password-reset request rate limiting is not yet implemented.
 - Production password email delivery currently uses Resend's testing sender and is limited to the Resend account owner's address until a FieldOS sending domain is verified.
 - Messaging is not real-time yet.
@@ -251,7 +258,7 @@ Go-Live QA Sprint is implemented, validated locally, and deployed to the Railway
 - Existing WhatsApp media rows that point to local filesystem-backed objects need migration or re-ingestion before they can be served from R2.
 - Existing WhatsApp message rows created before this fix may need data cleanup if unsupported placeholders were already stored.
 - AI Action Items are not converted into first-class project tasks yet; accepted follow-up Action Items only record human approval.
-- Milestones are lightweight command-center records; full scheduling dependencies and recurrence are intentionally deferred.
+- Milestone scheduling dependencies, recurrence, resource planning, and bulk imports are intentionally deferred.
 - The AI Daily Brief currently has a deterministic fallback path and should be connected to provider-backed generation after production prompt telemetry is available.
 - AI provider failures are recorded on the classification row; worker retries now use bounded exponential backoff, but provider-specific retry policy remains intentionally minimal.
 - Pagination is still limited to the highest-volume AI and ActionItem project views; conversation and message pagination should be formalized before large customer imports.
@@ -282,7 +289,7 @@ Go-Live QA Sprint is implemented, validated locally, and deployed to the Railway
 - Validate AI classifications and project suggestions with real active WhatsApp project messages.
 - Convert accepted Action Items into first-class operational task records after the task domain exists.
 - Build Task 008 activity timeline on top of the generic `Event` model.
-- Add CRUD surfaces for milestones when project planning workflows are defined.
+- Extend milestones with dependencies and recurrence only after pilot scheduling telemetry demonstrates the need.
 - Add official Meta WhatsApp Cloud API support for enterprise production deployments.
 
 ## Architecture Decisions Made
@@ -305,6 +312,7 @@ Go-Live QA Sprint is implemented, validated locally, and deployed to the Railway
 - ADR 0013B: Use Cloudflare R2 for production media and report storage through signed URLs.
 - ADR 0014: Use AI Project Coordinators, deterministic ProjectState, and human-approved Recommendations.
 - ADR 0015: Use hashed team invitations, organization roles, and explicit project access for restricted members.
+- ADR 0016: Require human approval for evidence-backed milestone changes, prefer existing milestone matching, and create business timeline events.
 - Sprint 14 implementation decision: Keep pilot readiness primitives small, tenant-scoped, and API-owned rather than introducing a product analytics service or tour framework before the first pilot.
 
 ## Deployment Status

@@ -57,7 +57,10 @@ function ProjectsContent() {
 
   const mutation = useMutation({
     mutationFn: (body: { code: string; name: string; status: ProjectStatus }) =>
-      api.createProject(activeOrganization?.id ?? "", body),
+      api.createProject(activeOrganization?.id ?? "", {
+        ...body,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
+      }),
     onSuccess: async () => {
       setName("");
       setCode("");

@@ -22,7 +22,9 @@ export type AIClassificationStatus = "PENDING" | "COMPLETED" | "FAILED" | "NEEDS
 export type ActionItemStatus = "PENDING" | "ACCEPTED" | "COMPLETED" | "IGNORED" | "CONVERTED";
 export type ActionItemType = "FOLLOW_UP" | "PROJECT_SUGGESTION";
 export type ActionItemPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
-export type MilestoneStatus = "UPCOMING" | "DUE_SOON" | "OVERDUE" | "COMPLETED";
+export type MilestoneStatus = "PLANNED" | "IN_PROGRESS" | "COMPLETED" | "DELAYED" | "CANCELLED";
+export type MilestonePriority = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+export type MilestoneSource = "MANUAL" | "AI_RECOMMENDATION" | "IMPORTED";
 export type DashboardHealth = "HEALTHY" | "NEEDS_ATTENTION" | "CRITICAL";
 export type SearchSourceType =
   | "PROJECT"
@@ -54,7 +56,12 @@ export type RecommendationType =
   | "APPROVAL_REQUIRED"
   | "CLIENT_UPDATE"
   | "SUPPLIER_DELAY"
-  | "GENERAL";
+  | "GENERAL"
+  | "CREATE_MILESTONE"
+  | "UPDATE_MILESTONE"
+  | "COMPLETE_MILESTONE"
+  | "START_MILESTONE"
+  | "DELAY_MILESTONE";
 export type RecommendationStatus = "PENDING" | "APPROVED" | "DISMISSED" | "COMPLETED" | "FAILED";
 export type RecommendationPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 export type RecommendationConfidence = "HIGH" | "MEDIUM" | "LOW";
@@ -65,8 +72,13 @@ export type RecommendationActionType =
   | "SCHEDULE_INSPECTION_REMINDER"
   | "MARK_PROGRESS_REVIEWED"
   | "REQUEST_PROGRESS_UPDATE"
-  | "REVIEW_EVIDENCE";
-export type CoordinatorType = "PROGRESS" | "FOLLOW_UP" | "INSPECTION" | "REPORT" | "RUNTIME";
+  | "REVIEW_EVIDENCE"
+  | "CREATE_MILESTONE"
+  | "UPDATE_MILESTONE"
+  | "COMPLETE_MILESTONE"
+  | "START_MILESTONE";
+export type CoordinatorType =
+  "PROGRESS" | "FOLLOW_UP" | "INSPECTION" | "MILESTONE" | "REPORT" | "RUNTIME";
 export type CoordinatorRunStatus = "STARTED" | "COMPLETED" | "FAILED" | "SKIPPED";
 export type WhatsAppDraftStatus = "DRAFT" | "APPROVED" | "SENT" | "CANCELLED" | "FAILED";
 export type MessageProcessingStatus =
@@ -136,6 +148,7 @@ export interface Project {
   name: string;
   organizationId: string;
   status: ProjectStatus;
+  timezone?: string;
   timelineEvents?: ProjectTimelineEvent[];
   whatsAppMessages?: ProjectWhatsAppMessage[];
 }
@@ -144,7 +157,7 @@ export interface ProjectTimelineEvent {
   id: string;
   organizationId: string;
   projectId: string | null;
-  sourceType: "MESSAGE" | "ACTION_ITEM" | "REPORT" | "RECOMMENDATION" | "SYSTEM";
+  sourceType: "MESSAGE" | "ACTION_ITEM" | "MILESTONE" | "REPORT" | "RECOMMENDATION" | "SYSTEM";
   sourceId: string;
   eventType: string;
   title: string;
@@ -173,6 +186,11 @@ export interface ProjectState {
   openActionItemCount: number;
   urgentActionItemCount: number;
   highPriorityActionItemCount: number;
+  nextMilestone: string | null;
+  nextMilestoneDate: string | null;
+  completedMilestonesCount: number;
+  delayedMilestonesCount: number;
+  upcomingMilestonesCount: number;
   recentProgressSummary: string | null;
   recentRiskSummary: string | null;
   recentEvidenceSummary: string | null;
@@ -651,11 +669,49 @@ export interface Milestone {
   organizationId: string;
   projectId: string;
   title: string;
-  dueDate: string;
+  description: string | null;
   status: MilestoneStatus;
+  plannedStartDate: string | null;
+  plannedEndDate: string | null;
+  actualStartDate: string | null;
+  actualEndDate: string | null;
+  priority: MilestonePriority;
+  source: MilestoneSource;
+  createdByUserId: string | null;
+  sourceRecommendationId: string | null;
+  sourceMessageId: string | null;
   createdAt: string;
   updatedAt: string;
-  project: ProjectReference;
+  project?: ProjectReference;
+}
+
+export interface MilestoneRecommendation extends Recommendation {
+  evidence: {
+    attachments: Array<{ filename: string; id: string; mimeType: string }>;
+    conversationId: string;
+    messageBody: string | null;
+    messageId: string;
+    occurredAt: string;
+    sender: string;
+    timelineEvent: {
+      description: string | null;
+      id: string;
+      occurredAt: string;
+      title: string;
+    } | null;
+    voiceTranscript: string | null;
+  } | null;
+}
+
+export interface MilestoneInput {
+  actualEndDate?: string | null;
+  actualStartDate?: string | null;
+  description?: string | null;
+  plannedEndDate?: string | null;
+  plannedStartDate?: string | null;
+  priority?: MilestonePriority;
+  status?: MilestoneStatus;
+  title: string;
 }
 
 export interface DashboardBrief {
@@ -963,7 +1019,7 @@ export const api = {
     }),
   createProject: (
     organizationId: string,
-    body: { code: string; name: string; status: ProjectStatus }
+    body: { code: string; name: string; status: ProjectStatus; timezone: string }
   ) =>
     apiRequest<{ project: Project }>(`/organizations/${organizationId}/projects`, {
       body: JSON.stringify(body),
@@ -1037,6 +1093,37 @@ export const api = {
   getProject: (projectId: string) => apiRequest<{ project: Project }>(`/projects/${projectId}`),
   getProjectState: (projectId: string) =>
     apiRequest<{ state: ProjectState }>(`/projects/${projectId}/state`),
+  listProjectMilestones: (projectId: string) =>
+    apiRequest<{ milestones: Milestone[] }>(`/projects/${projectId}/milestones`),
+  createMilestone: (projectId: string, body: MilestoneInput) =>
+    apiRequest<{ milestone: Milestone }>(`/projects/${projectId}/milestones`, {
+      body: JSON.stringify(body),
+      method: "POST"
+    }),
+  updateMilestone: (milestoneId: string, body: Partial<MilestoneInput>) =>
+    apiRequest<{ milestone: Milestone }>(`/milestones/${milestoneId}`, {
+      body: JSON.stringify(body),
+      method: "PATCH"
+    }),
+  deleteMilestone: (milestoneId: string) =>
+    apiRequest<{ ok: true }>(`/milestones/${milestoneId}`, { method: "DELETE" }),
+  listMilestoneRecommendations: (projectId: string) =>
+    apiRequest<{ recommendations: MilestoneRecommendation[] }>(
+      `/projects/${projectId}/milestone-recommendations`
+    ),
+  approveMilestoneRecommendation: (recommendationId: string) =>
+    apiRequest<{ approval: { milestone: Milestone; recommendation: Recommendation } }>(
+      `/recommendations/${recommendationId}/approve-milestone`,
+      { method: "POST" }
+    ),
+  editAndApproveMilestoneRecommendation: (
+    recommendationId: string,
+    body: Partial<MilestoneInput>
+  ) =>
+    apiRequest<{ approval: { milestone: Milestone; recommendation: Recommendation } }>(
+      `/recommendations/${recommendationId}/edit-and-approve-milestone`,
+      { body: JSON.stringify(body), method: "POST" }
+    ),
   rebuildProjectState: (projectId: string) =>
     apiRequest<{ state: ProjectState }>(`/projects/${projectId}/state/rebuild`, {
       method: "POST"

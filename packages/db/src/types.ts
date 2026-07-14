@@ -19,6 +19,8 @@ export type {
   MembershipRole,
   MessageProcessingStatus,
   Milestone,
+  MilestonePriority,
+  MilestoneSource,
   MilestoneStatus,
   Organization,
   PhotoAnalysis,

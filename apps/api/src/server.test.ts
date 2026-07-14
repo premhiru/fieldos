@@ -1172,7 +1172,7 @@ describe("FieldOS API auth and tenancy", () => {
       title: "Site Update"
     });
     repository.addMilestone({
-      dueDate: new Date("2026-07-12T00:00:00.000Z"),
+      plannedEndDate: new Date("2026-07-12T00:00:00.000Z"),
       organizationId: organization.id,
       projectId: project.id,
       title: "Client inspection"
@@ -1580,10 +1580,10 @@ describe("FieldOS API auth and tenancy", () => {
       title: "Technical sync completed"
     });
     repository.addMilestone({
-      dueDate: new Date("2026-07-10T00:00:00.000Z"),
+      plannedEndDate: new Date("2026-07-10T00:00:00.000Z"),
       organizationId: organization.id,
       projectId: criticalProject.id,
-      status: "UPCOMING",
+      status: "PLANNED",
       title: "Inspection"
     });
 
@@ -1799,6 +1799,96 @@ describe("FieldOS API auth and tenancy", () => {
 
     expect(viewerResponse.statusCode).toBe(403);
     expect(sendWhatsAppDraft).toHaveBeenCalledOnce();
+  });
+
+  it("allows project contributors to manage milestone recommendations and blocks viewers", async () => {
+    const ownerCookie = await signup(server, "milestone-owner@example.com");
+    const organization = await createOrganization(server, ownerCookie);
+    const project = await repository.createProject({
+      code: "MS-001",
+      name: "Milestone pilot project",
+      organizationId: organization.id,
+      status: "ACTIVE"
+    });
+    const memberCookie = await signup(server, "milestone-member@example.com");
+    const viewerCookie = await signup(server, "milestone-viewer@example.com");
+    const member = repository.users.find((user) => user.email === "milestone-member@example.com");
+    const viewer = repository.users.find((user) => user.email === "milestone-viewer@example.com");
+    if (!member || !viewer) throw new Error("milestone test users were not created");
+    repository.addMembership(member.id, organization.id, "MEMBER");
+    repository.addMembership(viewer.id, organization.id, "VIEWER");
+
+    const milestone = repository.addMilestone({
+      organizationId: organization.id,
+      plannedEndDate: new Date("2026-07-20T00:00:00.000Z"),
+      projectId: project.id,
+      title: "Foundation Pour"
+    });
+    const recommendation = {
+      id: "recommendation_milestone_1",
+      organizationId: organization.id,
+      project: { code: project.code, id: project.id, name: project.name },
+      projectId: project.id,
+      sourceCoordinator: "MILESTONE",
+      status: "PENDING",
+      whatsAppDrafts: []
+    };
+    const createMilestone = vi.fn().mockResolvedValue(milestone);
+    const approveMilestoneRecommendation = vi.fn().mockResolvedValue({
+      milestone,
+      recommendation: { ...recommendation, status: "COMPLETED" }
+    });
+    server = buildServer({
+      coordinatorRuntime: {
+        approveMilestoneRecommendation,
+        createMilestone,
+        getRecommendation: vi.fn().mockResolvedValue(recommendation)
+      } as never,
+      qrStore: new InMemoryQrStore(),
+      repository
+    });
+
+    const memberCreateResponse = await server.inject({
+      headers: { cookie: memberCookie },
+      method: "POST",
+      payload: {
+        plannedEndDate: "2026-07-20",
+        priority: "HIGH",
+        status: "PLANNED",
+        title: "Foundation Pour"
+      },
+      url: `/projects/${project.id}/milestones`
+    });
+    expect(memberCreateResponse.statusCode).toBe(200);
+    expect(createMilestone).toHaveBeenCalledOnce();
+
+    const memberApprovalResponse = await server.inject({
+      headers: { cookie: memberCookie },
+      method: "POST",
+      payload: {
+        actualEndDate: "2026-07-13",
+        priority: "HIGH",
+        status: "COMPLETED",
+        title: "Foundation Concrete Pour"
+      },
+      url: `/recommendations/${recommendation.id}/edit-and-approve-milestone`
+    });
+    expect(memberApprovalResponse.statusCode).toBe(200);
+    expect(approveMilestoneRecommendation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        edits: expect.objectContaining({ title: "Foundation Concrete Pour" }),
+        recommendationId: recommendation.id,
+        userId: member.id
+      })
+    );
+
+    const viewerApprovalResponse = await server.inject({
+      headers: { cookie: viewerCookie },
+      method: "POST",
+      url: `/recommendations/${recommendation.id}/approve-milestone`
+    });
+    expect(viewerApprovalResponse.statusCode).toBe(403);
+    expect(approveMilestoneRecommendation).toHaveBeenCalledOnce();
   });
 
   it("searches messages, timeline events, Action Items, projects, and AI classifications", async () => {
@@ -3156,8 +3246,9 @@ class InMemoryRepository implements AppRepository {
       milestones: this.milestones
         .filter((milestone) => milestone.projectId === projectId)
         .map((milestone) => ({
-          dueDate: milestone.dueDate,
           id: milestone.id,
+          plannedEndDate: milestone.plannedEndDate,
+          plannedStartDate: milestone.plannedStartDate,
           status: milestone.status,
           title: milestone.title
         })),
@@ -3332,7 +3423,11 @@ class InMemoryRepository implements AppRepository {
         (milestone) =>
           milestone.organizationId === input.organizationId && milestone.status !== "COMPLETED"
       )
-      .sort((left, right) => left.dueDate.getTime() - right.dueDate.getTime())
+      .sort(
+        (left, right) =>
+          (left.plannedEndDate?.getTime() ?? Number.MAX_SAFE_INTEGER) -
+          (right.plannedEndDate?.getTime() ?? Number.MAX_SAFE_INTEGER)
+      )
       .slice(0, 12);
     const events = this.events
       .filter(
@@ -3355,7 +3450,7 @@ class InMemoryRepository implements AppRepository {
           ["HIGH", "URGENT"].includes(actionItem.priority)
         ).length;
         const overdueCount = milestones.filter(
-          (milestone) => milestone.projectId === project.id && milestone.status === "OVERDUE"
+          (milestone) => milestone.projectId === project.id && milestone.status === "DELAYED"
         ).length;
         const hasSafetyIssue = classifications.some(
           (classification) =>
@@ -3981,9 +4076,9 @@ class InMemoryRepository implements AppRepository {
 
   addMilestone(input: {
     organizationId: string;
+    plannedEndDate: Date;
     projectId: string;
     title: string;
-    dueDate: Date;
     status?: MilestoneRecord["status"];
   }): MilestoneRecord {
     const project = this.projects.find((candidate) => candidate.id === input.projectId);
@@ -3993,17 +4088,26 @@ class InMemoryRepository implements AppRepository {
     }
 
     const milestone: MilestoneRecord = {
+      actualEndDate: null,
+      actualStartDate: null,
       createdAt: new Date(),
-      dueDate: input.dueDate,
+      createdByUserId: null,
+      description: null,
       id: nextId("milestone"),
       organizationId: input.organizationId,
+      plannedEndDate: input.plannedEndDate,
+      plannedStartDate: null,
+      priority: "MEDIUM",
       project: {
         code: project.code,
         id: project.id,
         name: project.name
       },
       projectId: input.projectId,
-      status: input.status ?? "UPCOMING",
+      source: "MANUAL",
+      sourceMessageId: null,
+      sourceRecommendationId: null,
+      status: input.status ?? "PLANNED",
       title: input.title,
       updatedAt: new Date()
     };

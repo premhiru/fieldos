@@ -89,7 +89,7 @@ export class MessageClassifier {
   }
 }
 
-class OpenAICompatibleProvider implements AIProvider {
+export class OpenAICompatibleProvider implements AIProvider {
   private readonly apiKey?: string;
   private readonly baseUrl: string;
 

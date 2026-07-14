@@ -84,8 +84,9 @@ export interface ProjectIntelligenceContext {
     title: string;
   }>;
   milestones: Array<{
-    dueDate: Date;
     id: string;
+    plannedEndDate: Date | null;
+    plannedStartDate: Date | null;
     status: string;
     title: string;
   }>;

@@ -3,6 +3,7 @@ import {
   queueWhatsAppDraftSendJob,
   queueProjectCoordinatorJob,
   queueReportGenerationJob,
+  queueSearchIndexJob,
   type CoordinatorRun,
   type CoordinatorRunStatus,
   type CoordinatorType,
@@ -10,6 +11,7 @@ import {
   type Project,
   type ProjectState,
   type ProjectStateHealth,
+  type Milestone,
   type Recommendation,
   type RecommendationPriority,
   type WhatsAppDraft
@@ -24,8 +26,13 @@ import type {
   RecommendationApprovalResult,
   RecommendationInput,
   RecommendationWithProject,
+  MilestoneApprovalResult,
+  MilestoneRecommendationEdit,
+  MilestoneRecommendationView,
+  MilestoneWriteInput,
   WhatsAppDraftSender
 } from "./types.js";
+import { MilestoneCoordinator } from "./milestone-coordinator.js";
 
 const logger = createLogger("fieldos-coordinators");
 const followUpThresholdMs = 48 * 60 * 60 * 1000;
@@ -52,6 +59,7 @@ interface ProjectCoordinatorContext {
   lastEvidenceAt: Date | null;
   lastReportAt: Date | null;
   lastWhatsAppUpdateAt: Date | null;
+  milestones: Milestone[];
   openActionItemCount: number;
   openActionItems: Array<{
     description: string | null;
@@ -101,6 +109,7 @@ export class QueuedWhatsAppDraftSender implements WhatsAppDraftSender {
 
 export class ProjectCoordinatorRuntime {
   private readonly draftSender: WhatsAppDraftSender;
+  private readonly milestoneCoordinator: MilestoneCoordinator;
   private readonly now: () => Date;
 
   constructor(
@@ -109,6 +118,10 @@ export class ProjectCoordinatorRuntime {
   ) {
     this.draftSender = options.draftSender ?? new NoopWhatsAppDraftSender();
     this.now = options.now ?? (() => new Date());
+    this.milestoneCoordinator = new MilestoneCoordinator(prisma, {
+      detector: options.milestoneDetector,
+      now: this.now
+    });
   }
 
   async queueScheduledScan(): Promise<number> {
@@ -136,7 +149,13 @@ export class ProjectCoordinatorRuntime {
   async runProjectCoordinators(projectId: string): Promise<ProjectCoordinatorRunResult> {
     const project = await this.requireProject(projectId);
     const projectState = await this.rebuildProjectState(projectId);
-    const coordinators: CoordinatorType[] = ["PROGRESS", "FOLLOW_UP", "INSPECTION", "REPORT"];
+    const coordinators: CoordinatorType[] = [
+      "PROGRESS",
+      "FOLLOW_UP",
+      "INSPECTION",
+      "MILESTONE",
+      "REPORT"
+    ];
     const results = [];
 
     for (const coordinatorType of coordinators) {
@@ -179,13 +198,16 @@ export class ProjectCoordinatorRuntime {
   async rebuildProjectState(projectId: string): Promise<ProjectState> {
     const project = await this.requireProject(projectId);
     const context = await this.loadProjectContext(project);
-    const health = determineHealth(context);
+    const health = determineHealth(context, this.now());
     const completionPercent = determineCompletionPercent(context);
     const summaries = buildProjectStateSummaries(context);
+    const milestoneState = buildMilestoneState(context.milestones, this.now());
 
     return this.prisma.projectState.upsert({
       create: {
         completionPercent,
+        completedMilestonesCount: milestoneState.completedCount,
+        delayedMilestonesCount: milestoneState.delayedCount,
         health,
         highPriorityActionItemCount: context.highPriorityActionItemCount,
         lastActivityAt: context.lastActivityAt,
@@ -197,6 +219,8 @@ export class ProjectCoordinatorRuntime {
           source: "deterministic"
         },
         openActionItemCount: context.openActionItemCount,
+        nextMilestone: milestoneState.next?.title ?? null,
+        nextMilestoneDate: milestoneState.nextDate,
         organizationId: project.organizationId,
         pendingDecisionSummary: summaries.pendingDecisionSummary,
         projectId: project.id,
@@ -204,10 +228,13 @@ export class ProjectCoordinatorRuntime {
         recentEvidenceSummary: summaries.recentEvidenceSummary,
         recentProgressSummary: summaries.recentProgressSummary,
         recentRiskSummary: summaries.recentRiskSummary,
+        upcomingMilestonesCount: milestoneState.upcomingCount,
         urgentActionItemCount: context.urgentActionItemCount
       },
       update: {
         completionPercent,
+        completedMilestonesCount: milestoneState.completedCount,
+        delayedMilestonesCount: milestoneState.delayedCount,
         health,
         highPriorityActionItemCount: context.highPriorityActionItemCount,
         lastActivityAt: context.lastActivityAt,
@@ -219,12 +246,15 @@ export class ProjectCoordinatorRuntime {
           source: "deterministic"
         },
         openActionItemCount: context.openActionItemCount,
+        nextMilestone: milestoneState.next?.title ?? null,
+        nextMilestoneDate: milestoneState.nextDate,
         pendingDecisionSummary: summaries.pendingDecisionSummary,
         recentBlockerSummary: summaries.recentBlockerSummary,
         recentEvidenceSummary: summaries.recentEvidenceSummary,
         recentProgressSummary: summaries.recentProgressSummary,
         recentRiskSummary: summaries.recentRiskSummary,
-        urgentActionItemCount: context.urgentActionItemCount
+        urgentActionItemCount: context.urgentActionItemCount,
+        upcomingMilestonesCount: milestoneState.upcomingCount
       },
       where: {
         projectId: project.id
@@ -247,6 +277,228 @@ export class ProjectCoordinatorRuntime {
         projectId
       }
     });
+  }
+
+  async listMilestones(projectId: string): Promise<Milestone[]> {
+    return this.prisma.milestone.findMany({
+      orderBy: [{ plannedStartDate: "asc" }, { plannedEndDate: "asc" }, { createdAt: "asc" }],
+      where: { projectId }
+    });
+  }
+
+  async getMilestone(milestoneId: string): Promise<Milestone | null> {
+    return this.prisma.milestone.findUnique({ where: { id: milestoneId } });
+  }
+
+  async createMilestone(input: {
+    createdByUserId: string;
+    data: MilestoneWriteInput;
+    organizationId: string;
+    projectId: string;
+  }): Promise<Milestone> {
+    const milestone = await this.prisma.milestone.create({
+      data: {
+        ...input.data,
+        createdByUserId: input.createdByUserId,
+        organizationId: input.organizationId,
+        projectId: input.projectId,
+        source: "MANUAL"
+      }
+    });
+    await this.rebuildProjectState(input.projectId);
+    return milestone;
+  }
+
+  async updateMilestone(input: {
+    data: Partial<MilestoneWriteInput>;
+    milestoneId: string;
+  }): Promise<Milestone> {
+    const milestone = await this.prisma.milestone.update({
+      data: input.data,
+      where: { id: input.milestoneId }
+    });
+    await this.rebuildProjectState(milestone.projectId);
+    return milestone;
+  }
+
+  async deleteMilestone(milestoneId: string): Promise<void> {
+    const milestone = await this.prisma.milestone.delete({ where: { id: milestoneId } });
+    await this.rebuildProjectState(milestone.projectId);
+  }
+
+  async listMilestoneRecommendations(projectId: string): Promise<MilestoneRecommendationView[]> {
+    const recommendations = await this.prisma.recommendation.findMany({
+      include: {
+        project: { select: { code: true, id: true, name: true } },
+        whatsAppDrafts: true
+      },
+      orderBy: [{ priority: "desc" }, { createdAt: "desc" }],
+      where: {
+        projectId,
+        sourceCoordinator: "MILESTONE",
+        status: "PENDING"
+      }
+    });
+
+    return Promise.all(
+      recommendations.map(async (recommendation) => {
+        const message = recommendation.sourceEntityId
+          ? await this.prisma.message.findUnique({
+              include: {
+                attachments: {
+                  select: { filename: true, id: true, mimeType: true, transcript: true }
+                },
+                senderParticipant: { select: { displayName: true } }
+              },
+              where: { id: recommendation.sourceEntityId }
+            })
+          : null;
+        const timelineEvent = message
+          ? await this.prisma.event.findFirst({
+              orderBy: { occurredAt: "desc" },
+              select: { description: true, id: true, occurredAt: true, title: true },
+              where: {
+                OR: [{ sourceId: message.id }, { sourceId: recommendation.id }],
+                projectId
+              }
+            })
+          : null;
+        return {
+          ...recommendation,
+          evidence: message
+            ? {
+                attachments: message.attachments.map(({ filename, id, mimeType }) => ({
+                  filename,
+                  id,
+                  mimeType
+                })),
+                conversationId: message.conversationId,
+                messageBody: message.body,
+                messageId: message.id,
+                occurredAt: message.occurredAt,
+                sender: message.senderParticipant.displayName,
+                timelineEvent,
+                voiceTranscript:
+                  message.attachments.find((attachment) => attachment.transcript)?.transcript ??
+                  null
+              }
+            : null
+        };
+      })
+    );
+  }
+
+  async approveMilestoneRecommendation(input: {
+    edits?: MilestoneRecommendationEdit;
+    recommendationId: string;
+    userId: string;
+  }): Promise<MilestoneApprovalResult> {
+    const recommendation = await this.prisma.recommendation.findUnique({
+      where: { id: input.recommendationId }
+    });
+    if (!recommendation || recommendation.sourceCoordinator !== "MILESTONE") {
+      throw new Error("Milestone recommendation not found.");
+    }
+    if (recommendation.status !== "PENDING") {
+      const processedPayload = milestonePayload(recommendation.proposedActionPayload);
+      const milestone = await this.prisma.milestone.findFirst({
+        where: {
+          OR: [
+            { sourceRecommendationId: recommendation.id },
+            ...(processedPayload.targetMilestoneId
+              ? [{ id: processedPayload.targetMilestoneId }]
+              : [])
+          ]
+        }
+      });
+      if (!milestone) throw new Error("Milestone recommendation has already been processed.");
+      return { milestone, recommendation };
+    }
+
+    const payload = milestonePayload(recommendation.proposedActionPayload);
+    const title = input.edits?.title?.trim() || payload.milestoneTitle;
+    const sourceMessageId = payload.evidenceMessageId;
+    const edits = input.edits;
+    const proposed = {
+      actualEndDate: hasOwn(edits, "actualEndDate")
+        ? (edits?.actualEndDate ?? null)
+        : parseDate(payload.actualEndDate),
+      actualStartDate: hasOwn(edits, "actualStartDate")
+        ? (edits?.actualStartDate ?? null)
+        : parseDate(payload.actualStartDate),
+      description: hasOwn(edits, "description")
+        ? (edits?.description ?? null)
+        : payload.description,
+      plannedEndDate: hasOwn(edits, "plannedEndDate")
+        ? (edits?.plannedEndDate ?? null)
+        : parseDate(payload.plannedEndDate),
+      plannedStartDate: hasOwn(edits, "plannedStartDate")
+        ? (edits?.plannedStartDate ?? null)
+        : parseDate(payload.plannedStartDate),
+      priority: edits?.priority ?? "MEDIUM",
+      status: edits?.status ?? payload.proposedStatus ?? "PLANNED",
+      title
+    };
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const milestone =
+        recommendation.proposedActionType === "CREATE_MILESTONE"
+          ? await tx.milestone.create({
+              data: {
+                ...proposed,
+                organizationId: recommendation.organizationId,
+                projectId: recommendation.projectId,
+                source: "AI_RECOMMENDATION",
+                sourceMessageId,
+                sourceRecommendationId: recommendation.id
+              }
+            })
+          : await updateRecommendedMilestone(tx, {
+              action: recommendation.proposedActionType,
+              payload,
+              proposed,
+              editedFields: new Set(Object.keys(edits ?? {})),
+              recommendationId: recommendation.id,
+              sourceMessageId
+            });
+      const completedRecommendation = await tx.recommendation.update({
+        data: {
+          approvedAt: this.now(),
+          approvedByUserId: input.userId,
+          completedAt: this.now(),
+          proposedActionPayload: {
+            ...payload,
+            ...datesToPayload(proposed),
+            milestoneTitle: proposed.title,
+            proposedStatus: proposed.status,
+            targetMilestoneId: milestone.id
+          },
+          status: "COMPLETED"
+        },
+        where: { id: recommendation.id }
+      });
+      const event = await tx.event.create({
+        data: {
+          description: milestoneEventDescription(recommendation.proposedActionType, milestone),
+          eventType: milestoneEventType(recommendation.proposedActionType, milestone),
+          occurredAt: this.now(),
+          organizationId: milestone.organizationId,
+          projectId: milestone.projectId,
+          sourceId: milestone.id,
+          sourceType: "MILESTONE",
+          title: milestoneEventTitle(recommendation.proposedActionType, milestone)
+        }
+      });
+      await queueSearchIndexJob(tx, {
+        organizationId: event.organizationId,
+        projectId: event.projectId,
+        sourceId: event.id,
+        sourceType: "TIMELINE_EVENT"
+      });
+      return { milestone, recommendation: completedRecommendation };
+    });
+    await this.rebuildProjectState(recommendation.projectId);
+    return result;
   }
 
   async listRecommendations(input: {
@@ -313,6 +565,12 @@ export class ProjectCoordinatorRuntime {
     }
 
     switch (recommendation.proposedActionType) {
+      case "CREATE_MILESTONE":
+      case "UPDATE_MILESTONE":
+      case "COMPLETE_MILESTONE":
+      case "START_MILESTONE": {
+        return this.approveMilestoneRecommendation(input);
+      }
       case "SEND_WHATSAPP_MESSAGE_DRAFT":
       case "REQUEST_PROGRESS_UPDATE": {
         const draft = await this.createDraftForRecommendation(recommendation, input.userId);
@@ -627,6 +885,8 @@ export class ProjectCoordinatorRuntime {
         return this.runInspectionCoordinator(input.project);
       case "REPORT":
         return this.runReportCoordinator(input.project);
+      case "MILESTONE":
+        return this.milestoneCoordinator.run(input.project);
       case "RUNTIME":
         return 0;
     }
@@ -1071,7 +1331,7 @@ export class ProjectCoordinatorRuntime {
   }
 
   private async loadProjectContext(project: Project): Promise<ProjectCoordinatorContext> {
-    const [events, messages, actionItems, photoAnalyses, reports, recommendations] =
+    const [events, messages, actionItems, photoAnalyses, reports, recommendations, milestones] =
       await Promise.all([
         this.prisma.event.findMany({
           orderBy: { occurredAt: "desc" },
@@ -1109,6 +1369,10 @@ export class ProjectCoordinatorRuntime {
           orderBy: { createdAt: "desc" },
           take: 10,
           where: { projectId: project.id }
+        }),
+        this.prisma.milestone.findMany({
+          orderBy: [{ plannedStartDate: "asc" }, { plannedEndDate: "asc" }],
+          where: { projectId: project.id }
         })
       ]);
     const openActionItems = actionItems.filter((item) => item.status === "PENDING");
@@ -1144,6 +1408,7 @@ export class ProjectCoordinatorRuntime {
       lastEvidenceAt,
       lastReportAt,
       lastWhatsAppUpdateAt,
+      milestones,
       openActionItemCount: openActionItems.length,
       openActionItems,
       photoAnalyses,
@@ -1155,12 +1420,12 @@ export class ProjectCoordinatorRuntime {
   }
 }
 
-function determineHealth(context: ProjectCoordinatorContext): ProjectStateHealth {
+function determineHealth(context: ProjectCoordinatorContext, now: Date): ProjectStateHealth {
   if (!context.lastActivityAt) {
     return "UNKNOWN";
   }
 
-  const lastActivityAgeMs = Date.now() - context.lastActivityAt.getTime();
+  const lastActivityAgeMs = now.getTime() - context.lastActivityAt.getTime();
 
   if (context.urgentActionItemCount > 0 || lastActivityAgeMs >= urgentFollowUpThresholdMs) {
     return "CRITICAL";
@@ -1178,6 +1443,14 @@ function determineHealth(context: ProjectCoordinatorContext): ProjectStateHealth
 }
 
 function determineCompletionPercent(context: ProjectCoordinatorContext): number {
+  const milestoneCompletion =
+    context.milestones.length > 0
+      ? Math.round(
+          (context.milestones.filter((milestone) => milestone.status === "COMPLETED").length /
+            context.milestones.length) *
+            100
+        )
+      : 0;
   const progressSignals =
     context.events.filter((event) => /complete|progress|installed|approved/i.test(event.title))
       .length +
@@ -1185,7 +1458,10 @@ function determineCompletionPercent(context: ProjectCoordinatorContext): number 
     context.reports.filter((report) => report.status === "COMPLETED").length * 2;
   const blockerPenalty = context.openActionItemCount * 3 + context.urgentActionItemCount * 5;
 
-  return Math.max(0, Math.min(95, 10 + progressSignals * 6 - blockerPenalty));
+  return Math.max(
+    0,
+    Math.min(100, Math.max(milestoneCompletion, 10 + progressSignals * 6 - blockerPenalty))
+  );
 }
 
 function buildProjectStateSummaries(context: ProjectCoordinatorContext) {
@@ -1292,6 +1568,191 @@ function startOfWeek(value: Date): Date {
   const diff = day === 0 ? 6 : day - 1;
   date.setDate(date.getDate() - diff);
   return date;
+}
+
+function buildMilestoneState(milestones: Milestone[], now: Date) {
+  const active = milestones.filter(
+    (milestone) => !["CANCELLED", "COMPLETED"].includes(milestone.status)
+  );
+  const sorted = [...active].sort(
+    (left, right) =>
+      ((left.plannedStartDate ?? left.plannedEndDate)?.getTime() ?? Number.MAX_SAFE_INTEGER) -
+      ((right.plannedStartDate ?? right.plannedEndDate)?.getTime() ?? Number.MAX_SAFE_INTEGER)
+  );
+  const next =
+    sorted.find((milestone) => {
+      const date = milestone.plannedStartDate ?? milestone.plannedEndDate;
+      return !date || date.getTime() >= startOfDay(now).getTime();
+    }) ??
+    sorted[0] ??
+    null;
+
+  return {
+    completedCount: milestones.filter((milestone) => milestone.status === "COMPLETED").length,
+    delayedCount: milestones.filter((milestone) => milestone.status === "DELAYED").length,
+    next,
+    nextDate: next ? (next.plannedStartDate ?? next.plannedEndDate) : null,
+    upcomingCount: active.filter((milestone) => milestone.status === "PLANNED").length
+  };
+}
+
+interface ParsedMilestonePayload {
+  actualEndDate: string | null;
+  actualStartDate: string | null;
+  description: string | null;
+  evidenceMessageId: string | null;
+  evidenceSummary: string | null;
+  milestoneTitle: string;
+  originalDatePhrase: string | null;
+  plannedEndDate: string | null;
+  plannedStartDate: string | null;
+  proposedStatus: "PLANNED" | "IN_PROGRESS" | "COMPLETED" | "DELAYED" | "CANCELLED" | null;
+  targetMilestoneId: string | null;
+}
+
+function milestonePayload(value: Prisma.JsonValue): ParsedMilestonePayload {
+  const payload = getPayloadObject(value);
+  const milestoneTitle = getStringPayload(payload, "milestoneTitle");
+  if (!milestoneTitle) throw new Error("Milestone recommendation payload is invalid.");
+  const rawStatus = getStringPayload(payload, "proposedStatus");
+  const statuses = new Set(["PLANNED", "IN_PROGRESS", "COMPLETED", "DELAYED", "CANCELLED"]);
+
+  return {
+    actualEndDate: getStringPayload(payload, "actualEndDate"),
+    actualStartDate: getStringPayload(payload, "actualStartDate"),
+    description: getStringPayload(payload, "description"),
+    evidenceMessageId: getStringPayload(payload, "evidenceMessageId"),
+    evidenceSummary: getStringPayload(payload, "evidenceSummary"),
+    milestoneTitle,
+    originalDatePhrase: getStringPayload(payload, "originalDatePhrase"),
+    plannedEndDate: getStringPayload(payload, "plannedEndDate"),
+    plannedStartDate: getStringPayload(payload, "plannedStartDate"),
+    proposedStatus: statuses.has(rawStatus ?? "")
+      ? (rawStatus as ParsedMilestonePayload["proposedStatus"])
+      : null,
+    targetMilestoneId: getStringPayload(payload, "targetMilestoneId")
+  };
+}
+
+function parseDate(value: string | null): Date | null {
+  return value ? new Date(`${value.slice(0, 10)}T00:00:00.000Z`) : null;
+}
+
+function datesToPayload(input: {
+  actualEndDate: Date | null;
+  actualStartDate: Date | null;
+  plannedEndDate: Date | null;
+  plannedStartDate: Date | null;
+}) {
+  const dateOnly = (value: Date | null) => value?.toISOString().slice(0, 10) ?? null;
+  return {
+    actualEndDate: dateOnly(input.actualEndDate),
+    actualStartDate: dateOnly(input.actualStartDate),
+    plannedEndDate: dateOnly(input.plannedEndDate),
+    plannedStartDate: dateOnly(input.plannedStartDate)
+  };
+}
+
+async function updateRecommendedMilestone(
+  tx: Prisma.TransactionClient,
+  input: {
+    action: Recommendation["proposedActionType"];
+    editedFields: Set<string>;
+    payload: ParsedMilestonePayload;
+    proposed: {
+      actualEndDate: Date | null;
+      actualStartDate: Date | null;
+      description: string | null;
+      plannedEndDate: Date | null;
+      plannedStartDate: Date | null;
+      priority: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+      status: "PLANNED" | "IN_PROGRESS" | "COMPLETED" | "DELAYED" | "CANCELLED";
+      title: string;
+    };
+    recommendationId: string;
+    sourceMessageId: string | null;
+  }
+): Promise<Milestone> {
+  if (!input.payload.targetMilestoneId) {
+    throw new Error("Milestone recommendation does not identify an existing milestone.");
+  }
+  const data: Prisma.MilestoneUpdateInput = {
+    sourceMessage: input.sourceMessageId ? { connect: { id: input.sourceMessageId } } : undefined,
+    sourceRecommendation: { connect: { id: input.recommendationId } },
+    title: input.proposed.title
+  };
+  if (input.payload.description || input.editedFields.has("description"))
+    data.description = input.proposed.description;
+  if (input.payload.plannedStartDate || input.editedFields.has("plannedStartDate"))
+    data.plannedStartDate = input.proposed.plannedStartDate;
+  if (input.payload.plannedEndDate || input.editedFields.has("plannedEndDate"))
+    data.plannedEndDate = input.proposed.plannedEndDate;
+  if (
+    input.payload.actualStartDate ||
+    input.action === "START_MILESTONE" ||
+    input.editedFields.has("actualStartDate")
+  )
+    data.actualStartDate = input.proposed.actualStartDate;
+  if (
+    input.payload.actualEndDate ||
+    input.action === "COMPLETE_MILESTONE" ||
+    input.editedFields.has("actualEndDate")
+  )
+    data.actualEndDate = input.proposed.actualEndDate;
+  if (input.payload.proposedStatus || input.editedFields.has("status"))
+    data.status = input.proposed.status;
+  if (input.editedFields.has("priority")) data.priority = input.proposed.priority;
+  if (input.action === "COMPLETE_MILESTONE") data.status = "COMPLETED";
+  if (input.action === "START_MILESTONE") data.status = "IN_PROGRESS";
+
+  return tx.milestone.update({
+    data,
+    where: { id: input.payload.targetMilestoneId }
+  });
+}
+
+function milestoneEventType(
+  action: Recommendation["proposedActionType"],
+  milestone: Milestone
+): string {
+  if (action === "COMPLETE_MILESTONE" || milestone.status === "COMPLETED")
+    return "MILESTONE_COMPLETED";
+  if (action === "START_MILESTONE" || milestone.status === "IN_PROGRESS")
+    return "MILESTONE_STARTED";
+  if (action === "CREATE_MILESTONE") return "MILESTONE_CREATED";
+  return "MILESTONE_UPDATED";
+}
+
+function milestoneEventTitle(
+  action: Recommendation["proposedActionType"],
+  milestone: Milestone
+): string {
+  if (action === "COMPLETE_MILESTONE" || milestone.status === "COMPLETED")
+    return `Milestone completed: ${milestone.title}`;
+  if (action === "START_MILESTONE" || milestone.status === "IN_PROGRESS")
+    return `Milestone started: ${milestone.title}`;
+  if (action === "CREATE_MILESTONE") return `Milestone scheduled: ${milestone.title}`;
+  if (milestone.status === "DELAYED") return `Milestone delayed: ${milestone.title}`;
+  return `Milestone updated: ${milestone.title}`;
+}
+
+function milestoneEventDescription(
+  action: Recommendation["proposedActionType"],
+  milestone: Milestone
+): string {
+  const date =
+    action === "COMPLETE_MILESTONE"
+      ? milestone.actualEndDate
+      : action === "START_MILESTONE"
+        ? milestone.actualStartDate
+        : (milestone.plannedStartDate ?? milestone.plannedEndDate);
+  return date
+    ? `${milestoneEventTitle(action, milestone)} on ${date.toISOString().slice(0, 10)}.`
+    : `${milestoneEventTitle(action, milestone)}.`;
+}
+
+function hasOwn(value: object | null | undefined, key: string): boolean {
+  return Boolean(value && Object.prototype.hasOwnProperty.call(value, key));
 }
 
 function getPayloadObject(value: Prisma.JsonValue): Record<string, unknown> {
