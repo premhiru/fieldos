@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, PageContainer, Skeleton } from "@fieldos/ui";
+import { BrandLockup, Button, PageContainer, Skeleton } from "@fieldos/ui";
 import {
   Bell,
   FileText,
@@ -54,16 +54,13 @@ export function AppShell({ children }: Readonly<{ children: React.ReactNode }>) 
   }, [router]);
 
   return (
-    <div className="min-h-screen bg-[#f6f7f9]">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 border-r border-slate-200 bg-white px-4 py-5 md:flex md:flex-col">
-        <Link className="flex items-center gap-3 px-2" href="/">
-          <span className="flex size-9 items-center justify-center rounded-md bg-slate-950 text-sm font-semibold text-white">
-            F
-          </span>
-          <span>
-            <span className="block text-base font-semibold text-slate-950">FieldOS</span>
-            <span className="block text-xs text-slate-500">Field operations</span>
-          </span>
+    <div className="min-h-screen bg-[var(--canvas)]">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 border-r border-[var(--border-default)] bg-[var(--surface)] px-4 py-5 md:flex md:flex-col">
+        <Link
+          className="rounded-md px-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+          href="/"
+        >
+          <BrandLockup />
         </Link>
         <nav aria-label="Primary navigation" className="mt-8 flex flex-col gap-1">
           {primaryNavigation.map((item) => (
@@ -91,13 +88,13 @@ export function AppShell({ children }: Readonly<{ children: React.ReactNode }>) 
           Log out
         </Link>
       </aside>
-      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur md:hidden">
+      <header className="sticky top-0 z-20 border-b border-[var(--border-default)] bg-[var(--surface)] px-4 py-3 md:hidden">
         <div className="flex items-center justify-between gap-3">
-          <Link className="flex items-center gap-2 font-semibold text-slate-950" href="/">
-            <span className="flex size-8 items-center justify-center rounded-md bg-slate-950 text-xs text-white">
-              F
-            </span>
-            FieldOS
+          <Link
+            className="rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+            href="/"
+          >
+            <BrandLockup compact />
           </Link>
           <Link
             aria-label="Open settings"
@@ -114,7 +111,7 @@ export function AppShell({ children }: Readonly<{ children: React.ReactNode }>) 
       </div>
       <nav
         aria-label="Mobile navigation"
-        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-slate-200 bg-white px-1 pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1 md:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-[var(--border-default)] bg-[var(--surface)] px-1 pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1 md:hidden"
       >
         {primaryNavigation.map((item) => {
           const Icon = item.icon;
@@ -124,8 +121,8 @@ export function AppShell({ children }: Readonly<{ children: React.ReactNode }>) 
               aria-current={active ? "page" : undefined}
               className={
                 active
-                  ? "flex min-h-14 flex-col items-center justify-center gap-1 rounded-md text-xs font-medium text-slate-950"
-                  : "flex min-h-14 flex-col items-center justify-center gap-1 rounded-md text-xs font-medium text-slate-500"
+                  ? "flex min-h-14 flex-col items-center justify-center gap-1 rounded-md text-xs font-medium text-[var(--text-primary)]"
+                  : "flex min-h-14 flex-col items-center justify-center gap-1 rounded-md text-xs font-medium text-[var(--text-tertiary)]"
               }
               href={item.href}
               key={item.href}
@@ -150,8 +147,8 @@ function NavigationLink({ item, pathname }: { item: NavigationItem; pathname: st
       aria-current={active ? "page" : undefined}
       className={
         active
-          ? "flex h-10 items-center gap-3 rounded-md bg-slate-100 px-3 text-sm font-medium text-slate-950"
-          : "flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+          ? "flex h-10 items-center gap-3 rounded-md bg-[var(--surface-muted)] px-3 text-sm font-medium text-[var(--text-primary)]"
+          : "flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)]"
       }
       href={item.href}
     >

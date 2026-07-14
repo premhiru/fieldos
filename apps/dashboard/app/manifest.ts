@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "AI Operating System for Field Operations",
     start_url: "/",
     display: "standalone",
-    background_color: "#f8fafc",
-    theme_color: "#0f172a",
+    background_color: "#f4f5f6",
+    theme_color: "#181c20",
     icons: [
       {
         src: "/icon.svg",

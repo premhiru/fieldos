@@ -19,9 +19,16 @@
 
 ## Current Milestone
 
-The FieldOS pilot UX refactor is implemented, validated, and deployed to production.
+FieldOS Design System 1.0 is implemented and undergoing final visual QA and production deployment.
 
 ## Completed Tasks
+
+- Brand Identity and Visual Design System 1.0.
+  - Introduced the canonical FieldOS mark, wordmark, favicon, app identity, loading treatment, and empty-state illustration language.
+  - Added semantic light and dark tokens for surfaces, typography, borders, status, elevation, focus, and motion.
+  - Standardized shared UI components and applied the system across the product shell and major workflows without changing navigation or functionality.
+  - Refined the login first impression and replaced prominent text-only loading and developer-facing connection language.
+  - Added design principles, brand guidance, visual system documentation, demo notes, and visual QA references.
 
 - Milestone Intelligence: Draft Milestones from WhatsApp Evidence.
   - Expanded `Milestone` with planned and actual dates, lifecycle status, priority, source, creator, recommendation, and source-message links.

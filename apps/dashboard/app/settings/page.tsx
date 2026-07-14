@@ -7,6 +7,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  EmptyState,
   PageHeader,
   Skeleton
 } from "@fieldos/ui";
@@ -14,7 +15,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
 import { useRouter } from "next/navigation";
-import { Activity, RefreshCw, Trash2, UserPlus } from "lucide-react";
+import { Activity, MessageSquare, RefreshCw, Trash2, UserPlus } from "lucide-react";
 import * as React from "react";
 
 import { AppShell } from "../../components/app-shell";
@@ -150,9 +151,8 @@ function SettingsContent() {
 
       <section className="scroll-mt-24 space-y-4" id="whatsapp">
         <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-          This connector uses WhatsApp Web pairing through Baileys. Use dedicated business numbers
-          only. Do not connect personal WhatsApp accounts. For enterprise deployments, FieldOS will
-          support the official Meta WhatsApp Cloud API later.
+          Connect a dedicated business number for field operations. Personal WhatsApp accounts are
+          not recommended because connected conversations can become shared workspace evidence.
         </div>
 
         {canManage ? (
@@ -194,11 +194,15 @@ function SettingsContent() {
 
         <div className="space-y-4">
           {accountsQuery.isLoading ? (
-            <p className="text-sm text-slate-600">Loading WhatsApp accounts...</p>
+            <Skeleton className="h-64 w-full" />
           ) : (accountsQuery.data?.accounts ?? []).length === 0 ? (
             <Card>
               <CardContent>
-                <p className="text-sm text-slate-600">No WhatsApp accounts connected.</p>
+                <EmptyState
+                  description="Connect a dedicated business number to review and assign field conversations to projects."
+                  icon={<MessageSquare aria-hidden="true" className="size-5" />}
+                  title="No WhatsApp accounts connected"
+                />
               </CardContent>
             </Card>
           ) : (
@@ -827,7 +831,7 @@ function WhatsAppAccountCard({
         <div className="grid gap-4 md:grid-cols-3">
           <StatusField label="Last connected" value={formatDate(account.lastConnectedAt)} />
           <StatusField label="Last message" value={formatDate(account.lastMessageAt)} />
-          <StatusField label="Connector" value={account.connectorType} />
+          <StatusField label="Connection type" value={account.connectorType} />
         </div>
 
         {shouldShowPairing ? (
@@ -877,7 +881,11 @@ function WhatsAppAccountCard({
               Chats and groups will appear after this WhatsApp account is connected.
             </p>
           ) : chatsQuery.isLoading ? (
-            <p className="mt-3 text-sm text-slate-600">Loading chats...</p>
+            <div className="mt-3 space-y-2">
+              {Array.from({ length: 4 }, (_, index) => (
+                <Skeleton className="h-16 w-full" key={index} />
+              ))}
+            </div>
           ) : chats.length === 0 ? (
             <p className="mt-3 text-sm text-slate-600">No chats discovered yet.</p>
           ) : (

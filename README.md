@@ -24,6 +24,7 @@
 - [Milestone Intelligence](#milestone-intelligence)
 - [Pilot Readiness](#pilot-readiness)
 - [Product Experience](#product-experience)
+- [Design System](#design-system)
 - [Repository Layout](#repository-layout)
 - [Development Philosophy](#development-philosophy)
 - [Tech Stack](#tech-stack)
@@ -99,6 +100,10 @@ flowchart TD
   DB --> Postgres
   Auth --> Shared
 ```
+
+## Design System
+
+FieldOS Design System 1.0 establishes a neutral-first operational interface, a canonical FieldOS identity, semantic status colors, shared component tokens, accessible focus behavior, reduced-motion support, and system-aware dark mode. Product principles live in [`docs/DESIGN_PRINCIPLES.md`](docs/DESIGN_PRINCIPLES.md), brand rules in [`docs/BRAND_GUIDE.md`](docs/BRAND_GUIDE.md), and implementation guidance in [`docs/VISUAL_DESIGN_SYSTEM.md`](docs/VISUAL_DESIGN_SYSTEM.md).
 
 ## Development Setup
 

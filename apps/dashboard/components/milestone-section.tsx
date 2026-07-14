@@ -1,6 +1,6 @@
 "use client";
 
-import { Badge, Button } from "@fieldos/ui";
+import { Badge, Button, Skeleton } from "@fieldos/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -154,7 +154,10 @@ export function MilestoneSection({
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-slate-950">Milestone Timeline</h3>
         {milestonesQuery.isLoading ? (
-          <p className="text-sm text-slate-600">Loading milestones...</p>
+          <div className="space-y-2" aria-label="Loading milestones">
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+          </div>
         ) : milestones.length === 0 ? (
           <div className="border border-dashed border-slate-300 px-5 py-8 text-center">
             <Flag aria-hidden="true" className="mx-auto h-6 w-6 text-slate-400" />

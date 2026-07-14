@@ -1,6 +1,17 @@
 "use client";
 
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@fieldos/ui";
+import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  EmptyState,
+  PageHeader,
+  Skeleton
+} from "@fieldos/ui";
+import { FolderKanban } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import * as React from "react";
@@ -79,7 +90,7 @@ function ProjectsContent() {
   }
 
   if (organizationsQuery.isLoading) {
-    return <p className="text-sm text-slate-600">Loading projects...</p>;
+    return <Skeleton className="h-[560px] w-full" />;
   }
 
   if (organizations.length === 0) {
@@ -88,18 +99,14 @@ function ProjectsContent() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-950">Projects</h1>
-          <p className="text-sm text-slate-600">
-            Create and manage projects for the active organization.
-          </p>
-        </div>
-        <OrganizationSelector organizations={organizations} />
-      </div>
+      <PageHeader
+        actions={<OrganizationSelector organizations={organizations} />}
+        description="Create and manage projects for the active organization."
+        title="Projects"
+      />
 
       {canCreateProject ? (
-        <Card>
+        <Card id="create-project">
           <CardHeader>
             <CardTitle>Create Project</CardTitle>
           </CardHeader>
@@ -173,9 +180,27 @@ function ProjectsContent() {
         </CardHeader>
         <CardContent>
           {projectsQuery.isLoading ? (
-            <p className="text-sm text-slate-600">Loading project list...</p>
+            <div className="space-y-3">
+              {Array.from({ length: 4 }, (_, index) => (
+                <Skeleton className="h-16 w-full" key={index} />
+              ))}
+            </div>
           ) : projects.length === 0 ? (
-            <p className="text-sm text-slate-600">No projects yet.</p>
+            <EmptyState
+              action={
+                canCreateProject ? (
+                  <a
+                    className="text-sm font-medium text-[var(--text-primary)] hover:underline"
+                    href="#create-project"
+                  >
+                    Create the first project
+                  </a>
+                ) : undefined
+              }
+              description="Projects organize your field conversations, evidence, decisions, and reports in one operational workspace."
+              icon={<FolderKanban aria-hidden="true" className="size-5" />}
+              title="No projects yet."
+            />
           ) : (
             <div className="divide-y divide-slate-200">
               {projects.map((project) => (

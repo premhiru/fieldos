@@ -13,6 +13,15 @@
 
 ## Unreleased
 
+### Brand Identity and Visual Design System
+
+- Introduced the FieldOS mark, wordmark, favicon, app identity, loading treatment, and empty-state illustration language.
+- Added semantic light and dark design tokens for surfaces, typography, borders, status colors, radii, shadows, focus, and motion.
+- Standardized shared buttons, cards, badges, page headers, empty states, skeletons, forms, and product shell styling.
+- Refined the login first impression around the FieldOS promise: `Field operations, intelligently managed.`
+- Replaced prominent text-only loading and developer-facing integration language with product-ready states.
+- Added design principles, brand guidance, visual system documentation, demo notes, and visual QA references.
+
 ### UX Refactoring
 
 - Reduced primary navigation to Dashboard, Projects, Inbox, Search, and Reports, with utilities and role-gated administration under Settings.

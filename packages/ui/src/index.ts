@@ -1,4 +1,5 @@
 export * from "./badge";
+export * from "./brand-mark";
 export * from "./button";
 export * from "./card";
 export * from "./empty-state";

@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Card, CardContent, CardHeader, CardTitle } from "@fieldos/ui";
+import { Button, Card, CardContent, CardHeader, CardTitle, Skeleton } from "@fieldos/ui";
 import { useQuery } from "@tanstack/react-query";
 
 import { api, type EvidenceView } from "../lib/api";
@@ -42,7 +42,11 @@ export function EvidenceViewer({
         <div className="space-y-4 p-6">
           {evidenceQuery.isLoading ? (
             <Card>
-              <CardContent className="pt-6 text-sm text-slate-600">Loading evidence...</CardContent>
+              <CardContent className="space-y-3 pt-6" aria-label="Loading evidence">
+                <Skeleton className="aspect-video w-full" />
+                <Skeleton className="h-5 w-2/3" />
+                <Skeleton className="h-16 w-full" />
+              </CardContent>
             </Card>
           ) : evidenceQuery.isError || !evidence ? (
             <Card>
