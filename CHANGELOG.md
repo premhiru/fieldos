@@ -13,6 +13,11 @@
 
 ## Unreleased
 
+### Email Delivery
+
+- Configured FieldOS transactional email to send from the verified `leesaapp.com` domain.
+- Standardized the production sender as `FieldOS <no-reply@leesaapp.com>` for password resets and team invitations.
+
 ### Brand Identity and Visual Design System
 
 - Introduced the FieldOS mark, wordmark, favicon, app identity, loading treatment, and empty-state illustration language.

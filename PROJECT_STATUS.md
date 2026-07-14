@@ -23,6 +23,11 @@ FieldOS Design System 1.0 is implemented, validated, and deployed to production.
 
 ## Completed Tasks
 
+- Verified-domain transactional email delivery.
+  - Standardized password-reset and team-invitation email on `FieldOS <no-reply@leesaapp.com>`.
+  - Configured the Railway production API with the verified Resend sender.
+  - Completed a controlled production send with a final Resend status of `delivered`.
+
 - Brand Identity and Visual Design System 1.0.
   - Introduced the canonical FieldOS mark, wordmark, favicon, app identity, loading treatment, and empty-state illustration language.
   - Added semantic light and dark tokens for surfaces, typography, borders, status, elevation, focus, and motion.
@@ -266,7 +271,7 @@ FieldOS Design System 1.0 is implemented, validated, and deployed to production.
 - Vitest is configured with `--passWithNoTests`; real tests should be added with the first product and infrastructure behavior.
 - Email verification is not implemented yet; invitation and membership administration are live.
 - Password-reset request rate limiting is not yet implemented.
-- Production password email delivery currently uses Resend's testing sender and is limited to the Resend account owner's address until a FieldOS sending domain is verified.
+- Production password resets and team invitations use Resend with the verified `leesaapp.com` sending domain.
 - Messaging is not real-time yet.
 - Message sending is internal/development-only until channel adapters exist.
 - Baileys is a WhatsApp Web adapter and should be used only with dedicated business test numbers until official Meta Cloud API support is implemented.
@@ -296,7 +301,7 @@ FieldOS Design System 1.0 is implemented, validated, and deployed to production.
 
 - Validate the redesigned product shell with pilot users and prioritize findings from real workflows.
 - Add server-backed unread state, Action Item due dates, and durable recommendation snoozes when workflow telemetry confirms the required semantics.
-- Verify a FieldOS sending domain in Resend and replace the testing sender before onboarding users with other email addresses.
+- Monitor transactional-email delivery and suppression rates during pilot onboarding.
 - Capture refreshed production quick-start screenshots for the Milestone Intelligence workflow.
 - Pair the dedicated pilot WhatsApp line and verify one live `WHATSAPP_DRAFT_SEND` job reaches `COMPLETED`.
 - Reset the demo workspace in production through the dashboard after Vercel deployment is confirmed.
@@ -337,6 +342,12 @@ FieldOS Design System 1.0 is implemented, validated, and deployed to production.
 - UX Refactoring decision: Keep five stable primary destinations, organize projects around operational review order, and place support/admin capabilities under role-aware Settings.
 
 ## Deployment Status
+
+- Verified-domain Resend email delivery is deployed.
+  - Railway API deployment `fb1b7a7f-972d-4bd8-8d8c-222c70e690a3` completed successfully.
+  - Production `EMAIL_FROM` resolves to `FieldOS <no-reply@leesaapp.com>`.
+  - A controlled delivery test was accepted and reported as `delivered` by Resend.
+  - API health remains verified at `https://fieldos-api-production.up.railway.app/health`.
 
 - FieldOS Design System 1.0 is deployed.
   - Dashboard commit `4b3b085` is live at `https://fieldos-sand.vercel.app`.

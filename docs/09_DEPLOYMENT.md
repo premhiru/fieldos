@@ -5,7 +5,7 @@
 | Purpose      | Define the first production hosting approach for FieldOS services. |
 | Owner        | Founding Engineering                                               |
 | Status       | Active                                                             |
-| Last Updated | 2026-07-08                                                         |
+| Last Updated | 2026-07-14                                                         |
 
 ## Table of Contents
 
@@ -73,7 +73,7 @@ JWT_SECRET=<generated secret, at least 16 characters>
 CORS_ORIGIN=https://fieldos-sand.vercel.app
 WEB_APP_URL=https://fieldos-sand.vercel.app
 RESEND_API_KEY=<resend-api-key>
-EMAIL_FROM=FieldOS <no-reply@your-verified-domain.example>
+EMAIL_FROM=FieldOS <no-reply@leesaapp.com>
 WHATSAPP_STORAGE_PATH=/data/whatsapp
 MEDIA_SIGNING_SECRET=<generated secret shared by API and worker>
 WHATSAPP_SESSION_POLL_INTERVAL_MS=10000
