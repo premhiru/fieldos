@@ -19,7 +19,7 @@
 
 ## Current Milestone
 
-WhatsApp connection-loss alerting is implemented and undergoing production deployment verification.
+WhatsApp connection-loss alerting is implemented, validated, and deployed to production.
 
 ## Completed Tasks
 
@@ -269,7 +269,7 @@ WhatsApp connection-loss alerting is implemented and undergoing production deplo
 
 ## In-Progress Tasks
 
-- Deploy the WhatsApp connection alert migration and worker configuration, then complete a controlled production outage/recovery smoke test.
+- None.
 
 ## Known Technical Debt
 
@@ -350,6 +350,14 @@ WhatsApp connection-loss alerting is implemented and undergoing production deplo
 - WhatsApp reliability decision: persist each outage episode on `WhatsAppAccount`, apply a short grace period, and deliver one disconnect/recovery pair asynchronously through the existing worker job queue.
 
 ## Deployment Status
+
+- WhatsApp disconnect and recovery alerts are deployed from commit `11ede27`.
+  - Railway worker deployment `121bbd1c-dec4-44f9-b964-706f5d6941a4` completed successfully.
+  - Railway API deployment `e8e9fc48-fa76-441f-8766-e0959b7519cc` completed successfully and the production alert schema was verified through Prisma.
+  - Worker `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `APP_URL` configuration is present without exposing credential values.
+  - A controlled isolated outage/recovery test completed both `WHATSAPP_CONNECTION_ALERT` jobs; Resend reported both messages as `delivered`.
+  - Replaying the recovery job did not change its persisted send timestamp, confirming one-time delivery behavior.
+  - All synthetic production records used by the smoke test were removed.
 
 - Verified-domain Resend email delivery is deployed.
   - Railway API deployment `fb1b7a7f-972d-4bd8-8d8c-222c70e690a3` completed successfully.

@@ -36,6 +36,7 @@ Overall readiness: 88%.
 - Feedback, notifications, onboarding, and analytics primitives are implemented.
 - Local validation covers format, lint, typecheck, tests, build, and Prisma migrations before deployment.
 - WhatsApp connection-loss alerts are durable, deduplicated, and isolated from the Baileys reconnect loop through worker-owned jobs.
+- A controlled production outage/recovery pair completed successfully, both emails reached Resend's `delivered` state, and replay did not change the recovery send marker.
 
 ## Checks Required Before Pilot
 
@@ -49,8 +50,6 @@ Overall readiness: 88%.
 - Reset demo workspace in production and confirm dashboard data loads.
 - Confirm no sensitive tokens are printed in logs.
 - Confirm Vercel has deployed the latest GitHub `main` commit.
-- Configure the production worker with `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `APP_URL`.
-- Verify one controlled disconnect/recovery email pair and confirm a repeated job does not send a duplicate.
 
 ## Operational Runbook
 
