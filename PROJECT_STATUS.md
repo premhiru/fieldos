@@ -19,7 +19,7 @@
 
 ## Current Milestone
 
-The FieldOS pilot UX refactor is implemented and undergoing final validation and production deployment.
+The FieldOS pilot UX refactor is implemented, validated, and deployed to production.
 
 ## Completed Tasks
 
@@ -250,7 +250,7 @@ The FieldOS pilot UX refactor is implemented and undergoing final validation and
 
 ## In-Progress Tasks
 
-- Final CI, Vercel deployment, and production smoke verification for the UX Refactoring Sprint.
+- None.
 
 ## Known Technical Debt
 
@@ -332,6 +332,11 @@ The FieldOS pilot UX refactor is implemented and undergoing final validation and
 ## Deployment Status
 
 - Dashboard deployed to Vercel production: `https://fieldos-sand.vercel.app`.
+- UX Refactoring Sprint deployed from commit `f4c322e` on 2026-07-14.
+  - GitHub Actions passed for lint, typecheck, tests, and build.
+  - Vercel production deployment `29WBDQWErbEAaDahGHwG4Z73zDUB` completed successfully.
+  - Production `/login`, `/reports`, and `/search` routes returned HTTP 200.
+  - Railway API health returned HTTP 200; API and worker code were unchanged, so no backend redeployment was required.
 - Milestone Intelligence deployed from commit `779a7ff` on 2026-07-14.
   - GitHub Actions passed for lint, typecheck, tests, and build.
   - Vercel production deployment `9M52dAzQRfRXfR3r7ugCCQgHmG66` completed successfully.
