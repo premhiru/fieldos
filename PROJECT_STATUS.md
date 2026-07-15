@@ -23,6 +23,11 @@ Projects and Action Items usability refinements are implemented, validated, and 
 
 ## Completed Tasks
 
+- Action Item overdue and completion metadata fix.
+  - Overdue count styling now activates for every non-empty Overdue tab without affecting Assigned or Completed count badges.
+  - Overdue cards retain their deadline-based red age label directly beneath the title.
+  - Completed cards now show an `updatedAt`-based completion age beneath the title using the secondary text color.
+
 - Projects and Action Items usability refinements.
   - Added project-list skeletons, client-side health filters, semantic status dots, last-activity timestamps, and a guided first-project empty state.
   - Activated the Overdue and Completed Action Item tabs with live counts, due-date or seven-day fallback logic, overdue labels, and muted completion history.
@@ -356,6 +361,12 @@ Projects and Action Items usability refinements are implemented, validated, and 
 - WhatsApp reliability decision: persist each outage episode on `WhatsAppAccount`, apply a short grace period, and deliver one disconnect/recovery pair asynchronously through the existing worker job queue.
 
 ## Deployment Status
+
+- Action Item overdue and completion metadata fix is deployed from commit `19a6b50` on 2026-07-15.
+  - Vercel production deployment `dpl_6CjZ8dnyvtqFKG61bGr97ZM5dVnE` completed successfully and is aliased to `https://fieldos-sand.vercel.app`.
+  - Production `/action-items` returned HTTP 200.
+  - Railway API deployment `7df0315a-85c2-4ffb-980c-e55a245f0157` completed successfully.
+  - Railway API health returned `{"status":"ok"}`.
 
 - Projects and Action Items usability refinements are deployed from commit `e1d59ac` on 2026-07-15.
   - Vercel production deployment `dpl_Bue1vXscqybWEk4x8YdeZ7JxCoqU` completed successfully and is aliased to `https://fieldos-sand.vercel.app`.
