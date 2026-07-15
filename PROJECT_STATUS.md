@@ -19,7 +19,7 @@
 
 ## Current Milestone
 
-Reports card state isolation and recommendation evidence UX consistency are implemented and validated for production deployment.
+Reports card state isolation and recommendation evidence UX consistency are implemented, validated, and deployed to production.
 
 ## Completed Tasks
 
@@ -393,6 +393,12 @@ Reports card state isolation and recommendation evidence UX consistency are impl
 - WhatsApp reliability decision: persist each outage episode on `WhatsAppAccount`, apply a short grace period, and deliver one disconnect/recovery pair asynchronously through the existing worker job queue.
 
 ## Deployment Status
+
+- Reports card state isolation and recommendation evidence UX consistency are deployed from commit `9fa13a4` on 2026-07-15.
+  - Vercel production deployment `dpl_EgtnKQYNrs12162EeptZgkWa4hu9` completed successfully and is aliased to `https://fieldos-sand.vercel.app`.
+  - Production `/reports` and `/recommendations/verification` routes returned HTTP 200.
+  - GitHub Actions `lint`, `typecheck`, `tests`, and `build` completed successfully for the release commit.
+  - Railway was intentionally not redeployed because the change is dashboard-only.
 
 - WhatsApp deployment resilience is deployed from commit `d44bd29` on 2026-07-15.
   - Railway worker deployment `1e3edfc5-7436-4a23-a5cb-f89f4f732fc8` completed successfully and reached its job-waiting state.
