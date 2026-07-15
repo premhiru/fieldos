@@ -130,7 +130,20 @@ export const reportFormatQuerySchema = z.object({
 });
 
 export const generateProjectReportSchema = z.object({
-  type: z.enum(["WEEKLY_PROGRESS"]).default("WEEKLY_PROGRESS")
+  type: z
+    .enum([
+      "MORNING_BRIEF",
+      "DAILY_SUMMARY",
+      "WEEKLY_PROGRESS",
+      "RISK_SUMMARY",
+      "PENDING_DECISIONS"
+    ])
+    .default("MORNING_BRIEF")
+});
+
+export const reportsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(20).default(5),
+  organizationId: z.string().trim().min(1)
 });
 
 export const paginationQuerySchema = z.object({

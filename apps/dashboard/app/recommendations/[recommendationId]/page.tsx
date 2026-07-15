@@ -10,7 +10,7 @@ import {
   PageHeader,
   Skeleton
 } from "@fieldos/ui";
-import { Check, Clock3, MessageSquareText, X } from "lucide-react";
+import { Check, ChevronDown, Clock3, MessageSquareText, X } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -18,7 +18,19 @@ import * as React from "react";
 
 import { AppShell } from "../../../components/app-shell";
 import { AuthGuard } from "../../../components/auth-guard";
-import { api } from "../../../lib/api";
+import {
+  api,
+  type AIMessageClassification,
+  type EvidenceView,
+  type PhotoAnalysis,
+  type Recommendation,
+  type UnifiedEvidenceContext
+} from "../../../lib/api";
+
+type SourceEvidence =
+  | { context: UnifiedEvidenceContext; type: "MESSAGE" }
+  | { analysis: PhotoAnalysis; evidence: EvidenceView; type: "PHOTO_ANALYSIS" }
+  | { classification: AIMessageClassification; type: "AI_CLASSIFICATION" };
 
 export default function RecommendationDetailPage() {
   return (
@@ -40,7 +52,18 @@ function RecommendationDetailContent() {
   });
   const recommendation = recommendationQuery.data?.recommendation;
   const [draftBody, setDraftBody] = React.useState("");
+  const [sourceEvidenceExpanded, setSourceEvidenceExpanded] = React.useState(false);
   const draft = recommendation?.whatsAppDrafts?.[0] ?? null;
+  const sourceEvidenceQuery = useQuery({
+    enabled: Boolean(recommendation?.sourceEntityId),
+    queryFn: () => loadSourceEvidence(recommendation as Recommendation),
+    queryKey: [
+      "recommendation-source-evidence",
+      recommendation?.sourceEntityType,
+      recommendation?.sourceEntityId
+    ],
+    retry: false
+  });
   const approveMutation = useMutation({
     mutationFn: () => api.approveRecommendation(params.recommendationId),
     onSuccess: async () => {
@@ -80,6 +103,12 @@ function RecommendationDetailContent() {
     }
   }, [draft]);
 
+  React.useEffect(() => {
+    if (recommendation) {
+      setSourceEvidenceExpanded(recommendation.status === "PENDING");
+    }
+  }, [recommendation?.id, recommendation?.status]);
+
   if (recommendationQuery.isLoading) return <Skeleton className="h-[620px]" />;
 
   if (recommendationQuery.isError || !recommendation) {
@@ -117,42 +146,51 @@ function RecommendationDetailContent() {
       </div>
 
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <Card>
-          <CardHeader>
-            <CardTitle>What happened</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4 text-sm">
-              <p className="leading-6 text-slate-700">{recommendation.description}</p>
-              <div>
-                <div className="text-xs font-semibold uppercase text-slate-500">
-                  Why you are seeing this
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>What happened</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4 text-sm">
+                <p className="leading-6 text-slate-700">{recommendation.description}</p>
+                <div>
+                  <div className="text-xs font-semibold uppercase text-slate-500">
+                    Why you are seeing this
+                  </div>
+                  <p className="mt-2 leading-6 text-slate-700">{recommendation.reason}</p>
                 </div>
-                <p className="mt-2 leading-6 text-slate-700">{recommendation.reason}</p>
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-xs font-semibold uppercase text-slate-500">
+                    Supporting evidence
+                  </div>
+                  <p className="mt-2 text-slate-700">
+                    {recommendation.sourceEntityType ?? "Project state"}{" "}
+                    {recommendation.sourceEntityId ? `· ${recommendation.sourceEntityId}` : ""}
+                  </p>
+                </div>
+                <div className="rounded-md border border-blue-100 bg-blue-50 p-4">
+                  <div className="text-xs font-semibold uppercase text-blue-700">
+                    What approval will do
+                  </div>
+                  <p className="mt-2 font-medium text-slate-950">
+                    {formatStatus(recommendation.proposedActionType)}
+                  </p>
+                  <div className="mt-2 space-y-1 text-sm text-slate-700">
+                    {formatPayload(recommendation.proposedActionPayload)}
+                  </div>
+                </div>
               </div>
-              <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
-                <div className="text-xs font-semibold uppercase text-slate-500">
-                  Supporting evidence
-                </div>
-                <p className="mt-2 text-slate-700">
-                  {recommendation.sourceEntityType ?? "Project state"}{" "}
-                  {recommendation.sourceEntityId ? `· ${recommendation.sourceEntityId}` : ""}
-                </p>
-              </div>
-              <div className="rounded-md border border-blue-100 bg-blue-50 p-4">
-                <div className="text-xs font-semibold uppercase text-blue-700">
-                  What approval will do
-                </div>
-                <p className="mt-2 font-medium text-slate-950">
-                  {formatStatus(recommendation.proposedActionType)}
-                </p>
-                <div className="mt-2 space-y-1 text-sm text-slate-700">
-                  {formatPayload(recommendation.proposedActionPayload)}
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+
+          <SourceEvidenceSection
+            evidence={sourceEvidenceQuery.data ?? null}
+            expanded={sourceEvidenceExpanded}
+            loading={sourceEvidenceQuery.isLoading}
+            onToggle={() => setSourceEvidenceExpanded((current) => !current)}
+          />
+        </div>
 
         <Card>
           <CardHeader>
@@ -265,6 +303,149 @@ function RecommendationDetailContent() {
       ) : null}
     </div>
   );
+}
+
+function SourceEvidenceSection({
+  evidence,
+  expanded,
+  loading,
+  onToggle
+}: Readonly<{
+  evidence: SourceEvidence | null;
+  expanded: boolean;
+  loading: boolean;
+  onToggle: () => void;
+}>) {
+  return (
+    <Card>
+      <CardHeader>
+        <button
+          aria-expanded={expanded}
+          className="flex w-full items-center justify-between gap-3 text-left"
+          onClick={onToggle}
+          type="button"
+        >
+          <CardTitle>Source Evidence</CardTitle>
+          <ChevronDown
+            aria-hidden="true"
+            className={`size-4 shrink-0 text-[var(--text-secondary)] transition-transform ${
+              expanded ? "rotate-180" : ""
+            }`}
+          />
+        </button>
+      </CardHeader>
+      {expanded ? (
+        <CardContent>
+          {loading ? (
+            <div aria-label="Loading source evidence" className="space-y-3">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-20 w-full" />
+            </div>
+          ) : evidence ? (
+            <SourceEvidenceContent evidence={evidence} />
+          ) : (
+            <p className="text-sm text-[var(--text-secondary)]">Source evidence unavailable</p>
+          )}
+        </CardContent>
+      ) : null}
+    </Card>
+  );
+}
+
+function SourceEvidenceContent({ evidence }: Readonly<{ evidence: SourceEvidence }>) {
+  if (evidence.type === "MESSAGE") {
+    return (
+      <blockquote className="border-l-4 border-[var(--border-strong)] bg-[var(--surface)] p-4 text-[var(--text-primary)]">
+        <p className="whitespace-pre-wrap text-sm leading-6">
+          {evidence.context.messageText || "Message content unavailable"}
+        </p>
+        <footer className="mt-3 text-xs text-[var(--text-secondary)]">
+          {evidence.context.sender.displayName} in {evidence.context.conversation.title} ·{" "}
+          {formatEvidenceTimestamp(evidence.context.timestamp)}
+        </footer>
+      </blockquote>
+    );
+  }
+
+  if (evidence.type === "PHOTO_ANALYSIS") {
+    return (
+      <div className="space-y-3">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          alt={evidence.evidence.filename}
+          className="max-h-72 w-full rounded-md border border-[var(--border)] bg-[var(--canvas)] object-contain"
+          src={evidence.evidence.signedUrl}
+        />
+        <p className="text-sm leading-6 text-[var(--text-primary)]">{evidence.analysis.summary}</p>
+        <ConfidenceBadge confidence={evidence.analysis.confidence} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3 text-sm">
+      <div>
+        <span className="text-[var(--text-secondary)]">Category</span>
+        <p className="mt-1 font-medium text-[var(--text-primary)]">
+          {evidence.classification.category
+            ? formatStatus(evidence.classification.category)
+            : "Unclassified"}
+        </p>
+      </div>
+      <div>
+        <span className="text-[var(--text-secondary)]">Summary</span>
+        <p className="mt-1 leading-6 text-[var(--text-primary)]">
+          {evidence.classification.summary || "Summary unavailable"}
+        </p>
+      </div>
+      <ConfidenceBadge confidence={evidence.classification.confidence} />
+    </div>
+  );
+}
+
+function ConfidenceBadge({ confidence }: Readonly<{ confidence: number | null }>) {
+  const label =
+    confidence === null
+      ? "Needs Review"
+      : confidence >= 0.8
+        ? "High Confidence"
+        : confidence >= 0.5
+          ? "Needs Review"
+          : "Low Confidence";
+
+  return <Badge variant={label === "High Confidence" ? "success" : "muted"}>{label}</Badge>;
+}
+
+async function loadSourceEvidence(recommendation: Recommendation): Promise<SourceEvidence | null> {
+  const sourceId = recommendation.sourceEntityId;
+  if (!sourceId) return null;
+
+  if (recommendation.sourceEntityType === "MESSAGE") {
+    const response = await api.getMessageContext(sourceId);
+    return response.context ? { context: response.context, type: "MESSAGE" } : null;
+  }
+
+  if (recommendation.sourceEntityType === "PHOTO_ANALYSIS") {
+    const { analysis } = await api.getPhotoAnalysis(sourceId);
+    const { evidence } = await api.getEvidenceView(analysis.evidenceId);
+    return { analysis, evidence, type: "PHOTO_ANALYSIS" };
+  }
+
+  if (
+    recommendation.sourceEntityType === "AI_CLASSIFICATION" ||
+    recommendation.sourceEntityType === "CLASSIFICATION"
+  ) {
+    const { classifications } = await api.listProjectAIClassifications(recommendation.projectId);
+    const classification = classifications.find((item) => item.id === sourceId);
+    return classification ? { classification, type: "AI_CLASSIFICATION" } : null;
+  }
+
+  return null;
+}
+
+function formatEvidenceTimestamp(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 }
 
 function formatStatus(value: string): string {

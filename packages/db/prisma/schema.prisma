@@ -881,7 +881,11 @@ enum MilestoneSource {
 }
 
 enum ProjectReportType {
+  MORNING_BRIEF
+  DAILY_SUMMARY
   WEEKLY_PROGRESS
+  RISK_SUMMARY
+  PENDING_DECISIONS
 }
 
 enum ProjectReportStatus {

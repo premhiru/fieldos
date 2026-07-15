@@ -92,6 +92,7 @@ import {
   projectParamsSchema,
   projectSearchAskSchema,
   reportFormatQuerySchema,
+  reportsQuerySchema,
   recommendationParamsSchema,
   recommendationsQuerySchema,
   actionItemParamsSchema,
@@ -1292,6 +1293,18 @@ export function buildServer(options: BuildServerOptions = {}) {
     }
   );
 
+  server.get("/reports", { preHandler: requireAuth }, async (request) => {
+    const query = reportsQuerySchema.parse(request.query);
+    await requireOrganizationMembership(requireCurrentUser(request).id, query.organizationId);
+
+    return {
+      reports: await repository.listRecentProjectReports({
+        limit: query.limit,
+        organizationId: query.organizationId
+      })
+    };
+  });
+
   server.get("/projects/:projectId/intelligence", { preHandler: requireAuth }, async (request) => {
     const params = projectParamsSchema.parse(request.params);
     const project = await requireProjectForRequest(request, params.projectId);
@@ -1412,7 +1425,7 @@ export function buildServer(options: BuildServerOptions = {}) {
         userId: user.id
       });
       await createUserNotification({
-        body: `${project.name} weekly report has been queued.`,
+        body: `${project.name} ${reportTypeLabel(body.type).toLowerCase()} has been queued.`,
         href: `/projects/${project.id}/intelligence`,
         organizationId: project.organizationId,
         title: "Report ready",
@@ -2366,4 +2379,16 @@ function statusCodeToErrorCode(statusCode: number): string {
     default:
       return "ERROR";
   }
+}
+
+function reportTypeLabel(type: ProjectReportRecord["type"]): string {
+  return type === "MORNING_BRIEF"
+    ? "Morning Brief"
+    : type === "DAILY_SUMMARY"
+      ? "Daily Summary"
+      : type === "WEEKLY_PROGRESS"
+        ? "Weekly Progress Report"
+        : type === "RISK_SUMMARY"
+          ? "Risk Summary"
+          : "Pending Decisions";
 }

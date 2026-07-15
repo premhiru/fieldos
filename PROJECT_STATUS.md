@@ -19,9 +19,17 @@
 
 ## Current Milestone
 
-Projects and Action Items usability refinements are implemented, validated, and deployed to production.
+Reports activity and recommendation source evidence are implemented and validated for production deployment.
 
 ## Completed Tasks
+
+- Reports activity and inline recommendation evidence.
+  - Added an organization-wide Recent Reports feed with report type, project, relative generation time, loading skeletons, and an empty state.
+  - Added per-project Morning Brief generation with queued, loading, and success feedback on report cards.
+  - Expanded generated report persistence and worker rendering to Morning Brief, Daily Summary, Weekly Progress, Risk Summary, and Pending Decisions.
+  - Added read-only, collapsible source evidence for message, photo-analysis, and AI-classification recommendations, with signed photo URLs and quiet unavailable fallbacks.
+  - Added focused dashboard and API coverage, and stabilized the bcrypt-heavy WhatsApp authorization test for parallel CI execution.
+  - Applied migration `20260715010000_report_catalog` locally and completed lint, typecheck, test, build, and browser QA.
 
 - GitHub Actions runtime modernization.
   - Upgraded checkout and Node setup actions to `v7` and pnpm setup to `v6` across all workflows.

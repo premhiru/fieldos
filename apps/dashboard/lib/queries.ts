@@ -27,6 +27,16 @@ export function useProjects(organizationId: string | null) {
   });
 }
 
+export function useRecentReports(organizationId: string | null) {
+  return useQuery({
+    enabled: Boolean(organizationId),
+    queryFn: () => api.listRecentReports(organizationId ?? "", 5),
+    queryKey: ["recent-reports", organizationId],
+    refetchInterval: 10_000,
+    retry: false
+  });
+}
+
 export function useOperationsDashboard(organizationId: string | null) {
   return useQuery({
     enabled: Boolean(organizationId),

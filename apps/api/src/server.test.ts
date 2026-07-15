@@ -40,6 +40,7 @@ import type {
   OperationsDashboardRecord,
   PhotoAnalysisRecord,
   ProjectReportRecord,
+  RecentProjectReportRecord,
   ProcessingJobRecord,
   SearchDocumentsResult,
   SearchSourceType,
@@ -761,7 +762,7 @@ describe("FieldOS API auth and tenancy", () => {
 
       expect(response.statusCode).toBe(403);
     }
-  });
+  }, 15_000);
 
   it("sets WhatsApp chats to ignored and archived", async () => {
     const cookie = await signup(server);
@@ -1205,9 +1206,28 @@ describe("FieldOS API auth and tenancy", () => {
       },
       method: "POST",
       payload: {
-        type: "WEEKLY_PROGRESS"
+        type: "MORNING_BRIEF"
       },
       url: `/projects/${project.id}/reports/generate`
+    });
+
+    const generatedReport = repository.projectReports.find(
+      (report) => report.id === generateResponse.json().report.id
+    );
+
+    if (!generatedReport) {
+      throw new Error("generated report missing");
+    }
+
+    generatedReport.generatedAt = new Date();
+    generatedReport.status = "COMPLETED";
+
+    const recentReportsResponse = await server.inject({
+      headers: {
+        cookie
+      },
+      method: "GET",
+      url: `/reports?organizationId=${organization.id}&limit=5`
     });
 
     expect(intelligenceResponse.statusCode).toBe(200);
@@ -1218,6 +1238,10 @@ describe("FieldOS API auth and tenancy", () => {
     expect(pdfResponse.body.slice(0, 5)).toBe("%PDF-");
     expect(generateResponse.statusCode).toBe(200);
     expect(generateResponse.json().report.status).toBe("PENDING");
+    expect(generateResponse.json().report.type).toBe("MORNING_BRIEF");
+    expect(recentReportsResponse.statusCode).toBe(200);
+    expect(recentReportsResponse.json().reports).toHaveLength(1);
+    expect(recentReportsResponse.json().reports[0].project.name).toBe("Intelligence project");
     expect(
       repository.processingJobs.some(
         (job) =>
@@ -3285,6 +3309,26 @@ class InMemoryRepository implements AppRepository {
     );
   }
 
+  async listRecentProjectReports(input: {
+    limit: number;
+    organizationId: string;
+  }): Promise<RecentProjectReportRecord[]> {
+    return this.projectReports
+      .filter(
+        (report) => report.organizationId === input.organizationId && report.status === "COMPLETED"
+      )
+      .sort(
+        (left, right) =>
+          (right.generatedAt ?? right.createdAt).getTime() -
+          (left.generatedAt ?? left.createdAt).getTime()
+      )
+      .slice(0, input.limit)
+      .flatMap((report) => {
+        const project = this.projects.find((candidate) => candidate.id === report.projectId);
+        return project ? [{ ...report, project }] : [];
+      });
+  }
+
   async queueProjectReport(input: {
     projectId: string;
     type: ProjectReportRecord["type"];
@@ -3307,10 +3351,12 @@ class InMemoryRepository implements AppRepository {
       organizationId: project.organizationId,
       pdfStorageKey: null,
       periodEnd: now,
-      periodStart: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),
+      periodStart: new Date(
+        now.getTime() - (input.type === "WEEKLY_PROGRESS" ? 7 : 1) * 24 * 60 * 60 * 1000
+      ),
       projectId: project.id,
       status: "PENDING",
-      title: `${project.name} Weekly Progress Report`,
+      title: `${project.name} ${reportTypeLabel(input.type)}`,
       type: input.type,
       updatedAt: now
     };
@@ -4445,6 +4491,18 @@ class InMemoryStorageProvider implements StorageProvider {
 function nextId(prefix: string): string {
   idCounter += 1;
   return `${prefix}_${idCounter}`;
+}
+
+function reportTypeLabel(type: ProjectReportRecord["type"]): string {
+  return type === "MORNING_BRIEF"
+    ? "Morning Brief"
+    : type === "DAILY_SUMMARY"
+      ? "Daily Summary"
+      : type === "WEEKLY_PROGRESS"
+        ? "Weekly Progress Report"
+        : type === "RISK_SUMMARY"
+          ? "Risk Summary"
+          : "Pending Decisions";
 }
 
 function toSafeUser(user: StoredUser): SafeUser {

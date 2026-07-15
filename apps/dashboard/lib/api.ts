@@ -426,11 +426,14 @@ export interface WeeklyReport {
   upcomingWork: IntelligenceBullet[];
 }
 
+export type ProjectReportType =
+  "MORNING_BRIEF" | "DAILY_SUMMARY" | "WEEKLY_PROGRESS" | "RISK_SUMMARY" | "PENDING_DECISIONS";
+
 export interface ProjectReport {
   id: string;
   organizationId: string;
   projectId: string;
-  type: "WEEKLY_PROGRESS";
+  type: ProjectReportType;
   status: "PENDING" | "RUNNING" | "FAILED" | "COMPLETED";
   title: string;
   content: unknown;
@@ -444,6 +447,10 @@ export interface ProjectReport {
   errorMessage: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface RecentProjectReport extends ProjectReport {
+  project: ProjectReference;
 }
 
 export interface ProjectIntelligence {
@@ -1327,9 +1334,16 @@ export const api = {
     apiRequest<{ risks: IntelligenceRisk[] }>(`/projects/${projectId}/risks`),
   getProjectPendingDecisions: (projectId: string) =>
     apiRequest<{ pendingDecisions: PendingDecision[] }>(`/projects/${projectId}/pending-decisions`),
-  generateProjectReport: (projectId: string) =>
+  listRecentReports: (organizationId: string, limit = 5) => {
+    const params = new URLSearchParams({
+      limit: String(limit),
+      organizationId
+    });
+    return apiRequest<{ reports: RecentProjectReport[] }>(`/reports?${params.toString()}`);
+  },
+  generateProjectReport: (projectId: string, type: ProjectReportType = "MORNING_BRIEF") =>
     apiRequest<{ report: ProjectReport }>(`/projects/${projectId}/reports/generate`, {
-      body: JSON.stringify({ type: "WEEKLY_PROGRESS" }),
+      body: JSON.stringify({ type }),
       method: "POST"
     }),
   exportProjectWeeklyReportMarkdown: (projectId: string) =>

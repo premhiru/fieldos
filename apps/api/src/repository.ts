@@ -414,6 +414,14 @@ export interface ProjectReportRecord {
   updatedAt: Date;
 }
 
+export interface RecentProjectReportRecord extends ProjectReportRecord {
+  project: {
+    code: string;
+    id: string;
+    name: string;
+  };
+}
+
 export interface EvidenceViewRecord {
   id: string;
   actionItems: ActionItemRecord[];
@@ -629,6 +637,10 @@ export interface AppRepository extends MessagingRepository {
     projectId: string;
     type: ReportType;
   }): Promise<ProjectReportRecord | null>;
+  listRecentProjectReports(input: {
+    limit: number;
+    organizationId: string;
+  }): Promise<RecentProjectReportRecord[]>;
   getEvidenceView(evidenceId: string): Promise<EvidenceViewRecord | null>;
   queueProjectReport(input: { projectId: string; type: ReportType }): Promise<ProjectReportRecord>;
   getActionItem(actionItemId: string): Promise<ActionItemRecord | null>;
@@ -1228,6 +1240,29 @@ export function createPrismaRepository(): AppRepository {
       return report ? toProjectReportRecord(report) : null;
     },
 
+    async listRecentProjectReports(input) {
+      const prisma = await getPrisma();
+      const reports = await prisma.projectReport.findMany({
+        include: {
+          project: {
+            select: {
+              code: true,
+              id: true,
+              name: true
+            }
+          }
+        },
+        orderBy: [{ generatedAt: "desc" }, { createdAt: "desc" }],
+        take: input.limit,
+        where: {
+          organizationId: input.organizationId,
+          status: "COMPLETED"
+        }
+      });
+
+      return reports.map(toRecentProjectReportRecord);
+    },
+
     async queueProjectReport(input) {
       const prisma = await getPrisma();
       const existing = await prisma.projectReport.findFirst({
@@ -1261,7 +1296,9 @@ export function createPrismaRepository(): AppRepository {
         }
       });
       const periodEnd = new Date();
-      const periodStart = new Date(periodEnd.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const periodStart = new Date(
+        periodEnd.getTime() - reportLookbackDays(input.type) * 24 * 60 * 60 * 1000
+      );
 
       return prisma.$transaction(async (tx) => {
         const report = await tx.projectReport.create({
@@ -1271,7 +1308,7 @@ export function createPrismaRepository(): AppRepository {
             periodStart,
             projectId: input.projectId,
             status: "PENDING",
-            title: `${project.name} Weekly Progress Report`,
+            title: reportTitle(project.name, input.type),
             type: input.type
           }
         });
@@ -3613,6 +3650,36 @@ function toProjectReportRecord(report: {
     type: report.type,
     updatedAt: report.updatedAt
   };
+}
+
+function toRecentProjectReportRecord(
+  report: Parameters<typeof toProjectReportRecord>[0] & {
+    project: RecentProjectReportRecord["project"];
+  }
+): RecentProjectReportRecord {
+  return {
+    ...toProjectReportRecord(report),
+    project: report.project
+  };
+}
+
+function reportLookbackDays(type: ReportType): number {
+  return type === "WEEKLY_PROGRESS" ? 7 : 1;
+}
+
+function reportTitle(projectName: string, type: ReportType): string {
+  const label =
+    type === "MORNING_BRIEF"
+      ? "Morning Brief"
+      : type === "DAILY_SUMMARY"
+        ? "Daily Summary"
+        : type === "WEEKLY_PROGRESS"
+          ? "Weekly Progress Report"
+          : type === "RISK_SUMMARY"
+            ? "Risk Summary"
+            : "Pending Decisions";
+
+  return `${projectName} ${label}`;
 }
 
 function jsonStringArray(value: Prisma.JsonValue): string[] {

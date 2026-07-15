@@ -1,9 +1,37 @@
 import type {
+  DailySummary,
   IntelligenceBullet,
   IntelligenceRisk,
+  MorningBrief,
   PendingDecision,
   WeeklyReport
 } from "./types.js";
+
+export function morningBriefToMarkdown(report: MorningBrief): string {
+  return [
+    `# ${report.title}`,
+    "",
+    `Generated: ${report.generatedAt.toISOString()}`,
+    "",
+    section("Brief", report.bullets)
+  ].join("\n");
+}
+
+export function dailySummaryToMarkdown(report: DailySummary, generatedAt: Date): string {
+  return [
+    `# ${report.title}`,
+    "",
+    `Generated: ${generatedAt.toISOString()}`,
+    "",
+    section("Work Completed", report.workCompleted),
+    section("Evidence Received", report.evidenceReceived),
+    section("Inspections Requested", report.inspectionsRequested),
+    section("Approvals Received", report.approvalsReceived),
+    section("Issues Raised", report.issuesRaised),
+    section("Action Items Created", report.actionItemsCreated),
+    section("Timeline Highlights", report.timelineHighlights)
+  ].join("\n");
+}
 
 export function weeklyReportToMarkdown(report: WeeklyReport): string {
   return [
@@ -27,7 +55,39 @@ export function weeklyReportToMarkdown(report: WeeklyReport): string {
 }
 
 export function weeklyReportToPdfBuffer(report: WeeklyReport): Buffer {
-  const lines = weeklyReportToMarkdown(report)
+  return reportMarkdownToPdfBuffer(weeklyReportToMarkdown(report));
+}
+
+export function riskSummaryToMarkdown(input: {
+  generatedAt: Date;
+  risks: IntelligenceRisk[];
+  title: string;
+}): string {
+  return [
+    `# ${input.title}`,
+    "",
+    `Generated: ${input.generatedAt.toISOString()}`,
+    "",
+    riskSection(input.risks)
+  ].join("\n");
+}
+
+export function pendingDecisionsToMarkdown(input: {
+  decisions: PendingDecision[];
+  generatedAt: Date;
+  title: string;
+}): string {
+  return [
+    `# ${input.title}`,
+    "",
+    `Generated: ${input.generatedAt.toISOString()}`,
+    "",
+    decisionSection(input.decisions)
+  ].join("\n");
+}
+
+export function reportMarkdownToPdfBuffer(markdown: string): Buffer {
+  const lines = markdown
     .split("\n")
     .map((line) => line.replace(/^#{1,3}\s*/, ""))
     .filter((line) => line.trim().length > 0);

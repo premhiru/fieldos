@@ -21,12 +21,18 @@ import {
   processSearchIndexJob,
   queueProjectCoordinatorJob,
   queueSearchIndexJob,
-  type ProcessingJob
+  type ProcessingJob,
+  type ProjectReportType
 } from "@fieldos/db";
 import {
+  dailySummaryToMarkdown,
+  morningBriefToMarkdown,
+  pendingDecisionsToMarkdown,
   ProjectIntelligenceService,
+  reportMarkdownToPdfBuffer,
+  riskSummaryToMarkdown,
   weeklyReportToMarkdown,
-  weeklyReportToPdfBuffer
+  type ProjectIntelligenceContext
 } from "@fieldos/intelligence";
 
 import {
@@ -727,9 +733,9 @@ async function processReportJob(job: ProcessingJob): Promise<void> {
       throw new Error("Project intelligence context could not be built.");
     }
 
-    const weeklyReport = projectIntelligenceService.generateWeeklyReport(context);
-    const markdown = weeklyReportToMarkdown(weeklyReport);
-    const pdf = weeklyReportToPdfBuffer(weeklyReport);
+    const artifact = buildReportArtifact(report.type, context);
+    const markdown = artifact.markdown;
+    const pdf = reportMarkdownToPdfBuffer(markdown);
     const contentHash = createHash("sha256").update(markdown).digest("hex");
     const pdfStorageKey = buildProjectReportObjectKey({
       organizationId: report.organizationId,
@@ -746,14 +752,14 @@ async function processReportJob(job: ProcessingJob): Promise<void> {
     await prisma.$transaction(async (tx) => {
       const completedReport = await tx.projectReport.update({
         data: {
-          content: JSON.parse(JSON.stringify(weeklyReport)),
+          content: JSON.parse(JSON.stringify(artifact.content)),
           contentHash,
           errorMessage: null,
           generatedAt: new Date(),
           markdown,
           pdfStorageKey,
           status: "COMPLETED",
-          title: weeklyReport.title
+          title: artifact.title
         },
         where: {
           id: report.id
@@ -762,7 +768,7 @@ async function processReportJob(job: ProcessingJob): Promise<void> {
 
       const event = await tx.event.create({
         data: {
-          description: `Generated ${weeklyReport.title}.`,
+          description: `Generated ${artifact.title}.`,
           eventType: "PROJECT_REPORT_GENERATED",
           organizationId: report.organizationId,
           projectId: report.projectId,
@@ -803,6 +809,67 @@ async function processReportJob(job: ProcessingJob): Promise<void> {
     });
     throw error;
   }
+}
+
+function buildReportArtifact(
+  type: ProjectReportType,
+  context: ProjectIntelligenceContext
+): { content: unknown; markdown: string; title: string } {
+  if (type === "MORNING_BRIEF") {
+    const content = projectIntelligenceService.generateMorningBrief(context);
+    return {
+      content,
+      markdown: morningBriefToMarkdown(content),
+      title: content.title
+    };
+  }
+
+  if (type === "DAILY_SUMMARY") {
+    const content = projectIntelligenceService.generateDailySummary(context);
+    return {
+      content,
+      markdown: dailySummaryToMarkdown(content, context.generatedAt),
+      title: content.title
+    };
+  }
+
+  if (type === "RISK_SUMMARY") {
+    const title = `${context.project.name} Risk Summary`;
+    const risks = projectIntelligenceService.generateRiskSummary(context);
+    const content = { generatedAt: context.generatedAt, project: context.project, risks, title };
+    return {
+      content,
+      markdown: riskSummaryToMarkdown({ generatedAt: context.generatedAt, risks, title }),
+      title
+    };
+  }
+
+  if (type === "PENDING_DECISIONS") {
+    const title = `${context.project.name} Pending Decisions`;
+    const decisions = projectIntelligenceService.generatePendingDecisions(context);
+    const content = {
+      generatedAt: context.generatedAt,
+      pendingDecisions: decisions,
+      project: context.project,
+      title
+    };
+    return {
+      content,
+      markdown: pendingDecisionsToMarkdown({
+        decisions,
+        generatedAt: context.generatedAt,
+        title
+      }),
+      title
+    };
+  }
+
+  const content = projectIntelligenceService.generateWeeklyReport(context);
+  return {
+    content,
+    markdown: weeklyReportToMarkdown(content),
+    title: content.title
+  };
 }
 
 function buildPhotoAnalysisEventDescription(result: VisionResult): string {
