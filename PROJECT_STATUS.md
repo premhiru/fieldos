@@ -19,7 +19,7 @@
 
 ## Current Milestone
 
-Action Item ownership and team assignment are implemented and undergoing final deployment validation.
+Action Item ownership and team assignment are implemented, validated, and deployed to production.
 
 ## Completed Tasks
 
@@ -401,6 +401,14 @@ Action Item ownership and team assignment are implemented and undergoing final d
 - WhatsApp reliability decision: persist each outage episode on `WhatsAppAccount`, apply a short grace period, and deliver one disconnect/recovery pair asynchronously through the existing worker job queue.
 
 ## Deployment Status
+
+- Action Item ownership and team assignment are deployed from commit `9249ac7` on 2026-07-15.
+  - Vercel production serves the new assignment bundle at `https://fieldos-sand.vercel.app/action-items`.
+  - Railway API deployment `e6f6601c-64a8-4d00-860d-f37a34a6eeec` completed successfully.
+  - Railway worker deployment `08ba0e9a-2f27-4aac-9f4d-5497ba8a68f0` completed successfully.
+  - Production PostgreSQL reports all 23 migrations applied, including the accepted Action Item ownership backfill.
+  - Railway API health returned `{"status":"ok"}`, and the protected assignee endpoint returned the expected HTTP 401 without authentication.
+  - Local format, lint, typecheck, tests, and production build completed successfully.
 
 - Reports card state isolation and recommendation evidence UX consistency are deployed from commit `9fa13a4` on 2026-07-15.
   - Vercel production deployment `dpl_EgtnKQYNrs12162EeptZgkWa4hu9` completed successfully and is aliased to `https://fieldos-sand.vercel.app`.
