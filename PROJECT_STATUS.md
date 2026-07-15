@@ -19,9 +19,16 @@
 
 ## Current Milestone
 
-WhatsApp deployment resilience, persistent auth storage, and disconnect alert coverage are implemented, validated, and deployed to production.
+Reports card state isolation and recommendation evidence UX consistency are implemented and validated for production deployment.
 
 ## Completed Tasks
+
+- Reports card state isolation and recommendation evidence UX consistency.
+  - Moved Morning Brief generation into per-project card components with independent mutations, loading states, success flags, and three-second timers.
+  - Verified two project cards can generate concurrently without disabling or replacing each other's feedback.
+  - Standardized numeric source-evidence confidence as High Confidence, Needs Review, or Low Confidence using the established badge variants.
+  - Removed the pending recommendation expand flash by lazily initializing evidence state and limiting chevron animation to user-triggered toggles.
+  - Added focused concurrency, confidence, and first-render expansion tests and completed repository-wide lint, typecheck, test, build, and browser QA.
 
 - WhatsApp deployment resilience and disconnect alert coverage.
   - Preserved reconnectable account state during graceful worker shutdown instead of treating deploys as intentional user disconnects.

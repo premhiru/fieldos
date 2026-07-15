@@ -4,6 +4,29 @@ import { describe, expect, it, vi } from "vitest";
 
 import RecommendationDetailPage from "./page";
 
+const { sourceEvidenceState } = vi.hoisted(() => ({
+  sourceEvidenceState: {
+    value: {
+      context: {
+        conversation: {
+          channel: "WHATSAPP",
+          id: "conversation-1",
+          isGroup: true,
+          title: "Site Team"
+        },
+        messageText: "Standing water is blocking the east gate.",
+        sender: {
+          displayName: "Jordan Lee",
+          externalIdentifier: "jordan",
+          id: "participant-1"
+        },
+        timestamp: "2026-07-15T02:00:00.000Z"
+      },
+      type: "MESSAGE"
+    } as unknown
+  }
+}));
+
 vi.mock("../../../components/app-shell", () => ({
   AppShell: ({ children }: { children: React.ReactNode }) =>
     React.createElement("div", null, children)
@@ -29,7 +52,7 @@ vi.mock("@tanstack/react-query", async () => {
         return {
           data: {
             recommendation: {
-              confidence: "HIGH",
+              confidence: "MEDIUM",
               description: "Site access is blocked by standing water.",
               id: "recommendation-1",
               priority: "HIGH",
@@ -51,24 +74,7 @@ vi.mock("@tanstack/react-query", async () => {
       }
 
       return {
-        data: {
-          context: {
-            conversation: {
-              channel: "WHATSAPP",
-              id: "conversation-1",
-              isGroup: true,
-              title: "Site Team"
-            },
-            messageText: "Standing water is blocking the east gate.",
-            sender: {
-              displayName: "Jordan Lee",
-              externalIdentifier: "jordan",
-              id: "participant-1"
-            },
-            timestamp: "2026-07-15T02:00:00.000Z"
-          },
-          type: "MESSAGE"
-        },
+        data: sourceEvidenceState.value,
         isError: false,
         isLoading: false
       };
@@ -79,6 +85,24 @@ vi.mock("@tanstack/react-query", async () => {
 
 describe("RecommendationDetailPage", () => {
   it("expands message evidence by default for a pending recommendation", async () => {
+    sourceEvidenceState.value = {
+      context: {
+        conversation: {
+          channel: "WHATSAPP",
+          id: "conversation-1",
+          isGroup: true,
+          title: "Site Team"
+        },
+        messageText: "Standing water is blocking the east gate.",
+        sender: {
+          displayName: "Jordan Lee",
+          externalIdentifier: "jordan",
+          id: "participant-1"
+        },
+        timestamp: "2026-07-15T02:00:00.000Z"
+      },
+      type: "MESSAGE"
+    };
     render(React.createElement(RecommendationDetailPage));
 
     await waitFor(() => {
@@ -86,7 +110,29 @@ describe("RecommendationDetailPage", () => {
     });
     expect(screen.getByText(/Jordan Lee in Site Team/)).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Source Evidence" }));
+    const toggle = screen.getByRole("button", { name: "Source Evidence" });
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(toggle.querySelector("svg")?.classList.contains("transition-transform")).toBe(false);
+
+    fireEvent.click(toggle);
     expect(screen.queryByText("Standing water is blocking the east gate.")).toBeNull();
+    expect(toggle.querySelector("svg")?.classList.contains("transition-transform")).toBe(true);
+  });
+
+  it("maps numeric evidence confidence to the standard confidence badge", () => {
+    sourceEvidenceState.value = {
+      classification: {
+        category: "SAFETY",
+        confidence: 0.87,
+        id: "classification-1",
+        summary: "Site access is unsafe."
+      },
+      type: "AI_CLASSIFICATION"
+    };
+
+    render(React.createElement(RecommendationDetailPage));
+
+    const badge = screen.getByText("High Confidence");
+    expect(badge.className).toContain("status-healthy-text");
   });
 });

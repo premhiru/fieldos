@@ -52,7 +52,6 @@ function RecommendationDetailContent() {
   });
   const recommendation = recommendationQuery.data?.recommendation;
   const [draftBody, setDraftBody] = React.useState("");
-  const [sourceEvidenceExpanded, setSourceEvidenceExpanded] = React.useState(false);
   const draft = recommendation?.whatsAppDrafts?.[0] ?? null;
   const sourceEvidenceQuery = useQuery({
     enabled: Boolean(recommendation?.sourceEntityId),
@@ -102,12 +101,6 @@ function RecommendationDetailContent() {
       setDraftBody(draft.messageBody);
     }
   }, [draft]);
-
-  React.useEffect(() => {
-    if (recommendation) {
-      setSourceEvidenceExpanded(recommendation.status === "PENDING");
-    }
-  }, [recommendation?.id, recommendation?.status]);
 
   if (recommendationQuery.isLoading) return <Skeleton className="h-[620px]" />;
 
@@ -186,9 +179,8 @@ function RecommendationDetailContent() {
 
           <SourceEvidenceSection
             evidence={sourceEvidenceQuery.data ?? null}
-            expanded={sourceEvidenceExpanded}
             loading={sourceEvidenceQuery.isLoading}
-            onToggle={() => setSourceEvidenceExpanded((current) => !current)}
+            status={recommendation.status}
           />
         </div>
 
@@ -307,30 +299,50 @@ function RecommendationDetailContent() {
 
 function SourceEvidenceSection({
   evidence,
-  expanded,
   loading,
-  onToggle
+  status
 }: Readonly<{
   evidence: SourceEvidence | null;
-  expanded: boolean;
   loading: boolean;
-  onToggle: () => void;
+  status: Recommendation["status"] | undefined;
 }>) {
+  const [expanded, setExpanded] = React.useState(() => status === "PENDING");
+  const initialStatusResolved = React.useRef(status !== undefined);
+  const previousStatus = React.useRef(status);
+  const userHasToggled = React.useRef(false);
+
+  React.useEffect(() => {
+    if (
+      status !== undefined &&
+      (!initialStatusResolved.current || previousStatus.current !== status)
+    ) {
+      initialStatusResolved.current = true;
+      previousStatus.current = status;
+      userHasToggled.current = false;
+      setExpanded(status === "PENDING");
+    }
+  }, [status]);
+
+  const toggle = () => {
+    userHasToggled.current = true;
+    setExpanded((current) => !current);
+  };
+
   return (
     <Card>
       <CardHeader>
         <button
           aria-expanded={expanded}
           className="flex w-full items-center justify-between gap-3 text-left"
-          onClick={onToggle}
+          onClick={toggle}
           type="button"
         >
           <CardTitle>Source Evidence</CardTitle>
           <ChevronDown
             aria-hidden="true"
-            className={`size-4 shrink-0 text-[var(--text-secondary)] transition-transform ${
-              expanded ? "rotate-180" : ""
-            }`}
+            className={`size-4 shrink-0 text-[var(--text-secondary)] ${
+              userHasToggled.current ? "transition-transform" : ""
+            } ${expanded ? "rotate-180" : ""}`}
           />
         </button>
       </CardHeader>
@@ -404,16 +416,16 @@ function SourceEvidenceContent({ evidence }: Readonly<{ evidence: SourceEvidence
 }
 
 function ConfidenceBadge({ confidence }: Readonly<{ confidence: number | null }>) {
-  const label =
-    confidence === null
-      ? "Needs Review"
-      : confidence >= 0.8
-        ? "High Confidence"
-        : confidence >= 0.5
-          ? "Needs Review"
-          : "Low Confidence";
+  const level = numericConfidenceLevel(confidence);
+  const variant = level === "HIGH" ? "success" : level === "LOW" ? "warning" : "muted";
 
-  return <Badge variant={label === "High Confidence" ? "success" : "muted"}>{label}</Badge>;
+  return <Badge variant={variant}>{formatConfidence(level)}</Badge>;
+}
+
+function numericConfidenceLevel(confidence: number | null): Recommendation["confidence"] {
+  if (confidence !== null && confidence >= 0.8) return "HIGH";
+  if (confidence !== null && confidence >= 0.55) return "MEDIUM";
+  return confidence === null ? "MEDIUM" : "LOW";
 }
 
 async function loadSourceEvidence(recommendation: Recommendation): Promise<SourceEvidence | null> {

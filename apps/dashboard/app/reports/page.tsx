@@ -25,7 +25,6 @@ export default function ReportsPage() {
 }
 
 function ReportsContent() {
-  const queryClient = useQueryClient();
   const organizationsQuery = useOrganizations();
   const { activeOrganizationId, setActiveOrganizationId } = useActiveOrganizationStore();
   const organizations = organizationsQuery.data?.organizations ?? [];
@@ -33,31 +32,12 @@ function ReportsContent() {
     organizations.find((item) => item.id === activeOrganizationId) ?? organizations[0];
   const projectsQuery = useProjects(organization?.id ?? null);
   const reportsQuery = useRecentReports(organization?.id ?? null);
-  const [successfulProjectId, setSuccessfulProjectId] = React.useState<string | null>(null);
-  const successTimer = React.useRef<number | null>(null);
-  const generateReportMutation = useMutation({
-    mutationFn: (projectId: string) => api.generateProjectReport(projectId, "MORNING_BRIEF"),
-    onSuccess: async (_response, projectId) => {
-      setSuccessfulProjectId(projectId);
-      await queryClient.invalidateQueries({ queryKey: ["recent-reports", organization?.id] });
-
-      if (successTimer.current) window.clearTimeout(successTimer.current);
-      successTimer.current = window.setTimeout(() => setSuccessfulProjectId(null), 3_000);
-    }
-  });
 
   React.useEffect(() => {
     if (!activeOrganizationId && organizations[0]) {
       setActiveOrganizationId(organizations[0].id);
     }
   }, [activeOrganizationId, organizations, setActiveOrganizationId]);
-
-  React.useEffect(
-    () => () => {
-      if (successTimer.current) window.clearTimeout(successTimer.current);
-    },
-    []
-  );
 
   if (organizationsQuery.isLoading) {
     return <Skeleton className="h-72 w-full" />;
@@ -67,12 +47,12 @@ function ReportsContent() {
     return <OrganizationOnboarding />;
   }
 
+  if (!organization) {
+    return <OrganizationOnboarding />;
+  }
+
   const projects = projectsQuery.data?.projects ?? [];
   const reports = reportsQuery.data?.reports ?? [];
-  const generatingProjectId = generateReportMutation.isPending
-    ? generateReportMutation.variables
-    : null;
-
   return (
     <div className="space-y-8">
       <PageHeader
@@ -163,61 +143,83 @@ function ReportsContent() {
           />
         ) : (
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {projects.map((project) => {
-              const isGenerating = generatingProjectId === project.id;
-              const isSuccessful = successfulProjectId === project.id;
-
-              return (
-                <article
-                  className="rounded-lg border border-[var(--border-default)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)]"
-                  key={project.id}
-                >
-                  <Link className="group block" href={`/projects/${project.id}/intelligence`}>
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0">
-                        <div className="truncate font-semibold text-[var(--text-primary)]">
-                          {project.name}
-                        </div>
-                        <div className="mt-1 text-xs text-[var(--text-secondary)]">
-                          {project.code}
-                        </div>
-                      </div>
-                      <FileText
-                        aria-hidden="true"
-                        className="size-5 shrink-0 text-[var(--text-tertiary)]"
-                      />
-                    </div>
-                    <p className="mt-5 text-sm text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
-                      Open intelligence and reports
-                    </p>
-                  </Link>
-                  <Button
-                    className="mt-4 w-full"
-                    disabled={generateReportMutation.isPending}
-                    onClick={() => generateReportMutation.mutate(project.id)}
-                    type="button"
-                    variant="secondary"
-                  >
-                    {isGenerating ? (
-                      <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
-                    ) : isSuccessful ? (
-                      <Check aria-hidden="true" className="size-4" />
-                    ) : (
-                      <FileText aria-hidden="true" className="size-4" />
-                    )}
-                    {isGenerating
-                      ? "Generating..."
-                      : isSuccessful
-                        ? "Report queued"
-                        : "Generate Report"}
-                  </Button>
-                </article>
-              );
-            })}
+            {projects.map((project) => (
+              <ProjectReportCard
+                key={project.id}
+                organizationId={organization.id}
+                project={project}
+              />
+            ))}
           </div>
         )}
       </section>
     </div>
+  );
+}
+
+function ProjectReportCard({
+  organizationId,
+  project
+}: Readonly<{
+  organizationId: string;
+  project: { code: string; id: string; name: string };
+}>) {
+  const queryClient = useQueryClient();
+  const [successful, setSuccessful] = React.useState(false);
+  const successTimer = React.useRef<number | null>(null);
+  const generateReportMutation = useMutation({
+    mutationFn: () => api.generateProjectReport(project.id, "MORNING_BRIEF"),
+    onSuccess: async () => {
+      setSuccessful(true);
+      await queryClient.invalidateQueries({ queryKey: ["recent-reports", organizationId] });
+
+      if (successTimer.current) window.clearTimeout(successTimer.current);
+      successTimer.current = window.setTimeout(() => setSuccessful(false), 3_000);
+    }
+  });
+
+  React.useEffect(
+    () => () => {
+      if (successTimer.current) window.clearTimeout(successTimer.current);
+    },
+    []
+  );
+
+  return (
+    <article className="rounded-lg border border-[var(--border-default)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)]">
+      <Link className="group block" href={`/projects/${project.id}/intelligence`}>
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="truncate font-semibold text-[var(--text-primary)]">{project.name}</div>
+            <div className="mt-1 text-xs text-[var(--text-secondary)]">{project.code}</div>
+          </div>
+          <FileText aria-hidden="true" className="size-5 shrink-0 text-[var(--text-tertiary)]" />
+        </div>
+        <p className="mt-5 text-sm text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
+          Open intelligence and reports
+        </p>
+      </Link>
+      <Button
+        className="mt-4 w-full"
+        disabled={generateReportMutation.isPending}
+        onClick={() => generateReportMutation.mutate()}
+        type="button"
+        variant="secondary"
+      >
+        {generateReportMutation.isPending ? (
+          <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
+        ) : successful ? (
+          <Check aria-hidden="true" className="size-4" />
+        ) : (
+          <FileText aria-hidden="true" className="size-4" />
+        )}
+        {generateReportMutation.isPending
+          ? "Generating..."
+          : successful
+            ? "Report queued"
+            : "Generate Report"}
+      </Button>
+    </article>
   );
 }
 

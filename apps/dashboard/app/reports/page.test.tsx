@@ -1,11 +1,13 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as React from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import ReportsPage from "./page";
 
-const { generateProjectReport } = vi.hoisted(() => ({
-  generateProjectReport: vi.fn().mockResolvedValue({ report: { id: "report-new" } })
+const { generateProjectReport, pendingReports } = vi.hoisted(() => ({
+  generateProjectReport: vi.fn(),
+  pendingReports: new Map<string, (value: unknown) => void>()
 }));
 
 vi.mock("../../components/app-shell", () => ({
@@ -31,7 +33,10 @@ vi.mock("../../lib/queries", () => ({
   }),
   useProjects: () => ({
     data: {
-      projects: [{ code: "TERMINAL-2", id: "project-1", name: "Terminal 2" }]
+      projects: [
+        { code: "TERMINAL-2", id: "project-1", name: "Terminal 2" },
+        { code: "RUNWAY-4", id: "project-2", name: "Runway 4" }
+      ]
     },
     isLoading: false
   }),
@@ -59,33 +64,59 @@ vi.mock("../../store/active-organization-store", () => ({
   })
 }));
 
-vi.mock("@tanstack/react-query", async () => {
-  const actual =
-    await vi.importActual<typeof import("@tanstack/react-query")>("@tanstack/react-query");
-  return {
-    ...actual,
-    useMutation: (options: { mutationFn: (projectId: string) => Promise<unknown> }) => ({
-      isPending: false,
-      mutate: (projectId: string) => void options.mutationFn(projectId),
-      variables: undefined
-    }),
-    useQueryClient: () => ({ invalidateQueries: vi.fn() })
-  };
-});
-
 describe("ReportsPage", () => {
-  it("shows recent reports and generates a Morning Brief from a project card", async () => {
-    render(React.createElement(ReportsPage));
+  it("shows recent reports and keeps report generation state independent per card", async () => {
+    generateProjectReport.mockImplementation(
+      (projectId: string) =>
+        new Promise((resolve) => {
+          pendingReports.set(projectId, resolve);
+        })
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: { mutations: { retry: false }, queries: { retry: false } }
+    });
+
+    render(
+      React.createElement(
+        QueryClientProvider,
+        { client: queryClient },
+        React.createElement(ReportsPage)
+      )
+    );
 
     expect(screen.getByRole("heading", { name: "Recent Reports" })).toBeTruthy();
     expect(screen.getByText("Morning Brief")).toBeTruthy();
     expect(screen.getAllByText("Terminal 2").length).toBeGreaterThan(0);
     expect(screen.getByText("Generated 2 hours ago")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Generate Report" }));
+    const generateButtons = screen.getAllByRole("button", { name: "Generate Report" });
+    fireEvent.click(generateButtons[0]!);
 
     await waitFor(() => {
       expect(generateProjectReport).toHaveBeenCalledWith("project-1", "MORNING_BRIEF");
+      expect(screen.getAllByRole("button", { name: "Generating..." })).toHaveLength(1);
+      expect(screen.getAllByRole("button", { name: "Generate Report" })).toHaveLength(1);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Generate Report" }));
+    await waitFor(() => {
+      expect(generateProjectReport).toHaveBeenCalledWith("project-2", "MORNING_BRIEF");
+      expect(screen.getAllByRole("button", { name: "Generating..." })).toHaveLength(2);
+    });
+
+    await act(async () => {
+      pendingReports.get("project-1")?.({ report: { id: "report-1" } });
+    });
+    await waitFor(() => {
+      expect(screen.getAllByRole("button", { name: "Report queued" })).toHaveLength(1);
+      expect(screen.getAllByRole("button", { name: "Generating..." })).toHaveLength(1);
+    });
+
+    await act(async () => {
+      pendingReports.get("project-2")?.({ report: { id: "report-2" } });
+    });
+    await waitFor(() => {
+      expect(screen.getAllByRole("button", { name: "Report queued" })).toHaveLength(2);
     });
   });
 });
