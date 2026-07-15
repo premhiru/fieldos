@@ -19,7 +19,7 @@
 
 ## Current Milestone
 
-WhatsApp deployment resilience and disconnect alert coverage are implemented and validated for production deployment.
+WhatsApp deployment resilience, persistent auth storage, and disconnect alert coverage are implemented, validated, and deployed to production.
 
 ## Completed Tasks
 
@@ -29,6 +29,8 @@ WhatsApp deployment resilience and disconnect alert coverage are implemented and
   - Added focused coverage for connected restart takeovers and post-restart QR alert delivery.
   - Documented the production storage boundary between the persistent Railway Baileys auth volume and Cloudflare R2 media/report storage.
   - Completed repository-wide lint, typecheck, test, and build validation.
+  - Attached Railway volume `fieldos-worker-volume` at `/data` so credentials saved after the next pairing survive future worker deployments.
+  - Verified a real post-restart QR fallback queued one disconnect alert, sent it to the organization owner, and persisted its one-time delivery marker.
 
 - Reports activity and inline recommendation evidence.
   - Added an organization-wide Recent Reports feed with report type, project, relative generation time, loading skeletons, and an empty state.
@@ -384,6 +386,12 @@ WhatsApp deployment resilience and disconnect alert coverage are implemented and
 - WhatsApp reliability decision: persist each outage episode on `WhatsAppAccount`, apply a short grace period, and deliver one disconnect/recovery pair asynchronously through the existing worker job queue.
 
 ## Deployment Status
+
+- WhatsApp deployment resilience is deployed from commit `d44bd29` on 2026-07-15.
+  - Railway worker deployment `1e3edfc5-7436-4a23-a5cb-f89f4f732fc8` completed successfully and reached its job-waiting state.
+  - Persistent volume `149c1c04-3f7b-4b98-92f7-ac06bd11827e` is ready and mounted on `fieldos-worker` at `/data`.
+  - A production restart outage transitioned to `PENDING_QR`, sent one `WHATSAPP_CONNECTION_ALERT` after the 30-second grace period, and persisted `disconnectAlertSentAt`.
+  - The existing pre-volume Baileys credentials could not be recovered; one QR pairing is required to seed the persistent volume.
 
 - Reports activity and inline recommendation evidence are deployed from commit `a376713` on 2026-07-15.
   - Vercel production deployment `dpl_CdFAhpn3X8BuVnojRisF22K73ths` completed successfully and is aliased to `https://fieldos-sand.vercel.app`.
