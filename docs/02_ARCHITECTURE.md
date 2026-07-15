@@ -132,7 +132,7 @@ The ingestion privacy gate is:
 
 If any condition fails, the worker skips the message before reading or storing message body content.
 
-Baileys auth session files remain under `.storage`. Downloaded WhatsApp evidence media is written through `StorageProvider`, using local filesystem storage in development and Cloudflare R2 in production.
+Baileys auth session files remain under `.storage` locally and under `/data/whatsapp` on the persistent Railway worker volume in production. Downloaded WhatsApp evidence media is written through `StorageProvider`, using local filesystem storage in development and Cloudflare R2 in production.
 
 ## AI Classification
 

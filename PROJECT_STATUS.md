@@ -19,9 +19,16 @@
 
 ## Current Milestone
 
-Reports activity and recommendation source evidence are implemented, validated, and deployed to production.
+WhatsApp deployment resilience and disconnect alert coverage are implemented and validated for production deployment.
 
 ## Completed Tasks
+
+- WhatsApp deployment resilience and disconnect alert coverage.
+  - Preserved reconnectable account state during graceful worker shutdown instead of treating deploys as intentional user disconnects.
+  - Added restart takeover tracking with a 30-second grace period: quick reconnections clear silently, while continued reconnecting or QR fallback emails organization owners and administrators.
+  - Added focused coverage for connected restart takeovers and post-restart QR alert delivery.
+  - Documented the production storage boundary between the persistent Railway Baileys auth volume and Cloudflare R2 media/report storage.
+  - Completed repository-wide lint, typecheck, test, and build validation.
 
 - Reports activity and inline recommendation evidence.
   - Added an organization-wide Recent Reports feed with report type, project, relative generation time, loading skeletons, and an empty state.
@@ -320,7 +327,7 @@ Reports activity and recommendation source evidence are implemented, validated, 
 - Production environments must set `OPENROUTER_API_KEY` and confirm the intended `AI_MODEL` before AI classification can run. `VISION_MODEL` must point to a multimodal model before production photo analysis can be considered fully verified. `OPENAI_API_KEY` remains a fallback for OpenAI-compatible providers.
 - Voice transcription uses OpenAI audio transcription when `OPENAI_API_KEY` is configured; OpenRouter chat keys do not provide audio transcription.
 - Search uses PostgreSQL keyword search for the MVP; semantic/vector search is intentionally deferred until search telemetry proves the need.
-- Baileys auth session files are still filesystem-backed; media and report objects now use the configured storage provider.
+- Baileys auth session files use the persistent Railway worker volume; automated backup and restoration remain deferred, while media and report objects use R2.
 - OpenRouter free-tier AI requests are deliberately throttled in the worker; large WhatsApp media bursts will queue and retry instead of processing instantly.
 - Demo evidence uses metadata records and placeholder storage keys; live media verification still requires a real WhatsApp/R2 smoke test.
 - Product analytics events are captured in the database but do not yet have a dashboard.

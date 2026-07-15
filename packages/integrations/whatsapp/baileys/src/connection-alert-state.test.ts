@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   getRecoveryAlertAction,
-  shouldRecordUnexpectedDisconnect
+  shouldRecordUnexpectedDisconnect,
+  shouldRecordWorkerRestartOutage
 } from "./connection-alert-state.js";
 
 describe("WhatsApp connection alert state", () => {
@@ -23,6 +24,17 @@ describe("WhatsApp connection alert state", () => {
   ])("does not alert for initial pairing, intentional disconnects, or stale sessions", (input) => {
     expect(shouldRecordUnexpectedDisconnect(input)).toBe(false);
   });
+
+  it("tracks a connected account across a worker restart", () => {
+    expect(shouldRecordWorkerRestartOutage("CONNECTED")).toBe(true);
+  });
+
+  it.each(["PENDING_QR", "CONNECTING", "DISCONNECTED", "ERROR"])(
+    "does not create a restart outage for an account already in %s",
+    (status) => {
+      expect(shouldRecordWorkerRestartOutage(status)).toBe(false);
+    }
+  );
 
   it("queues one recovery after a disconnect alert was sent", () => {
     expect(

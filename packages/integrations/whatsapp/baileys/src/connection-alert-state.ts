@@ -6,6 +6,10 @@ export function shouldRecordUnexpectedDisconnect(input: {
   return input.hasOpened && input.persistedStatus === "CONNECTED" && !input.stalePrePairingSession;
 }
 
+export function shouldRecordWorkerRestartOutage(status: string): boolean {
+  return status === "CONNECTED";
+}
+
 export function getRecoveryAlertAction(input: {
   disconnectAlertSentAt: Date | null;
   disconnectedAt: Date | null;

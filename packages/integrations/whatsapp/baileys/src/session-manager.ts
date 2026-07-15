@@ -16,7 +16,8 @@ import {
   queueWhatsAppConnectionAlertJob,
   queueVoiceTranscriptionJob,
   type Attachment,
-  type PrismaClient
+  type PrismaClient,
+  type WhatsAppAccountStatus
 } from "@fieldos/db";
 import { buildEvidenceObjectKey, createLogger } from "@fieldos/shared";
 import { randomUUID } from "node:crypto";
@@ -25,7 +26,8 @@ import pino from "pino";
 import { decideWhatsAppIngestion } from "./ingestion-policy.js";
 import {
   getRecoveryAlertAction,
-  shouldRecordUnexpectedDisconnect
+  shouldRecordUnexpectedDisconnect,
+  shouldRecordWorkerRestartOutage
 } from "./connection-alert-state.js";
 import {
   getPreferredWhatsAppChatJid,
@@ -273,8 +275,11 @@ export class BaileysWhatsAppSessionManager {
     organizationId: string;
     displayName: string;
     sessionKey: string;
+    status: WhatsAppAccountStatus;
   }): Promise<void> {
     this.logger.info({ accountId: account.id }, "starting WhatsApp session");
+
+    await this.recordWorkerRestartOutage(account);
 
     await this.prisma.whatsAppAccount.update({
       data: {
@@ -510,12 +515,17 @@ export class BaileysWhatsAppSessionManager {
           });
           const intentionalDisconnect = persistedAccount?.status === "DISCONNECTED";
           const shouldAlert = shouldRecordUnexpectedDisconnect({
-            hasOpened: hasOpened && !this.stopping,
+            hasOpened,
             persistedStatus: persistedAccount?.status ?? null,
             stalePrePairingSession
           });
 
-          if (shouldAlert) {
+          if (this.stopping) {
+            await this.prisma.whatsAppAccount.update({
+              data: { lastDisconnectedAt: disconnectedAt },
+              where: { id: account.id }
+            });
+          } else if (shouldAlert) {
             await this.prisma.$transaction(async (tx) => {
               const transitioned = await tx.whatsAppAccount.updateMany({
                 data: {
@@ -551,7 +561,7 @@ export class BaileysWhatsAppSessionManager {
                 status:
                   stalePrePairingSession || (!hasOpened && hasQr)
                     ? "PENDING_QR"
-                    : intentionalDisconnect || this.stopping
+                    : intentionalDisconnect
                       ? "DISCONNECTED"
                       : nextStatus
               },
@@ -564,7 +574,8 @@ export class BaileysWhatsAppSessionManager {
               displayName: true,
               id: true,
               organizationId: true,
-              sessionKey: true
+              sessionKey: true,
+              status: true
             },
             where: { id: account.id }
           });
@@ -610,6 +621,43 @@ export class BaileysWhatsAppSessionManager {
         } catch (error: unknown) {
           this.logger.error({ accountId: account.id, error }, "WhatsApp message intake failed");
         }
+      }
+    });
+  }
+
+  private async recordWorkerRestartOutage(account: {
+    id: string;
+    organizationId: string;
+    status: WhatsAppAccountStatus;
+  }): Promise<void> {
+    if (!shouldRecordWorkerRestartOutage(account.status)) {
+      return;
+    }
+
+    const disconnectedAt = new Date();
+    await this.prisma.$transaction(async (tx) => {
+      const transitioned = await tx.whatsAppAccount.updateMany({
+        data: {
+          disconnectedAt,
+          disconnectAlertSentAt: null,
+          lastDisconnectedAt: disconnectedAt,
+          lastDisconnectReason: "FieldOS worker restarted and WhatsApp did not reconnect",
+          recoveryAlertSentAt: null,
+          status: "CONNECTING"
+        },
+        where: {
+          id: account.id,
+          status: "CONNECTED"
+        }
+      });
+
+      if (transitioned.count > 0) {
+        await queueWhatsAppConnectionAlertJob(tx, {
+          alertType: "DISCONNECT",
+          nextRunAt: new Date(disconnectedAt.getTime() + disconnectAlertGraceMs),
+          organizationId: account.organizationId,
+          sourceId: account.id
+        });
       }
     });
   }

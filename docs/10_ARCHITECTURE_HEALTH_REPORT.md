@@ -38,8 +38,7 @@
 
 ## Technical Debt
 
-- WhatsApp media and auth storage are local filesystem-backed.
-- Baileys auth session storage remains filesystem-backed, although new media/report storage now uses R2 in production.
+- Baileys auth state remains filesystem-formatted and depends on the persistent Railway worker volume; backup and restore automation is still deferred.
 - Server-side auth revocation and account recovery flows are missing.
 - Observability is basic and should include queue lag, retry counts, and connector session state.
 - Historical data is not backfilled into `Event` yet.

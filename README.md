@@ -327,7 +327,7 @@ Supported channel values are `WHATSAPP`, `EMAIL`, `SLACK`, `TEAMS`, and `SMS`.
 
 ## WhatsApp Connector
 
-The current WhatsApp connector uses the maintained Baileys package for WhatsApp Web pairing. Accounts are created and managed from dashboard settings. QR payloads are exchanged through Redis, Baileys auth session files are stored under `.storage`, and inbound messages are normalized into the generic messaging tables only after an admin activates the chat or group. Media evidence uses the configured `StorageProvider`, which is local in development and R2 in production.
+The current WhatsApp connector uses the maintained Baileys package for WhatsApp Web pairing. Accounts are created and managed from dashboard settings. QR payloads are exchanged through Redis, Baileys auth session files are stored under `.storage` locally and on a persistent Railway worker volume in production, and inbound messages are normalized into the generic messaging tables only after an admin activates the chat or group. Media evidence uses the configured `StorageProvider`, which is local in development and R2 in production.
 
 FieldOS discovers WhatsApp chat and group metadata first. Discovered, ignored, and archived chats are not shown in the Inbox and do not store message bodies or attachments. Admins must explicitly activate a chat/group before new incoming messages are ingested. A project mapping is recommended, but active unmapped chats may ingest messages so FieldOS can create human-reviewed project suggestion Action Items.
 

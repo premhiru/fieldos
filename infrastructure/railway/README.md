@@ -66,4 +66,5 @@ NEXT_PUBLIC_API_URL=https://fieldos-api-production.up.railway.app
 
 - The API start command applies Prisma migrations before booting.
 - The worker is a long-running service and should not be deployed to Vercel serverless.
-- Baileys session storage currently uses the local filesystem path in `WHATSAPP_STORAGE_PATH`; add persistent volume storage before live WhatsApp pairing.
+- Attach a persistent volume to `fieldos-worker` at `/data`; `WHATSAPP_STORAGE_PATH=/data/whatsapp` keeps Baileys credentials across deployments.
+- Cloudflare R2 stores evidence and generated reports. It does not replace the worker volume used by Baileys multi-file auth state.

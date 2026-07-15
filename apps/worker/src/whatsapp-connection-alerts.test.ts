@@ -85,6 +85,14 @@ describe("WhatsAppConnectionAlertProcessor", () => {
     expect(send).toHaveBeenCalledTimes(1);
   });
 
+  it("alerts when a previously connected account requires pairing after a restart", async () => {
+    const { processor, send } = createHarness({ status: "PENDING_QR" });
+
+    await processor.process({ accountId: "account-1", alertType: "DISCONNECT" });
+
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
   it("sends one recovery alert with the interruption duration", async () => {
     const { processor, send, store } = createHarness({
       disconnectAlertSentAt: new Date("2026-07-14T02:01:00.000Z"),

@@ -39,7 +39,7 @@ FieldOS is ready for a controlled first customer pilot after deployment and prod
 
 ## Security Review
 
-Sensitive media access uses authorization plus short-lived signed URLs. The sprint avoids storing secrets in docs or UI. Feedback and notifications are organization-scoped. Baileys auth storage remains a known hardening area.
+Sensitive media access uses authorization plus short-lived signed URLs. The sprint avoids storing secrets in docs or UI. Feedback and notifications are organization-scoped. Baileys auth storage is isolated on a persistent worker volume; automated backup and restoration remain hardening work.
 
 ## Performance Review
 
