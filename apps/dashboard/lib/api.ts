@@ -143,6 +143,7 @@ export interface PublicTeamInvitation {
 }
 
 export interface Project {
+  createdAt?: string;
   id: string;
   code: string;
   name: string;
@@ -150,6 +151,7 @@ export interface Project {
   status: ProjectStatus;
   timezone?: string;
   timelineEvents?: ProjectTimelineEvent[];
+  updatedAt?: string;
   whatsAppMessages?: ProjectWhatsAppMessage[];
 }
 
@@ -605,6 +607,7 @@ export interface ActionItem {
   acceptedByUserId: string | null;
   assignedToUserId: string | null;
   completedAt: string | null;
+  dueDate?: string | null;
   ignoredAt: string | null;
   ignoredByUserId: string | null;
   message?: {
@@ -644,6 +647,7 @@ export interface DashboardProject {
 }
 
 export interface DashboardActionItemGroups {
+  completed: ActionItem[];
   urgent: ActionItem[];
   high: ActionItem[];
   medium: ActionItem[];

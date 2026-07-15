@@ -296,6 +296,7 @@ export interface DashboardProjectRecord {
 }
 
 export interface DashboardActionItemGroupsRecord {
+  completed: ActionItemRecord[];
   urgent: ActionItemRecord[];
   high: ActionItemRecord[];
   medium: ActionItemRecord[];
@@ -1512,7 +1513,7 @@ export function createPrismaRepository(): AppRepository {
       const myActionItems = actionItems.filter(
         (actionItem) =>
           (actionItem.assignedToUserId === input.userId || actionItem.assignedToUserId === null) &&
-          isOpenActionItem(actionItem)
+          (isOpenActionItem(actionItem) || actionItem.status === "COMPLETED")
       );
 
       const summary: DashboardSummaryRecord = {
@@ -3393,12 +3394,14 @@ function groupActionItems(actionItems: ActionItemRecord[]): DashboardActionItemG
   const sorted = [...actionItems].sort(
     (left, right) => right.createdAt.getTime() - left.createdAt.getTime()
   );
+  const open = sorted.filter(isOpenActionItem);
 
   return {
-    high: sorted.filter((actionItem) => actionItem.priority === "HIGH"),
-    low: sorted.filter((actionItem) => actionItem.priority === "LOW"),
-    medium: sorted.filter((actionItem) => actionItem.priority === "MEDIUM"),
-    urgent: sorted.filter((actionItem) => actionItem.priority === "URGENT")
+    completed: sorted.filter((actionItem) => actionItem.status === "COMPLETED"),
+    high: open.filter((actionItem) => actionItem.priority === "HIGH"),
+    low: open.filter((actionItem) => actionItem.priority === "LOW"),
+    medium: open.filter((actionItem) => actionItem.priority === "MEDIUM"),
+    urgent: open.filter((actionItem) => actionItem.priority === "URGENT")
   };
 }
 

@@ -52,7 +52,9 @@ function ActionItemsContent() {
   const groups = dashboardQuery.data?.dashboard.actionItems;
   const all = groups ? [...groups.urgent, ...groups.high, ...groups.medium, ...groups.low] : [];
   const assigned = all.filter((item) => item.assignedToUserId === meQuery.data?.user.id);
-  const visible = view === "assigned" ? assigned : [];
+  const overdue = all.filter(isOverdue);
+  const completed = groups?.completed ?? [];
+  const visible = view === "assigned" ? assigned : view === "overdue" ? overdue : completed;
   const busy = acceptMutation.isPending || completeMutation.isPending || dismissMutation.isPending;
 
   return (
@@ -69,12 +71,20 @@ function ActionItemsContent() {
       >
         <ViewTab
           active={view === "assigned"}
+          count={assigned.length}
           label="Assigned to me"
           onClick={() => setView("assigned")}
         />
-        <ViewTab active={view === "overdue"} label="Overdue" onClick={() => setView("overdue")} />
+        <ViewTab
+          active={view === "overdue"}
+          count={overdue.length}
+          criticalCount
+          label="Overdue"
+          onClick={() => setView("overdue")}
+        />
         <ViewTab
           active={view === "completed"}
+          count={completed.length}
           label="Completed"
           onClick={() => setView("completed")}
         />
@@ -98,10 +108,12 @@ function ActionItemsContent() {
             <ActionItemCard
               actionItem={item}
               busy={busy}
+              completed={view === "completed"}
               key={item.id}
               onAccept={() => acceptMutation.mutate(item.id)}
               onComplete={() => completeMutation.mutate(item.id)}
               onDismiss={() => dismissMutation.mutate(item.id)}
+              overdueDays={view === "overdue" ? getDaysOverdue(item) : undefined}
             />
           ))}
         </div>
@@ -112,10 +124,14 @@ function ActionItemsContent() {
 
 function ViewTab({
   active,
+  count,
+  criticalCount = false,
   label,
   onClick
 }: {
   active: boolean;
+  count: number;
+  criticalCount?: boolean;
   label: string;
   onClick: () => void;
 }) {
@@ -124,14 +140,23 @@ function ViewTab({
       aria-selected={active}
       className={
         active
-          ? "h-9 whitespace-nowrap rounded-md bg-white px-4 text-sm font-medium text-slate-950 shadow-sm"
-          : "h-9 whitespace-nowrap rounded-md px-4 text-sm font-medium text-slate-600 hover:text-slate-950"
+          ? "inline-flex h-9 items-center whitespace-nowrap rounded-md bg-white px-4 text-sm font-medium text-slate-950 shadow-sm"
+          : "inline-flex h-9 items-center whitespace-nowrap rounded-md px-4 text-sm font-medium text-slate-600 hover:text-slate-950"
       }
       onClick={onClick}
       role="tab"
       type="button"
     >
-      {label}
+      <span>{label}</span>
+      <span
+        className={`ml-1.5 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-xs ${
+          criticalCount && count > 0
+            ? "bg-[var(--status-critical-soft)] text-[var(--status-critical-text)]"
+            : "bg-slate-200 text-slate-600"
+        }`}
+      >
+        {count}
+      </span>
     </button>
   );
 }
@@ -139,55 +164,88 @@ function ViewTab({
 function ActionItemCard({
   actionItem,
   busy,
+  completed = false,
   onAccept,
   onComplete,
-  onDismiss
+  onDismiss,
+  overdueDays
 }: {
   actionItem: ActionItem;
   busy: boolean;
+  completed?: boolean;
   onAccept: () => void;
   onComplete: () => void;
   onDismiss: () => void;
+  overdueDays?: number;
 }) {
   return (
-    <article className="relative overflow-hidden rounded-lg border border-slate-200 bg-white p-5 pl-6 shadow-sm">
+    <article
+      className={`relative overflow-hidden rounded-lg border border-slate-200 bg-white p-5 pl-6 shadow-sm ${completed ? "opacity-70" : ""}`}
+    >
       <div className={priorityBar(actionItem.priority)} />
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-        <button
-          aria-label={`Complete ${actionItem.title}`}
-          className="flex size-10 shrink-0 items-center justify-center rounded-md border border-slate-300 text-slate-400 hover:border-emerald-500 hover:bg-emerald-50 hover:text-emerald-700"
-          disabled={busy}
-          onClick={onComplete}
-          type="button"
-        >
-          <Check aria-hidden="true" className="size-5" />
-        </button>
+        {completed ? (
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-500">
+            <Check aria-hidden="true" className="size-5" />
+          </span>
+        ) : (
+          <button
+            aria-label={`Complete ${actionItem.title}`}
+            className="flex size-10 shrink-0 items-center justify-center rounded-md border border-slate-300 text-slate-400 hover:border-emerald-500 hover:bg-emerald-50 hover:text-emerald-700"
+            disabled={busy}
+            onClick={onComplete}
+            type="button"
+          >
+            <Check aria-hidden="true" className="size-5" />
+          </button>
+        )}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="font-semibold text-slate-950">{actionItem.title}</h2>
+            <h2
+              className={
+                completed
+                  ? "font-semibold text-[var(--text-secondary)] line-through"
+                  : "font-semibold text-slate-950"
+              }
+            >
+              {actionItem.title}
+            </h2>
             <Badge variant={actionItem.priority === "URGENT" ? "warning" : "muted"}>
               {formatLabel(actionItem.priority)}
             </Badge>
           </div>
+          {overdueDays ? (
+            <p className="mt-1 text-sm font-medium text-[var(--status-critical-text)]">
+              {overdueDays} {overdueDays === 1 ? "day" : "days"} overdue
+            </p>
+          ) : null}
           {actionItem.description ? (
             <p className="mt-2 text-sm leading-6 text-slate-600">{actionItem.description}</p>
           ) : null}
           <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500">
             <span>{actionItem.project?.name ?? "No project"}</span>
-            <span>Due date not set</span>
+            {completed && actionItem.completedAt ? (
+              <span>{formatCompletionDate(actionItem.completedAt)}</span>
+            ) : (
+              <span>
+                {actionItem.dueDate ? `Due ${formatDate(actionItem.dueDate)}` : "Due date not set"}
+              </span>
+            )}
             <span>Opened {formatDate(actionItem.createdAt)}</span>
           </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {actionItem.status === "PENDING" ? (
-              <Button className="h-9" disabled={busy} onClick={onAccept} variant="secondary">
-                Accept
+          {!completed ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {actionItem.status === "PENDING" ? (
+                <Button className="h-9" disabled={busy} onClick={onAccept} variant="secondary">
+                  Accept
+                </Button>
+              ) : null}
+              <Button className="h-9 px-3" disabled={busy} onClick={onDismiss} variant="ghost">
+                <X aria-hidden="true" className="size-4" />
+                Dismiss
               </Button>
-            ) : null}
-            <Button className="h-9 px-3" disabled={busy} onClick={onDismiss} variant="ghost">
-              <X aria-hidden="true" className="size-4" />
-              Dismiss
-            </Button>
-          </div>
+            </div>
+          ) : null}
         </div>
       </div>
     </article>
@@ -202,13 +260,50 @@ function priorityBar(priority: ActionItem["priority"]) {
 }
 
 function emptyDescription(view: ActionView) {
-  if (view === "completed") return "Completed work will move here when history is available.";
-  if (view === "overdue") return "Nothing with a tracked due date currently needs escalation.";
+  if (view === "completed") return "Completed work will appear here for reference.";
+  if (view === "overdue") return "Nothing is currently past its due date.";
   return "New work assigned to your account will appear here.";
 }
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date(value));
+}
+
+function isOverdue(actionItem: ActionItem) {
+  if (actionItem.status !== "PENDING" && actionItem.status !== "ACCEPTED") return false;
+
+  const deadline = getActionItemDeadline(actionItem);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return deadline.getTime() < today.getTime();
+}
+
+function getDaysOverdue(actionItem: ActionItem) {
+  const deadline = getActionItemDeadline(actionItem);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.max(1, Math.ceil((today.getTime() - deadline.getTime()) / (24 * 60 * 60 * 1000)));
+}
+
+function getActionItemDeadline(actionItem: ActionItem) {
+  if (actionItem.dueDate) return new Date(actionItem.dueDate);
+  return new Date(new Date(actionItem.createdAt).getTime() + 7 * 24 * 60 * 60 * 1000);
+}
+
+function formatCompletionDate(value: string) {
+  const completedAt = new Date(value);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const completedDay = new Date(completedAt);
+  completedDay.setHours(0, 0, 0, 0);
+  const days = Math.max(
+    0,
+    Math.floor((today.getTime() - completedDay.getTime()) / (24 * 60 * 60 * 1000))
+  );
+
+  if (days === 0) return "Completed today";
+  if (days === 1) return "Completed yesterday";
+  return `Completed ${days} days ago`;
 }
 
 function formatLabel(value: string) {

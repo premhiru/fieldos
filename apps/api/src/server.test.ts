@@ -1602,6 +1602,7 @@ describe("FieldOS API auth and tenancy", () => {
     expect(response.json().dashboard.summary.highPriorityActionItems).toBe(1);
     expect(response.json().dashboard.projects[0].name).toBe("Critical project");
     expect(response.json().dashboard.projects[0].openActionItemCount).toBe(1);
+    expect(response.json().dashboard.actionItems.completed).toHaveLength(0);
     expect(response.json().dashboard.actionItems.urgent).toHaveLength(1);
     expect(response.json().dashboard.actionItems.high).toHaveLength(0);
     expect(response.json().dashboard.recentActivity).toHaveLength(1);
@@ -3490,9 +3491,15 @@ class InMemoryRepository implements AppRepository {
         (left, right) => right.rankScore - left.rankScore || left.name.localeCompare(right.name)
       );
     const openActionItems = actionItems.filter((actionItem) => actionItem.status === "PENDING");
-    const myActionItems = openActionItems.filter(
+    const myActionItems = actionItems.filter(
       (actionItem) =>
-        actionItem.assignedToUserId === input.userId || actionItem.assignedToUserId === null
+        (actionItem.assignedToUserId === input.userId || actionItem.assignedToUserId === null) &&
+        (actionItem.status === "PENDING" ||
+          actionItem.status === "ACCEPTED" ||
+          actionItem.status === "COMPLETED")
+    );
+    const myOpenActionItems = myActionItems.filter(
+      (actionItem) => actionItem.status === "PENDING" || actionItem.status === "ACCEPTED"
     );
     const recentActivity = events.map((event) => {
       const project = this.projects.find((candidate) => candidate.id === event.projectId);
@@ -3527,10 +3534,11 @@ class InMemoryRepository implements AppRepository {
 
     return {
       actionItems: {
-        high: myActionItems.filter((actionItem) => actionItem.priority === "HIGH"),
-        low: myActionItems.filter((actionItem) => actionItem.priority === "LOW"),
-        medium: myActionItems.filter((actionItem) => actionItem.priority === "MEDIUM"),
-        urgent: myActionItems.filter((actionItem) => actionItem.priority === "URGENT")
+        completed: myActionItems.filter((actionItem) => actionItem.status === "COMPLETED"),
+        high: myOpenActionItems.filter((actionItem) => actionItem.priority === "HIGH"),
+        low: myOpenActionItems.filter((actionItem) => actionItem.priority === "LOW"),
+        medium: myOpenActionItems.filter((actionItem) => actionItem.priority === "MEDIUM"),
+        urgent: myOpenActionItems.filter((actionItem) => actionItem.priority === "URGENT")
       },
       brief: {
         bullets: [
