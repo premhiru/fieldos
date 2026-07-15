@@ -23,6 +23,10 @@ Projects and Action Items usability refinements are implemented, validated, and 
 
 ## Completed Tasks
 
+- GitHub Actions test reliability correction.
+  - Updated the operations dashboard API test to expect the accepted high-priority Action Item created by its fixture.
+  - Reproduced the linked GitHub failure locally and verified the repository-wide test command with all 12 package tasks passing.
+
 - Action Item overdue and completion metadata fix.
   - Overdue count styling now activates for every non-empty Overdue tab without affecting Assigned or Completed count badges.
   - Overdue cards retain their deadline-based red age label directly beneath the title.

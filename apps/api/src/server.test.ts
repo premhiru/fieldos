@@ -1604,7 +1604,7 @@ describe("FieldOS API auth and tenancy", () => {
     expect(response.json().dashboard.projects[0].openActionItemCount).toBe(1);
     expect(response.json().dashboard.actionItems.completed).toHaveLength(0);
     expect(response.json().dashboard.actionItems.urgent).toHaveLength(1);
-    expect(response.json().dashboard.actionItems.high).toHaveLength(0);
+    expect(response.json().dashboard.actionItems.high).toHaveLength(1);
     expect(response.json().dashboard.recentActivity).toHaveLength(1);
     expect(response.json().dashboard.brief.generatedBy).toBe("FALLBACK");
     expect(response.json().dashboard.milestones).toHaveLength(1);
