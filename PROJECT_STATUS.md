@@ -19,7 +19,7 @@
 
 ## Current Milestone
 
-Reports activity and recommendation source evidence are implemented and validated for production deployment.
+Reports activity and recommendation source evidence are implemented, validated, and deployed to production.
 
 ## Completed Tasks
 
@@ -377,6 +377,14 @@ Reports activity and recommendation source evidence are implemented and validate
 - WhatsApp reliability decision: persist each outage episode on `WhatsAppAccount`, apply a short grace period, and deliver one disconnect/recovery pair asynchronously through the existing worker job queue.
 
 ## Deployment Status
+
+- Reports activity and inline recommendation evidence are deployed from commit `a376713` on 2026-07-15.
+  - Vercel production deployment `dpl_CdFAhpn3X8BuVnojRisF22K73ths` completed successfully and is aliased to `https://fieldos-sand.vercel.app`.
+  - Production `/reports` returned HTTP 200.
+  - Railway API deployment `e1e0ac66-c762-41a3-bb79-32947396984d` completed successfully and applied migration `20260715010000_report_catalog`.
+  - Railway worker deployment `b8dcc690-56ee-4fee-b438-4e5062eb627e` completed successfully and reached its job-waiting state.
+  - Railway API health returned `{"status":"ok"}`, and the new reports endpoint returned the expected HTTP 401 without authentication.
+  - GitHub Actions `lint`, `typecheck`, `tests`, and `build` completed successfully for the release commit.
 
 - Action Item overdue and completion metadata fix is deployed from commit `19a6b50` on 2026-07-15.
   - Vercel production deployment `dpl_6CjZ8dnyvtqFKG61bGr97ZM5dVnE` completed successfully and is aliased to `https://fieldos-sand.vercel.app`.
