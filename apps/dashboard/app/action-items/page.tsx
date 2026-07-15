@@ -78,7 +78,6 @@ function ActionItemsContent() {
         <ViewTab
           active={view === "overdue"}
           count={overdue.length}
-          criticalCount
           label="Overdue"
           onClick={() => setView("overdue")}
         />
@@ -125,13 +124,11 @@ function ActionItemsContent() {
 function ViewTab({
   active,
   count,
-  criticalCount = false,
   label,
   onClick
 }: {
   active: boolean;
   count: number;
-  criticalCount?: boolean;
   label: string;
   onClick: () => void;
 }) {
@@ -150,7 +147,7 @@ function ViewTab({
       <span>{label}</span>
       <span
         className={`ml-1.5 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-xs ${
-          criticalCount && count > 0
+          label === "Overdue" && count > 0
             ? "bg-[var(--status-critical-soft)] text-[var(--status-critical-text)]"
             : "bg-slate-200 text-slate-600"
         }`}
@@ -219,18 +216,19 @@ function ActionItemCard({
               {overdueDays} {overdueDays === 1 ? "day" : "days"} overdue
             </p>
           ) : null}
+          {completed ? (
+            <p className="mt-1 text-sm text-[var(--text-secondary)]">
+              {formatCompletionDate(actionItem.updatedAt)}
+            </p>
+          ) : null}
           {actionItem.description ? (
             <p className="mt-2 text-sm leading-6 text-slate-600">{actionItem.description}</p>
           ) : null}
           <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500">
             <span>{actionItem.project?.name ?? "No project"}</span>
-            {completed && actionItem.completedAt ? (
-              <span>{formatCompletionDate(actionItem.completedAt)}</span>
-            ) : (
-              <span>
-                {actionItem.dueDate ? `Due ${formatDate(actionItem.dueDate)}` : "Due date not set"}
-              </span>
-            )}
+            <span>
+              {actionItem.dueDate ? `Due ${formatDate(actionItem.dueDate)}` : "Due date not set"}
+            </span>
             <span>Opened {formatDate(actionItem.createdAt)}</span>
           </div>
           {!completed ? (
@@ -291,19 +289,17 @@ function getActionItemDeadline(actionItem: ActionItem) {
 }
 
 function formatCompletionDate(value: string) {
-  const completedAt = new Date(value);
+  const updatedAt = new Date(value);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const completedDay = new Date(completedAt);
+  const completedDay = new Date(updatedAt);
   completedDay.setHours(0, 0, 0, 0);
   const days = Math.max(
     0,
     Math.floor((today.getTime() - completedDay.getTime()) / (24 * 60 * 60 * 1000))
   );
 
-  if (days === 0) return "Completed today";
-  if (days === 1) return "Completed yesterday";
-  return `Completed ${days} days ago`;
+  return `Completed ${days} ${days === 1 ? "day" : "days"} ago`;
 }
 
 function formatLabel(value: string) {

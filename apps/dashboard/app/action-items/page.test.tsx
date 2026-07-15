@@ -26,7 +26,8 @@ const completedItem = actionItem({
   createdAt: daysAgo(12),
   id: "completed-1",
   status: "COMPLETED",
-  title: "Upload progress photos"
+  title: "Upload progress photos",
+  updatedAt: daysAgo(2)
 });
 
 vi.mock("../../components/app-shell", () => ({
@@ -81,7 +82,12 @@ describe("ActionItemsPage", () => {
     expect(screen.getByRole("tab", { name: /Overdue/ }).textContent).toContain("1");
     expect(screen.getByRole("tab", { name: /Completed/ }).textContent).toContain("1");
 
-    fireEvent.click(screen.getByRole("tab", { name: /Overdue/ }));
+    const overdueTab = screen.getByRole("tab", { name: /Overdue/ });
+    expect(overdueTab.querySelector("span:last-child")?.className).toContain(
+      "text-[var(--status-critical-text)]"
+    );
+
+    fireEvent.click(overdueTab);
     expect(screen.getByText("Review delayed works")).toBeTruthy();
     expect(screen.getByText(/days overdue/)).toBeTruthy();
 
