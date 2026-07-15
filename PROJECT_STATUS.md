@@ -5,7 +5,7 @@
 | Purpose      | Track FieldOS milestone progress, task completion, technical debt, architecture decisions, and deployment readiness. |
 | Owner        | Founding Engineering                                                                                                 |
 | Status       | Active                                                                                                               |
-| Last Updated | 2026-07-14                                                                                                           |
+| Last Updated | 2026-07-15                                                                                                           |
 
 ## Table of Contents
 
@@ -19,9 +19,15 @@
 
 ## Current Milestone
 
-WhatsApp connection-loss alerting is implemented, validated, and deployed to production.
+Projects and Action Items usability refinements are implemented, validated, and deployed to production.
 
 ## Completed Tasks
+
+- Projects and Action Items usability refinements.
+  - Added project-list skeletons, client-side health filters, semantic status dots, last-activity timestamps, and a guided first-project empty state.
+  - Activated the Overdue and Completed Action Item tabs with live counts, due-date or seven-day fallback logic, overdue labels, and muted completion history.
+  - Preserved existing project creation, Assigned to me behavior, and Action Item mutations.
+  - Added focused dashboard tests and expanded the operations response contract to include completed Action Items.
 
 - WhatsApp disconnect and recovery email alerts.
   - Persisted outage timestamps, reason, and one-time delivery markers on each WhatsApp account.
@@ -350,6 +356,13 @@ WhatsApp connection-loss alerting is implemented, validated, and deployed to pro
 - WhatsApp reliability decision: persist each outage episode on `WhatsAppAccount`, apply a short grace period, and deliver one disconnect/recovery pair asynchronously through the existing worker job queue.
 
 ## Deployment Status
+
+- Projects and Action Items usability refinements are deployed from commit `e1d59ac` on 2026-07-15.
+  - Vercel production deployment `dpl_Bue1vXscqybWEk4x8YdeZ7JxCoqU` completed successfully and is aliased to `https://fieldos-sand.vercel.app`.
+  - Production `/projects` and `/action-items` routes returned HTTP 200.
+  - Railway API deployment `79261c55-1e58-49ba-b017-226d53b70dda` completed successfully.
+  - Railway API health returned `{"status":"ok"}`.
+  - Local format, lint, typecheck, test, build, and responsive browser QA completed successfully.
 
 - WhatsApp disconnect and recovery alerts are deployed from commit `11ede27`.
   - Railway worker deployment `121bbd1c-dec4-44f9-b964-706f5d6941a4` completed successfully.
