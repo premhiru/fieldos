@@ -23,6 +23,10 @@ Projects and Action Items usability refinements are implemented, validated, and 
 
 ## Completed Tasks
 
+- GitHub Actions runtime modernization.
+  - Upgraded checkout and Node setup actions to `v7` and pnpm setup to `v6` across all workflows.
+  - Removed the deprecated Node 20 action-runtime warning while retaining Node 22 for FieldOS validation.
+
 - GitHub Actions test reliability correction.
   - Updated the operations dashboard API test to expect the accepted high-priority Action Item created by its fixture.
   - Reproduced the linked GitHub failure locally and verified the repository-wide test command with all 12 package tasks passing.
