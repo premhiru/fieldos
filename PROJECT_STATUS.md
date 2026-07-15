@@ -19,9 +19,17 @@
 
 ## Current Milestone
 
-Reports card state isolation and recommendation evidence UX consistency are implemented, validated, and deployed to production.
+Action Item ownership and team assignment are implemented and undergoing final deployment validation.
 
 ## Completed Tasks
+
+- Action Item ownership and team assignment.
+  - Added project-aware assignee menus for non-viewer organization members with access to the relevant project.
+  - Added Assigned to me, Unassigned, Team, Overdue, and Completed queues so work remains discoverable throughout its lifecycle.
+  - Added assignment controls to the global Action Items page, project AI classifications, project Action Item cards, and source-message AI panels.
+  - Made acceptance claim unassigned work for the accepting user while preserving existing explicit assignments.
+  - Backfilled legacy accepted Action Items to their accepting user and assigned coordinator-created Action Items immediately.
+  - Added API authorization coverage for teammate assignment, unassignment, project access, and viewer exclusion.
 
 - Reports card state isolation and recommendation evidence UX consistency.
   - Moved Morning Brief generation into per-project card components with independent mutations, loading states, success flags, and three-second timers.

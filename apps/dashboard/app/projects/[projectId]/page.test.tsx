@@ -103,7 +103,13 @@ vi.mock("@tanstack/react-query", () => ({
           {
             description: "Rectify the failed lobby light.",
             id: "action_item_1",
+            classificationId: "classification_1",
             confidence: 0.9,
+            assignedToUserId: null,
+            messageId: "message_1",
+            organizationId: "organization_1",
+            projectId: "project_1",
+            suggestedProjectId: null,
             message: {
               body: "Lobby light failed.",
               conversation: {
@@ -147,5 +153,8 @@ describe("ProjectDetailPage", () => {
     expect(screen.getByText("Fix lobby light")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Accept" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Ignore" })).toBeTruthy();
+    expect(screen.getAllByRole("combobox", { name: /Assignee for Fix lobby light/ })).toHaveLength(
+      2
+    );
   });
 });

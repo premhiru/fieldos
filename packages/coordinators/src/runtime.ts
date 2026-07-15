@@ -1281,6 +1281,7 @@ export class ProjectCoordinatorRuntime {
       data: {
         acceptedAt: this.now(),
         acceptedByUserId: userId,
+        assignedToUserId: userId,
         confidence: confidenceToNumber(recommendation.confidence),
         description: recommendation.description,
         messageId: message.id,

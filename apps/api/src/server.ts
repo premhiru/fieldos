@@ -65,6 +65,8 @@ import {
 } from "./repository.js";
 import {
   activateWhatsAppChatMappingSchema,
+  actionItemAssigneesQuerySchema,
+  assignActionItemSchema,
   adminOperationsQuerySchema,
   createOrganizationSchema,
   createMilestoneSchema,
@@ -516,6 +518,42 @@ export function buildServer(options: BuildServerOptions = {}) {
       const params = organizationParamsSchema.parse(request.params);
       await requireWritableOrganizationRole(requireCurrentUser(request).id, params.organizationId);
       return teamService.listTeam(params.organizationId);
+    }
+  );
+
+  server.get(
+    "/organizations/:organizationId/action-item-assignees",
+    { preHandler: requireAuth },
+    async (request) => {
+      const params = organizationParamsSchema.parse(request.params);
+      const query = actionItemAssigneesQuerySchema.parse(request.query);
+      const user = requireCurrentUser(request);
+      await requireOrganizationMembership(user.id, params.organizationId);
+
+      if (query.projectId) {
+        const project = await repository.findProjectForUser(user.id, query.projectId);
+
+        if (!project || project.organizationId !== params.organizationId) {
+          throw notFound("Project not found.");
+        }
+      }
+
+      const { members } = await teamService.listTeam(params.organizationId);
+      const assignees = members
+        .filter(
+          (member) =>
+            member.role !== "VIEWER" &&
+            (!query.projectId ||
+              member.allProjects ||
+              member.projects.some((project) => project.id === query.projectId))
+        )
+        .map((member) => ({
+          id: member.user.id,
+          name: member.user.name,
+          role: member.role
+        }));
+
+      return { assignees };
     }
   );
 
@@ -1513,6 +1551,7 @@ export function buildServer(options: BuildServerOptions = {}) {
     await requireScopedProjectAccess(userId, context.projectId, "Message");
 
     return {
+      actionItems: await repository.listMessageActionItems(params.id),
       classification: await repository.getMessageClassification(params.id)
     };
   });
@@ -1638,6 +1677,44 @@ export function buildServer(options: BuildServerOptions = {}) {
       actionItem: await repository.acceptActionItem({
         actionItemId: actionItem.id,
         userId: user.id
+      })
+    };
+  });
+
+  server.patch("/action-items/:id/assignee", { preHandler: requireAuth }, async (request) => {
+    const params = actionItemParamsSchema.parse(request.params);
+    const body = assignActionItemSchema.parse(request.body);
+    const user = requireCurrentUser(request);
+    const actionItem = await requireActionItemAccess(user.id, params.id);
+
+    if (!(["PENDING", "ACCEPTED"] as const).includes(actionItem.status as "PENDING" | "ACCEPTED")) {
+      throw badRequest("Closed Action Items cannot be reassigned.");
+    }
+
+    if (body.userId) {
+      const targetMembership = await repository.findMembership(
+        body.userId,
+        actionItem.organizationId
+      );
+
+      if (!targetMembership || targetMembership.role === "VIEWER") {
+        throw badRequest("Selected assignee is not eligible for Action Items.");
+      }
+
+      const effectiveProjectId = actionItem.suggestedProjectId ?? actionItem.projectId;
+
+      if (
+        effectiveProjectId &&
+        !(await repository.findProjectForUser(body.userId, effectiveProjectId))
+      ) {
+        throw badRequest("Selected assignee does not have access to this project.");
+      }
+    }
+
+    return {
+      actionItem: await repository.assignActionItem({
+        actionItemId: actionItem.id,
+        assignedToUserId: body.userId
       })
     };
   });

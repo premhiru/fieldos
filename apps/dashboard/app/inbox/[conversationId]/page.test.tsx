@@ -57,6 +57,19 @@ vi.mock("@tanstack/react-query", () => ({
       if (messageId === "message_completed") {
         return {
           data: {
+            actionItems: [
+              {
+                assignedToUserId: null,
+                id: "action_item_1",
+                messageId: "message_completed",
+                organizationId: "organization_1",
+                projectId: "project_1",
+                status: "PENDING",
+                suggestedProjectId: null,
+                title: "Fix lobby light",
+                type: "FOLLOW_UP"
+              }
+            ],
             classification: {
               category: "DEFECT",
               confidence: 0.9,
@@ -74,6 +87,7 @@ vi.mock("@tanstack/react-query", () => ({
       if (messageId === "message_failed") {
         return {
           data: {
+            actionItems: [],
             classification: {
               errorMessage: "AI not configured.",
               status: "FAILED"
@@ -86,6 +100,7 @@ vi.mock("@tanstack/react-query", () => ({
 
     return {
       data: {
+        actionItems: [],
         classification: null
       },
       isLoading: false
@@ -103,6 +118,7 @@ describe("ConversationDetailPage AI panel", () => {
     expect(screen.getAllByText("AI classification pending")).toHaveLength(1);
     expect(screen.getByText("Category: DEFECT")).toBeTruthy();
     expect(screen.getByText("Confidence: High Confidence")).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Assignee for Fix lobby light" })).toBeTruthy();
     expect(screen.getByText("AI classification failed: AI not configured.")).toBeTruthy();
   });
 });

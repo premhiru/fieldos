@@ -55,6 +55,14 @@ export const actionItemParamsSchema = z.object({
   id: z.string().min(1)
 });
 
+export const actionItemAssigneesQuerySchema = z.object({
+  projectId: z.string().trim().min(1).optional()
+});
+
+export const assignActionItemSchema = z.object({
+  userId: z.string().trim().min(1).nullable()
+});
+
 export const recommendationParamsSchema = z.object({
   id: z.string().min(1)
 });

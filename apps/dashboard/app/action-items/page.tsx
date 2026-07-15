@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
 
 import { AppShell } from "../../components/app-shell";
+import { ActionItemAssigneeSelect } from "../../components/action-item-assignee-select";
 import { AuthGuard } from "../../components/auth-guard";
 import { OrganizationOnboarding } from "../../components/organization-onboarding";
 import { OrganizationSelector } from "../../components/organization-selector";
@@ -13,7 +14,7 @@ import { api, type ActionItem } from "../../lib/api";
 import { useMe, useOperationsDashboard, useOrganizations } from "../../lib/queries";
 import { useActiveOrganizationStore } from "../../store/active-organization-store";
 
-type ActionView = "assigned" | "overdue" | "completed";
+type ActionView = "assigned" | "unassigned" | "team" | "overdue" | "completed";
 
 export default function ActionItemsPage() {
   return (
@@ -52,9 +53,22 @@ function ActionItemsContent() {
   const groups = dashboardQuery.data?.dashboard.actionItems;
   const all = groups ? [...groups.urgent, ...groups.high, ...groups.medium, ...groups.low] : [];
   const assigned = all.filter((item) => item.assignedToUserId === meQuery.data?.user.id);
+  const unassigned = all.filter((item) => item.assignedToUserId === null);
+  const team = all.filter(
+    (item) => item.assignedToUserId !== null && item.assignedToUserId !== meQuery.data?.user.id
+  );
   const overdue = all.filter(isOverdue);
   const completed = groups?.completed ?? [];
-  const visible = view === "assigned" ? assigned : view === "overdue" ? overdue : completed;
+  const visible =
+    view === "assigned"
+      ? assigned
+      : view === "unassigned"
+        ? unassigned
+        : view === "team"
+          ? team
+          : view === "overdue"
+            ? overdue
+            : completed;
   const busy = acceptMutation.isPending || completeMutation.isPending || dismissMutation.isPending;
 
   return (
@@ -74,6 +88,18 @@ function ActionItemsContent() {
           count={assigned.length}
           label="Assigned to me"
           onClick={() => setView("assigned")}
+        />
+        <ViewTab
+          active={view === "unassigned"}
+          count={unassigned.length}
+          label="Unassigned"
+          onClick={() => setView("unassigned")}
+        />
+        <ViewTab
+          active={view === "team"}
+          count={team.length}
+          label="Team"
+          onClick={() => setView("team")}
         />
         <ViewTab
           active={view === "overdue"}
@@ -99,7 +125,7 @@ function ActionItemsContent() {
         <EmptyState
           description={emptyDescription(view)}
           icon={<ClipboardCheck aria-hidden="true" className="size-5" />}
-          title={view === "assigned" ? "Nothing assigned to you" : `No ${view} Action Items`}
+          title={emptyTitle(view)}
         />
       ) : (
         <div className="space-y-3">
@@ -232,16 +258,19 @@ function ActionItemCard({
             <span>Opened {formatDate(actionItem.createdAt)}</span>
           </div>
           {!completed ? (
-            <div className="mt-4 flex flex-wrap gap-2">
-              {actionItem.status === "PENDING" ? (
-                <Button className="h-9" disabled={busy} onClick={onAccept} variant="secondary">
-                  Accept
+            <div className="mt-4 space-y-3">
+              <ActionItemAssigneeSelect actionItem={actionItem} />
+              <div className="flex flex-wrap gap-2">
+                {actionItem.status === "PENDING" ? (
+                  <Button className="h-9" disabled={busy} onClick={onAccept} variant="secondary">
+                    Accept
+                  </Button>
+                ) : null}
+                <Button className="h-9 px-3" disabled={busy} onClick={onDismiss} variant="ghost">
+                  <X aria-hidden="true" className="size-4" />
+                  Dismiss
                 </Button>
-              ) : null}
-              <Button className="h-9 px-3" disabled={busy} onClick={onDismiss} variant="ghost">
-                <X aria-hidden="true" className="size-4" />
-                Dismiss
-              </Button>
+              </div>
             </div>
           ) : null}
         </div>
@@ -260,7 +289,17 @@ function priorityBar(priority: ActionItem["priority"]) {
 function emptyDescription(view: ActionView) {
   if (view === "completed") return "Completed work will appear here for reference.";
   if (view === "overdue") return "Nothing is currently past its due date.";
+  if (view === "unassigned") return "New AI follow-ups waiting for an owner will appear here.";
+  if (view === "team") return "Work assigned to other project members will appear here.";
   return "New work assigned to your account will appear here.";
+}
+
+function emptyTitle(view: ActionView) {
+  if (view === "assigned") return "Nothing assigned to you";
+  if (view === "unassigned") return "No unassigned Action Items";
+  if (view === "team") return "Nothing assigned to the team";
+  if (view === "overdue") return "No overdue Action Items";
+  return "No completed Action Items";
 }
 
 function formatDate(value: string) {

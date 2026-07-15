@@ -40,6 +40,11 @@ vi.mock("../../components/auth-guard", () => ({
     React.createElement(React.Fragment, null, children)
 }));
 
+vi.mock("../../components/action-item-assignee-select", () => ({
+  ActionItemAssigneeSelect: ({ actionItem }: { actionItem: ActionItem }) =>
+    React.createElement("div", null, `Assignee control for ${actionItem.title}`)
+}));
+
 vi.mock("../../lib/queries", () => ({
   useMe: () => ({ data: { user: { id: "user-1" } } }),
   useOperationsDashboard: () => ({
@@ -79,6 +84,8 @@ describe("ActionItemsPage", () => {
     render(React.createElement(ActionItemsPage));
 
     expect(screen.getByRole("tab", { name: /Assigned to me/ }).textContent).toContain("1");
+    expect(screen.getByRole("tab", { name: /Unassigned/ }).textContent).toContain("1");
+    expect(screen.getByRole("tab", { name: /Team/ }).textContent).toContain("0");
     expect(screen.getByRole("tab", { name: /Overdue/ }).textContent).toContain("1");
     expect(screen.getByRole("tab", { name: /Completed/ }).textContent).toContain("1");
 

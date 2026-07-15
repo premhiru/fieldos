@@ -18,6 +18,7 @@ import { useParams } from "next/navigation";
 import * as React from "react";
 
 import { AppShell } from "../../../components/app-shell";
+import { ActionItemAssigneeSelect } from "../../../components/action-item-assignee-select";
 import { AuthGuard } from "../../../components/auth-guard";
 import { MilestoneSection } from "../../../components/milestone-section";
 import { RecommendationCard } from "../../../components/recommendation-card";
@@ -302,7 +303,15 @@ function ProjectDetailContent() {
           </summary>
           <div className="mt-4 space-y-3">
             {classifications.map((classification) => (
-              <AIInsightRow classification={classification} key={classification.id} />
+              <AIInsightRow
+                actionItem={actionItems.find(
+                  (actionItem) =>
+                    actionItem.classificationId === classification.id &&
+                    actionItem.type === "FOLLOW_UP"
+                )}
+                classification={classification}
+                key={classification.id}
+              />
             ))}
           </div>
         </details>
@@ -476,7 +485,13 @@ function ProjectWhatsAppMessagesCard({ messages }: { messages: ProjectWhatsAppMe
   );
 }
 
-function AIInsightRow({ classification }: { classification: AIMessageClassification }) {
+function AIInsightRow({
+  actionItem,
+  classification
+}: {
+  actionItem?: ActionItem;
+  classification: AIMessageClassification;
+}) {
   return (
     <div className="rounded-md border border-slate-200 p-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -488,6 +503,13 @@ function AIInsightRow({ classification }: { classification: AIMessageClassificat
       <p className="mt-1 text-xs text-slate-500">
         Location: {classification.location ?? "Unknown"}
       </p>
+      {classification.actionRequired &&
+      actionItem &&
+      (actionItem.status === "PENDING" || actionItem.status === "ACCEPTED") ? (
+        <div className="mt-3">
+          <ActionItemAssigneeSelect actionItem={actionItem} />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -577,6 +599,11 @@ function ActionItemRow({
             >
               Source message: {actionItem.message.body ?? actionItem.message.conversation.title}
             </Link>
+          ) : null}
+          {actionItem.status === "PENDING" || actionItem.status === "ACCEPTED" ? (
+            <div className="mt-3">
+              <ActionItemAssigneeSelect actionItem={actionItem} />
+            </div>
           ) : null}
         </div>
         {actionItem.status === "PENDING" ? (

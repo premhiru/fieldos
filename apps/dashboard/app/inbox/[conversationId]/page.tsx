@@ -7,6 +7,7 @@ import { useParams } from "next/navigation";
 import * as React from "react";
 
 import { AppShell } from "../../../components/app-shell";
+import { ActionItemAssigneeSelect } from "../../../components/action-item-assignee-select";
 import { AuthGuard } from "../../../components/auth-guard";
 import { EvidenceViewer } from "../../../components/evidence-viewer";
 import { api, type Attachment, type Message } from "../../../lib/api";
@@ -275,6 +276,9 @@ function AIMessagePanel({ messageId, outbound }: { messageId: string; outbound: 
     }
   });
   const classification = classificationQuery.data?.classification;
+  const actionItem = (classificationQuery.data?.actionItems ?? []).find(
+    (item) => item.type === "FOLLOW_UP"
+  );
   const surfaceClass = outbound
     ? "mt-3 rounded-md border border-slate-700 bg-slate-900 p-3 text-xs text-slate-200"
     : "mt-3 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700";
@@ -318,6 +322,24 @@ function AIMessagePanel({ messageId, outbound }: { messageId: string; outbound: 
           <div>Status: {classification.status}</div>
           {classification.reasoningSummary ? (
             <div>Reason: {classification.reasoningSummary}</div>
+          ) : null}
+          {classification.actionRequired && actionItem ? (
+            <div
+              className={
+                outbound
+                  ? "mt-3 rounded-md border border-slate-700 p-3"
+                  : "mt-3 rounded-md border border-slate-200 bg-white p-3"
+              }
+            >
+              <div className="mb-2 font-medium">{actionItem.title}</div>
+              {actionItem.status === "PENDING" || actionItem.status === "ACCEPTED" ? (
+                <ActionItemAssigneeSelect actionItem={actionItem} inverted={outbound} />
+              ) : (
+                <div className={outbound ? "text-slate-300" : "text-slate-500"}>
+                  {actionItem.status === "COMPLETED" ? "Completed" : "Closed"}
+                </div>
+              )}
+            </div>
           ) : null}
         </div>
       )}

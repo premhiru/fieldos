@@ -122,6 +122,12 @@ export interface TeamMember {
   user: User;
 }
 
+export interface ActionItemAssignee {
+  id: string;
+  name: string;
+  role: Exclude<MembershipRole, "VIEWER">;
+}
+
 export interface TeamInvitation {
   acceptedAt: string | null;
   createdAt: string;
@@ -613,6 +619,10 @@ export interface ActionItem {
   acceptedAt: string | null;
   acceptedByUserId: string | null;
   assignedToUserId: string | null;
+  assignedToUser?: {
+    id: string;
+    name: string;
+  } | null;
   completedAt: string | null;
   dueDate?: string | null;
   ignoredAt: string | null;
@@ -1217,7 +1227,7 @@ export const api = {
       method: "POST"
     }),
   getMessageClassification: (messageId: string) =>
-    apiRequest<{ classification: AIMessageClassification | null }>(
+    apiRequest<{ actionItems: ActionItem[]; classification: AIMessageClassification | null }>(
       `/messages/${messageId}/classification`
     ),
   getMessageContext: (messageId: string) =>
@@ -1376,6 +1386,14 @@ export const api = {
     apiRequest<{ invitations: TeamInvitation[]; members: TeamMember[] }>(
       `/organizations/${organizationId}/team`
     ),
+  listActionItemAssignees: (organizationId: string, projectId?: string | null) => {
+    const params = new URLSearchParams();
+    if (projectId) params.set("projectId", projectId);
+    const query = params.size > 0 ? `?${params.toString()}` : "";
+    return apiRequest<{ assignees: ActionItemAssignee[] }>(
+      `/organizations/${organizationId}/action-item-assignees${query}`
+    );
+  },
   inviteTeamMember: (
     organizationId: string,
     body: { email: string; projectIds: string[]; role: "ADMIN" | "MEMBER" | "VIEWER" }
@@ -1445,6 +1463,11 @@ export const api = {
   acceptActionItem: (actionItemId: string) =>
     apiRequest<{ actionItem: ActionItem }>(`/action-items/${actionItemId}/accept`, {
       method: "POST"
+    }),
+  assignActionItem: (actionItemId: string, userId: string | null) =>
+    apiRequest<{ actionItem: ActionItem }>(`/action-items/${actionItemId}/assignee`, {
+      body: JSON.stringify({ userId }),
+      method: "PATCH"
     }),
   completeActionItem: (actionItemId: string) =>
     apiRequest<{ actionItem: ActionItem }>(`/action-items/${actionItemId}/complete`, {

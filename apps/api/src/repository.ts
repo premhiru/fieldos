@@ -223,6 +223,10 @@ export interface ActionItemRecord {
   acceptedAt: Date | null;
   acceptedByUserId: string | null;
   assignedToUserId: string | null;
+  assignedToUser?: {
+    id: string;
+    name: string;
+  } | null;
   completedAt: Date | null;
   ignoredAt: Date | null;
   ignoredByUserId: string | null;
@@ -625,9 +629,14 @@ export interface AppRepository extends MessagingRepository {
   listOrganizations(userId: string): Promise<OrganizationRecord[]>;
   listProjects(userId: string, organizationId: string): Promise<ProjectRecord[]>;
   acceptActionItem(input: { actionItemId: string; userId: string }): Promise<ActionItemRecord>;
+  assignActionItem(input: {
+    actionItemId: string;
+    assignedToUserId: string | null;
+  }): Promise<ActionItemRecord>;
   completeActionItem(input: { actionItemId: string; userId: string }): Promise<ActionItemRecord>;
   enqueueMessageClassification(messageId: string): Promise<AIMessageClassificationRecord | null>;
   getMessageClassification(messageId: string): Promise<AIMessageClassificationRecord | null>;
+  listMessageActionItems(messageId: string): Promise<ActionItemRecord[]>;
   getMessageEvidenceContext(messageId: string): Promise<UnifiedEvidenceContext | null>;
   getMessageEvidenceSummary(messageId: string): Promise<EvidenceSummary | null>;
   getPhotoAnalysis(photoAnalysisId: string): Promise<PhotoAnalysisRecord | null>;
@@ -1090,6 +1099,7 @@ export function createPrismaRepository(): AppRepository {
           data: {
             acceptedAt: new Date(),
             acceptedByUserId: input.userId,
+            assignedToUserId: existing.assignedToUserId ?? input.userId,
             completedAt: null,
             ignoredAt: null,
             ignoredByUserId: null,
@@ -1101,6 +1111,19 @@ export function createPrismaRepository(): AppRepository {
             id: input.actionItemId
           }
         });
+      });
+    },
+
+    async assignActionItem(input) {
+      const prisma = await getPrisma();
+      return prisma.actionItem.update({
+        data: {
+          assignedToUserId: input.assignedToUserId
+        },
+        include: actionItemInclude(),
+        where: {
+          id: input.actionItemId
+        }
       });
     },
 
@@ -1180,6 +1203,19 @@ export function createPrismaRepository(): AppRepository {
     async getMessageClassification(messageId) {
       const prisma = await getPrisma();
       return prisma.aIMessageClassification.findUnique({
+        where: {
+          messageId
+        }
+      });
+    },
+
+    async listMessageActionItems(messageId) {
+      const prisma = await getPrisma();
+      return prisma.actionItem.findMany({
+        include: actionItemInclude(),
+        orderBy: {
+          createdAt: "desc"
+        },
         where: {
           messageId
         }
@@ -1547,10 +1583,8 @@ export function createPrismaRepository(): AppRepository {
       const todaysActivityCount = events.filter(
         (event) => event.occurredAt.getTime() >= todayStart.getTime()
       ).length;
-      const myActionItems = actionItems.filter(
-        (actionItem) =>
-          (actionItem.assignedToUserId === input.userId || actionItem.assignedToUserId === null) &&
-          (isOpenActionItem(actionItem) || actionItem.status === "COMPLETED")
+      const visibleActionItems = actionItems.filter(
+        (actionItem) => isOpenActionItem(actionItem) || actionItem.status === "COMPLETED"
       );
 
       const summary: DashboardSummaryRecord = {
@@ -1607,7 +1641,7 @@ export function createPrismaRepository(): AppRepository {
         }));
 
       return {
-        actionItems: groupActionItems(myActionItems),
+        actionItems: groupActionItems(visibleActionItems),
         brief: buildFallbackBrief(summary, dashboardProjects, milestones, events),
         milestones,
         projects: dashboardProjects,
@@ -2722,6 +2756,12 @@ function aiClassificationInclude() {
 
 function actionItemInclude() {
   return {
+    assignedToUser: {
+      select: {
+        id: true,
+        name: true
+      }
+    },
     message: {
       select: {
         body: true,

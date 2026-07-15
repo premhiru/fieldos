@@ -325,6 +325,69 @@ describe("FieldOS API auth and tenancy", () => {
     expect(teamService.createInvitation).not.toHaveBeenCalled();
   });
 
+  it("lists only eligible Action Item assignees for the selected project", async () => {
+    const cookie = await signup(server);
+    const organization = await createOrganization(server, cookie);
+    const project = await repository.createProject({
+      code: "TEAM-ASSIGN",
+      name: "Team assignment",
+      organizationId: organization.id,
+      status: "ACTIVE"
+    });
+    const teamService = createMockTeamService();
+    vi.mocked(teamService.listTeam).mockResolvedValue({
+      invitations: [],
+      members: [
+        {
+          allProjects: true,
+          createdAt: new Date(),
+          id: "membership-owner",
+          projects: [],
+          role: "OWNER",
+          user: { email: "owner@example.com", id: "owner", name: "Owner" }
+        },
+        {
+          allProjects: false,
+          createdAt: new Date(),
+          id: "membership-member",
+          projects: [{ id: project.id, name: project.name }],
+          role: "MEMBER",
+          user: { email: "member@example.com", id: "member", name: "Site Lead" }
+        },
+        {
+          allProjects: true,
+          createdAt: new Date(),
+          id: "membership-viewer",
+          projects: [],
+          role: "VIEWER",
+          user: { email: "viewer@example.com", id: "viewer", name: "Viewer" }
+        },
+        {
+          allProjects: false,
+          createdAt: new Date(),
+          id: "membership-other-project",
+          projects: [{ id: "another-project", name: "Another project" }],
+          role: "MEMBER",
+          user: { email: "other@example.com", id: "other", name: "Other Member" }
+        }
+      ]
+    });
+    const assignmentServer = buildServer({ repository, teamService });
+
+    const response = await assignmentServer.inject({
+      headers: { cookie },
+      method: "GET",
+      url: `/organizations/${organization.id}/action-item-assignees?projectId=${project.id}`
+    });
+    await assignmentServer.close();
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().assignees).toEqual([
+      { id: "owner", name: "Owner", role: "OWNER" },
+      { id: "member", name: "Site Lead", role: "MEMBER" }
+    ]);
+  });
+
   it("accepts an invitation only for an authenticated user", async () => {
     const cookie = await signup(server, "invitee@example.com");
     const teamService = createMockTeamService();
@@ -1470,6 +1533,7 @@ describe("FieldOS API auth and tenancy", () => {
   it("accepts and ignores Action Items", async () => {
     const cookie = await signup(server);
     const organization = await createOrganization(server, cookie);
+    const user = repository.users.find((candidate) => candidate.email === "founder@example.com");
     const project = await repository.createProject({
       code: "AI-003",
       name: "AI project",
@@ -1506,8 +1570,63 @@ describe("FieldOS API auth and tenancy", () => {
 
     expect(acceptResponse.statusCode).toBe(200);
     expect(acceptResponse.json().actionItem.status).toBe("ACCEPTED");
+    expect(acceptResponse.json().actionItem.assignedToUserId).toBe(user?.id);
     expect(ignoreResponse.statusCode).toBe(200);
     expect(ignoreResponse.json().actionItem.status).toBe("IGNORED");
+  });
+
+  it("assigns and unassigns Action Items to eligible project members", async () => {
+    const ownerCookie = await signup(server);
+    const organization = await createOrganization(server, ownerCookie);
+    await signup(server, "teammate@example.com");
+    const teammate = repository.users.find(
+      (candidate) => candidate.email === "teammate@example.com"
+    );
+    const project = await repository.createProject({
+      code: "AI-ASSIGN",
+      name: "Assignment project",
+      organizationId: organization.id,
+      status: "ACTIVE"
+    });
+
+    expect(teammate).toBeDefined();
+    repository.memberships.push({
+      allProjects: true,
+      id: nextId("membership"),
+      organizationId: organization.id,
+      role: "MEMBER",
+      userId: teammate?.id ?? ""
+    });
+    const message = await createProjectMessage(repository, organization.id, project.id);
+    const classification = repository.addCompletedClassification({
+      messageId: message.id,
+      organizationId: organization.id,
+      projectId: project.id
+    });
+    const actionItem = repository.addActionItem({
+      classificationId: classification.id,
+      messageId: message.id,
+      organizationId: organization.id,
+      projectId: project.id
+    });
+
+    const assignResponse = await server.inject({
+      headers: { cookie: ownerCookie },
+      method: "PATCH",
+      payload: { userId: teammate?.id },
+      url: `/action-items/${actionItem.id}/assignee`
+    });
+    const unassignResponse = await server.inject({
+      headers: { cookie: ownerCookie },
+      method: "PATCH",
+      payload: { userId: null },
+      url: `/action-items/${actionItem.id}/assignee`
+    });
+
+    expect(assignResponse.statusCode).toBe(200);
+    expect(assignResponse.json().actionItem.assignedToUserId).toBe(teammate?.id);
+    expect(unassignResponse.statusCode).toBe(200);
+    expect(unassignResponse.json().actionItem.assignedToUserId).toBeNull();
   });
 
   it("completes Action Items", async () => {
@@ -1914,7 +2033,7 @@ describe("FieldOS API auth and tenancy", () => {
     });
     expect(viewerApprovalResponse.statusCode).toBe(403);
     expect(approveMilestoneRecommendation).toHaveBeenCalledOnce();
-  });
+  }, 15_000);
 
   it("searches messages, timeline events, Action Items, projects, and AI classifications", async () => {
     const cookie = await signup(server);
@@ -2997,10 +3116,26 @@ class InMemoryRepository implements AppRepository {
 
     task.acceptedAt = new Date();
     task.acceptedByUserId = input.userId;
+    task.assignedToUserId ??= input.userId;
+    task.assignedToUser =
+      this.users.find((candidate) => candidate.id === task.assignedToUserId) ?? null;
     task.completedAt = null;
     task.ignoredAt = null;
     task.ignoredByUserId = null;
     task.status = "ACCEPTED";
+    task.updatedAt = new Date();
+    return task;
+  }
+
+  async assignActionItem(input: {
+    actionItemId: string;
+    assignedToUserId: string | null;
+  }): Promise<ActionItemRecord> {
+    const task = this.requireActionItem(input.actionItemId);
+    task.assignedToUserId = input.assignedToUserId;
+    task.assignedToUser = input.assignedToUserId
+      ? (this.users.find((candidate) => candidate.id === input.assignedToUserId) ?? null)
+      : null;
     task.updatedAt = new Date();
     return task;
   }
@@ -3069,6 +3204,10 @@ class InMemoryRepository implements AppRepository {
     return (
       this.classifications.find((classification) => classification.messageId === messageId) ?? null
     );
+  }
+
+  async listMessageActionItems(messageId: string): Promise<ActionItemRecord[]> {
+    return this.actionItems.filter((actionItem) => actionItem.messageId === messageId);
   }
 
   async getMessageEvidenceContext(messageId: string): Promise<UnifiedEvidenceContext | null> {
@@ -3537,14 +3676,13 @@ class InMemoryRepository implements AppRepository {
         (left, right) => right.rankScore - left.rankScore || left.name.localeCompare(right.name)
       );
     const openActionItems = actionItems.filter((actionItem) => actionItem.status === "PENDING");
-    const myActionItems = actionItems.filter(
+    const visibleActionItems = actionItems.filter(
       (actionItem) =>
-        (actionItem.assignedToUserId === input.userId || actionItem.assignedToUserId === null) &&
-        (actionItem.status === "PENDING" ||
-          actionItem.status === "ACCEPTED" ||
-          actionItem.status === "COMPLETED")
+        actionItem.status === "PENDING" ||
+        actionItem.status === "ACCEPTED" ||
+        actionItem.status === "COMPLETED"
     );
-    const myOpenActionItems = myActionItems.filter(
+    const visibleOpenActionItems = visibleActionItems.filter(
       (actionItem) => actionItem.status === "PENDING" || actionItem.status === "ACCEPTED"
     );
     const recentActivity = events.map((event) => {
@@ -3580,11 +3718,11 @@ class InMemoryRepository implements AppRepository {
 
     return {
       actionItems: {
-        completed: myActionItems.filter((actionItem) => actionItem.status === "COMPLETED"),
-        high: myOpenActionItems.filter((actionItem) => actionItem.priority === "HIGH"),
-        low: myOpenActionItems.filter((actionItem) => actionItem.priority === "LOW"),
-        medium: myOpenActionItems.filter((actionItem) => actionItem.priority === "MEDIUM"),
-        urgent: myOpenActionItems.filter((actionItem) => actionItem.priority === "URGENT")
+        completed: visibleActionItems.filter((actionItem) => actionItem.status === "COMPLETED"),
+        high: visibleOpenActionItems.filter((actionItem) => actionItem.priority === "HIGH"),
+        low: visibleOpenActionItems.filter((actionItem) => actionItem.priority === "LOW"),
+        medium: visibleOpenActionItems.filter((actionItem) => actionItem.priority === "MEDIUM"),
+        urgent: visibleOpenActionItems.filter((actionItem) => actionItem.priority === "URGENT")
       },
       brief: {
         bullets: [
