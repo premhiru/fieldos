@@ -15,7 +15,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
 import { useRouter } from "next/navigation";
-import { Activity, MessageSquare, RefreshCw, Trash2, UserPlus } from "lucide-react";
+import {
+  Activity,
+  Check,
+  CheckCircle2,
+  MessageSquare,
+  RefreshCw,
+  Trash2,
+  UserPlus
+} from "lucide-react";
 import * as React from "react";
 
 import { AppShell } from "../../components/app-shell";
@@ -58,7 +66,9 @@ function SettingsContent() {
     queryKey: ["whatsapp-accounts", activeOrganization?.id],
     retry: false
   });
-  const [displayName, setDisplayName] = React.useState("Dispatch line");
+  const accounts = accountsQuery.data?.accounts ?? [];
+  const [displayName, setDisplayName] = React.useState("");
+  const [isAddingWhatsAppLine, setIsAddingWhatsAppLine] = React.useState(false);
   const canManage = activeOrganization?.role === "OWNER" || activeOrganization?.role === "ADMIN";
   const createAccountMutation = useMutation({
     mutationFn: () =>
@@ -70,6 +80,8 @@ function SettingsContent() {
       await queryClient.invalidateQueries({
         queryKey: ["whatsapp-accounts", activeOrganization?.id]
       });
+      setDisplayName("");
+      setIsAddingWhatsAppLine(false);
     }
   });
 
@@ -78,6 +90,11 @@ function SettingsContent() {
       setActiveOrganizationId(organizations[0].id);
     }
   }, [activeOrganizationId, organizations, setActiveOrganizationId]);
+
+  React.useEffect(() => {
+    setDisplayName("");
+    setIsAddingWhatsAppLine(false);
+  }, [activeOrganization?.id]);
 
   if (organizationsQuery.isLoading) return <Skeleton className="h-[680px]" />;
 
@@ -155,47 +172,33 @@ function SettingsContent() {
           not recommended because connected conversations can become shared workspace evidence.
         </div>
 
-        {canManage ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>Connect WhatsApp</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form
-                className="flex flex-col gap-3 md:flex-row md:items-end"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  createAccountMutation.mutate();
-                }}
-              >
-                <label className="flex flex-1 flex-col gap-1 text-sm font-medium text-slate-700">
-                  Display name
-                  <input
-                    className="h-10 rounded-md border border-slate-300 px-3 text-sm"
-                    value={displayName}
-                    onChange={(event) => setDisplayName(event.target.value)}
-                  />
-                </label>
-                <Button
-                  disabled={createAccountMutation.isPending || !displayName.trim()}
-                  type="submit"
-                >
-                  {createAccountMutation.isPending ? "Creating..." : "Connect WhatsApp"}
-                </Button>
-              </form>
-              {createAccountMutation.isError ? (
-                <p className="mt-3 text-sm text-red-600">
-                  {(createAccountMutation.error as Error).message}
-                </p>
-              ) : null}
-            </CardContent>
-          </Card>
+        {canManage && !accountsQuery.isLoading ? (
+          accounts.length === 0 || isAddingWhatsAppLine ? (
+            <WhatsAppSetupWizard
+              currentStep={1}
+              isPending={createAccountMutation.isPending}
+              lineName={displayName}
+              onContinue={() => createAccountMutation.mutate()}
+              onLineNameChange={setDisplayName}
+            />
+          ) : (
+            <div className="flex justify-end">
+              <Button type="button" onClick={() => setIsAddingWhatsAppLine(true)}>
+                Add WhatsApp line
+              </Button>
+            </div>
+          )
+        ) : null}
+        {createAccountMutation.isError ? (
+          <p className="text-sm text-[var(--status-critical-text)]">
+            We could not create this line. Please try again.
+          </p>
         ) : null}
 
         <div className="space-y-4">
           {accountsQuery.isLoading ? (
             <Skeleton className="h-64 w-full" />
-          ) : (accountsQuery.data?.accounts ?? []).length === 0 ? (
+          ) : accounts.length === 0 && !canManage ? (
             <Card>
               <CardContent>
                 <EmptyState
@@ -206,7 +209,7 @@ function SettingsContent() {
               </CardContent>
             </Card>
           ) : (
-            accountsQuery.data?.accounts.map((account) => (
+            accounts.map((account) => (
               <WhatsAppAccountCard
                 key={account.id}
                 account={account}
@@ -674,7 +677,226 @@ function PasswordField({
   );
 }
 
-function WhatsAppAccountCard({
+type WhatsAppSetupStep = 1 | 2 | 3;
+
+export function StepIndicator({ currentStep }: { currentStep: WhatsAppSetupStep }) {
+  return (
+    <div
+      aria-label={`WhatsApp setup progress: step ${currentStep} of 3`}
+      className="flex w-full max-w-sm items-center"
+      role="img"
+    >
+      {[1, 2, 3].map((step, index) => {
+        const isComplete = step < currentStep;
+        const isCurrent = step === currentStep;
+
+        return (
+          <React.Fragment key={step}>
+            <span
+              className={[
+                "flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold",
+                isComplete
+                  ? "border border-[var(--status-healthy-border)] bg-[var(--status-healthy-soft)] text-[var(--status-healthy-text)]"
+                  : isCurrent
+                    ? "bg-[var(--action-primary)] text-[var(--action-primary-text)]"
+                    : "border border-[var(--border-default)] bg-[var(--surface)] text-[var(--text-disabled)]"
+              ].join(" ")}
+            >
+              {isComplete ? <Check aria-hidden="true" className="size-4" /> : step}
+            </span>
+            {index < 2 ? (
+              <span
+                aria-hidden="true"
+                className={`h-px min-w-6 flex-1 ${
+                  isComplete ? "bg-[var(--status-healthy-text)]" : "bg-[var(--border-default)]"
+                }`}
+              />
+            ) : null}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
+function WhatsAppSetupWizard({
+  currentStep,
+  isPending,
+  lineName,
+  onContinue,
+  onLineNameChange
+}: {
+  currentStep: WhatsAppSetupStep;
+  isPending: boolean;
+  lineName: string;
+  onContinue(): void;
+  onLineNameChange?(value: string): void;
+}) {
+  return (
+    <Card>
+      <CardContent className="pt-5 sm:pt-6">
+        <WhatsAppSetupWizardContent
+          currentStep={currentStep}
+          isPending={isPending}
+          lineName={lineName}
+          onContinue={onContinue}
+          onLineNameChange={onLineNameChange}
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
+export function WhatsAppSetupWizardContent({
+  currentStep,
+  isPending,
+  lineName,
+  onContinue,
+  onLineNameChange,
+  qr = null,
+  qrWaitTimedOut = false
+}: {
+  currentStep: WhatsAppSetupStep;
+  isPending: boolean;
+  lineName: string;
+  onContinue(): void;
+  onLineNameChange?(value: string): void;
+  qr?: string | null;
+  qrWaitTimedOut?: boolean;
+}) {
+  if (currentStep === 2 && qr) {
+    return (
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-[var(--text-secondary)]">
+            Step 2 of 3 — Connect your phone
+          </p>
+          <StepIndicator currentStep={2} />
+        </div>
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+            Scan this code with WhatsApp
+          </h2>
+          <ol className="list-decimal space-y-2 pl-5 text-sm text-[var(--text-secondary)]">
+            <li>Open WhatsApp on your phone</li>
+            <li>Tap Menu (&#8942;) then Linked Devices</li>
+            <li>Tap Link a Device</li>
+            <li>Point your camera at this code</li>
+          </ol>
+          <div className="flex justify-center py-2">
+            <div className="rounded-md border border-[var(--border-default)] bg-white p-4">
+              <QRCodeSVG value={qr} size={220} />
+            </div>
+          </div>
+          <p className="text-center text-sm text-[var(--text-secondary)]">
+            This code refreshes automatically. Keep this window open while scanning.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (currentStep === 3) {
+    return (
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-[var(--text-secondary)]">
+            Step 3 of 3 — Finishing up
+          </p>
+          <StepIndicator currentStep={3} />
+        </div>
+        <div className="flex flex-col items-center py-8 text-center">
+          <div
+            aria-label="Connecting"
+            className="mb-5 size-10 animate-spin rounded-full border-4 border-[var(--border-default)] border-t-[var(--action-primary)]"
+            role="status"
+          />
+          <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+            Connecting your WhatsApp...
+          </h2>
+          <p className="mt-2 text-sm text-[var(--text-secondary)]">
+            This usually takes a few seconds. Don&apos;t close this window.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="space-y-2">
+        <p className="text-sm font-medium text-[var(--text-secondary)]">
+          Step 1 of 3 — Name your line
+        </p>
+        <StepIndicator currentStep={1} />
+      </div>
+      <div className="max-w-2xl space-y-3">
+        <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+          Set up your WhatsApp line
+        </h2>
+        <p className="text-sm leading-6 text-[var(--text-secondary)]">
+          This will be the WhatsApp number your field team sends updates to. Use a dedicated
+          business number — do not connect a personal account.
+        </p>
+      </div>
+      <form
+        className="max-w-xl space-y-4"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onContinue();
+        }}
+      >
+        <label className="flex flex-col gap-1 text-sm font-medium text-[var(--text-primary)]">
+          Line name
+          <input
+            className="h-10 rounded-md border border-[var(--border-default)] bg-[var(--surface)] px-3 text-sm text-[var(--text-primary)] read-only:bg-[var(--surface-subtle)]"
+            onChange={(event) => onLineNameChange?.(event.target.value)}
+            placeholder="e.g. Site Dispatch"
+            readOnly={!onLineNameChange}
+            value={lineName}
+          />
+        </label>
+        <Button disabled={isPending || !lineName.trim()} type="submit">
+          {isPending ? "Continuing..." : "Continue"}
+        </Button>
+      </form>
+      {qrWaitTimedOut ? (
+        <p className="text-sm text-[var(--text-secondary)]">
+          Having trouble? Try refreshing the page or contact support.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function WhatsAppConnectionFailure({
+  isPending,
+  onTryAgain
+}: {
+  isPending: boolean;
+  onTryAgain(): void;
+}) {
+  return (
+    <div className="space-y-6">
+      <div className="space-y-2">
+        <p className="text-sm font-medium text-[var(--text-secondary)]">
+          Step 2 of 3 — Connect your phone
+        </p>
+        <StepIndicator currentStep={2} />
+      </div>
+      <div className="rounded-md border border-[var(--status-critical-border)] bg-[var(--status-critical-soft)] p-4">
+        <p className="font-medium text-[var(--status-critical-text)]">
+          Connection failed. Please try scanning the code again.
+        </p>
+        <Button className="mt-4" disabled={isPending} type="button" onClick={onTryAgain}>
+          {isPending ? "Trying again..." : "Try again"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+export function WhatsAppAccountCard({
   account,
   canManage,
   organizationId,
@@ -687,6 +909,8 @@ function WhatsAppAccountCard({
 }) {
   const queryClient = useQueryClient();
   const [isPairingRequested, setIsPairingRequested] = React.useState(false);
+  const [ignoreCurrentConnectionError, setIgnoreCurrentConnectionError] = React.useState(false);
+  const [qrWaitTimedOut, setQrWaitTimedOut] = React.useState(false);
   const [chatSearch, setChatSearch] = React.useState("");
   const [chatTypeFilter, setChatTypeFilter] = React.useState<"ALL" | "GROUPS" | "DIRECT">("ALL");
   const [projectFilter, setProjectFilter] = React.useState<"ALL" | "MAPPED" | "UNASSIGNED">("ALL");
@@ -713,11 +937,15 @@ function WhatsAppAccountCard({
   const connectMutation = useMutation({
     mutationFn: () => api.connectWhatsAppAccount(account.id),
     onMutate: () => {
+      setIgnoreCurrentConnectionError(true);
       setIsPairingRequested(true);
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["whatsapp-accounts", organizationId] });
       await queryClient.invalidateQueries({ queryKey: ["whatsapp-qr", account.id] });
+    },
+    onError: () => {
+      setIgnoreCurrentConnectionError(false);
     }
   });
   const disconnectMutation = useMutation({
@@ -729,11 +957,22 @@ function WhatsAppAccountCard({
       await queryClient.removeQueries({ queryKey: ["whatsapp-qr", account.id] });
     }
   });
-  const shouldShowPairing = isPairingRequested || isPairingStatus || connectMutation.isPending;
+  const effectiveStatus =
+    account.status === "CONNECTED" ? account.status : (qrQuery.data?.status ?? account.status);
+  const isConnecting = effectiveStatus === "CONNECTING";
+  const connectionFailed = account.status === "ERROR" && !ignoreCurrentConnectionError;
+  const currentSetupStep = isConnecting ? 3 : qrQuery.data?.qr ? 2 : 1;
+  const shouldShowPairing =
+    isPairingRequested || isPairingStatus || connectMutation.isPending || isConnecting;
+  const showSetupPanel = shouldShowPairing || connectionFailed;
 
   React.useEffect(() => {
     if (account.status === "CONNECTED") {
       setIsPairingRequested(false);
+    }
+
+    if (account.status !== "ERROR") {
+      setIgnoreCurrentConnectionError(false);
     }
   }, [account.status]);
 
@@ -742,6 +981,16 @@ function WhatsAppAccountCard({
       void queryClient.invalidateQueries({ queryKey: ["whatsapp-accounts", organizationId] });
     }
   }, [account.status, organizationId, qrQuery.data?.status, queryClient]);
+
+  React.useEffect(() => {
+    if (!shouldShowPairing || isConnecting || qrQuery.data?.qr) {
+      setQrWaitTimedOut(false);
+      return;
+    }
+
+    const timeout = window.setTimeout(() => setQrWaitTimedOut(true), 10_000);
+    return () => window.clearTimeout(timeout);
+  }, [isConnecting, qrQuery.data?.qr, shouldShowPairing]);
 
   const chats = isConnected ? (chatsQuery.data?.chats ?? []) : [];
   const filteredChats = React.useMemo(() => {
@@ -795,74 +1044,87 @@ function WhatsAppAccountCard({
 
   return (
     <Card>
-      <CardHeader>
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <CardTitle>{account.displayName}</CardTitle>
-            <p className="mt-1 text-sm text-slate-600">
-              {account.phoneNumber ?? "No phone number yet"}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="muted">{account.status}</Badge>
-            {canManage ? (
-              <>
+      {!showSetupPanel ? (
+        <CardHeader>
+          {isConnected ? (
+            <div className="flex flex-col gap-4 rounded-md border border-[var(--status-healthy-border)] bg-[var(--status-healthy-soft)] p-4 md:flex-row md:items-center md:justify-between">
+              <div className="flex min-w-0 items-start gap-3 text-[var(--status-healthy-text)]">
+                <CheckCircle2 aria-hidden="true" className="mt-0.5 size-5 shrink-0" />
+                <div className="min-w-0">
+                  <CardTitle className="text-[var(--status-healthy-text)]">
+                    WhatsApp connected
+                  </CardTitle>
+                  <p className="mt-1 text-sm">
+                    {account.displayName} · Connected {formatDate(account.lastConnectedAt)}
+                  </p>
+                </div>
+              </div>
+              {canManage ? (
+                <Button
+                  disabled={disconnectMutation.isPending}
+                  type="button"
+                  variant="danger"
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        `Disconnect ${account.displayName}? New WhatsApp messages will stop syncing until it is reconnected.`
+                      )
+                    ) {
+                      disconnectMutation.mutate();
+                    }
+                  }}
+                >
+                  {disconnectMutation.isPending ? "Disconnecting..." : "Disconnect"}
+                </Button>
+              ) : null}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <CardTitle>{account.displayName}</CardTitle>
+                <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                  WhatsApp is not connected to this line.
+                </p>
+              </div>
+              {canManage ? (
                 <Button
                   disabled={connectMutation.isPending}
                   type="button"
                   onClick={() => connectMutation.mutate()}
                 >
-                  Connect
+                  Connect WhatsApp
                 </Button>
-                <Button
-                  disabled={disconnectMutation.isPending}
-                  type="button"
-                  variant="secondary"
-                  onClick={() => disconnectMutation.mutate()}
-                >
-                  Disconnect
-                </Button>
-              </>
-            ) : null}
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="grid gap-4 md:grid-cols-3">
-          <StatusField label="Last connected" value={formatDate(account.lastConnectedAt)} />
-          <StatusField label="Last message" value={formatDate(account.lastMessageAt)} />
-          <StatusField label="Connection type" value={account.connectorType} />
-        </div>
-
-        {shouldShowPairing ? (
-          <div className="mt-5 rounded-md border border-slate-200 bg-slate-50 p-4">
-            <div className="flex flex-col gap-4 md:flex-row md:items-start">
-              <div className="flex min-h-[252px] w-full items-center justify-center rounded-md border border-slate-200 bg-white p-4 md:w-[252px] md:flex-none">
-                {qrQuery.data?.qr ? (
-                  <QRCodeSVG value={qrQuery.data.qr} size={220} />
-                ) : (
-                  <div className="text-center text-sm text-slate-600">
-                    <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-slate-900" />
-                    Waiting for QR code...
-                  </div>
-                )}
-              </div>
-              <div className="space-y-2">
-                <h2 className="text-base font-semibold text-slate-950">Pair WhatsApp</h2>
-                <p className="text-sm text-slate-600">
-                  Keep this panel visible while reconnecting. Existing chats stay below after the
-                  pairing code appears.
-                </p>
-                <Badge variant="muted">{qrQuery.data?.status ?? account.status}</Badge>
-                {qrQuery.isError ? (
-                  <p className="text-sm text-red-600">{(qrQuery.error as Error).message}</p>
-                ) : null}
-              </div>
+              ) : null}
             </div>
+          )}
+        </CardHeader>
+      ) : null}
+      <CardContent className={showSetupPanel ? "pt-5 sm:pt-6" : undefined}>
+        {!showSetupPanel ? (
+          <div className="grid gap-4 md:grid-cols-3">
+            <StatusField label="Last connected" value={formatDate(account.lastConnectedAt)} />
+            <StatusField label="Last message" value={formatDate(account.lastMessageAt)} />
+            <StatusField label="Phone number" value={account.phoneNumber ?? "Not available"} />
           </div>
         ) : null}
 
-        <div className={shouldShowPairing ? "mt-6 border-t border-slate-200 pt-6" : "mt-6"}>
+        {connectionFailed ? (
+          <WhatsAppConnectionFailure
+            isPending={connectMutation.isPending}
+            onTryAgain={() => connectMutation.mutate()}
+          />
+        ) : shouldShowPairing ? (
+          <WhatsAppSetupWizardContent
+            currentStep={currentSetupStep}
+            isPending={connectMutation.isPending}
+            lineName={account.displayName}
+            qr={qrQuery.data?.qr ?? null}
+            qrWaitTimedOut={qrWaitTimedOut}
+            onContinue={() => connectMutation.mutate()}
+          />
+        ) : null}
+
+        <div className={showSetupPanel ? "mt-6 border-t border-slate-200 pt-6" : "mt-6"}>
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <h2 className="text-sm font-semibold text-slate-950">Chats and Groups</h2>

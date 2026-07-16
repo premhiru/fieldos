@@ -19,9 +19,16 @@
 
 ## Current Milestone
 
-Action Item ownership and team assignment are implemented, validated, and deployed to production.
+The guided WhatsApp account setup experience is implemented and undergoing final deployment validation.
 
 ## Completed Tasks
+
+- Guided WhatsApp account setup experience.
+  - Replaced internal connection status labels with a three-step line naming, QR scanning, and connection wizard.
+  - Added reusable progress indicators, plain-language phone instructions, a ten-second QR help fallback, and a retry path for failed connections.
+  - Added a connected success banner with line details and confirmation-protected disconnect behavior.
+  - Preserved the existing account, QR, chat discovery, project mapping, activation, ignore, and archive data flows.
+  - Added focused coverage for every setup step, hidden internal statuses, stale QR transition handling, retry behavior, and the connected state.
 
 - Action Item ownership and team assignment.
   - Added project-aware assignee menus for non-viewer organization members with access to the relevant project.
