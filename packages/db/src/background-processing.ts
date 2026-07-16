@@ -183,7 +183,7 @@ async function queueDebouncedProjectCoordinatorJob(
         }
       ],
       projectId: input.projectId ?? input.sourceId,
-      status: { in: ["PENDING", "RUNNING", "COMPLETED"] },
+      status: { in: ["PENDING", "RUNNING"] },
       type
     }
   });
