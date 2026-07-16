@@ -19,7 +19,7 @@
 
 ## Current Milestone
 
-The guided WhatsApp account setup experience is implemented and undergoing final deployment validation.
+The guided WhatsApp account setup experience is implemented, validated, and deployed to production.
 
 ## Completed Tasks
 
@@ -408,6 +408,12 @@ The guided WhatsApp account setup experience is implemented and undergoing final
 - WhatsApp reliability decision: persist each outage episode on `WhatsAppAccount`, apply a short grace period, and deliver one disconnect/recovery pair asynchronously through the existing worker job queue.
 
 ## Deployment Status
+
+- Guided WhatsApp account setup is deployed from commit `b674ff6` on 2026-07-15.
+  - Vercel production serves the three-step wizard bundle at `https://fieldos-sand.vercel.app/settings`.
+  - Production verification confirmed the line naming, QR scanning, connection progress, and connected-state copy in the deployed bundle.
+  - Dashboard lint, typecheck, all 26 tests, and the production build completed successfully.
+  - Railway was intentionally not redeployed because the account, QR, chat mapping, API, and worker behavior did not change.
 
 - Action Item ownership and team assignment are deployed from commit `9249ac7` on 2026-07-15.
   - Vercel production serves the new assignment bundle at `https://fieldos-sand.vercel.app/action-items`.
