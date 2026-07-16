@@ -19,7 +19,7 @@
 
 ## Current Milestone
 
-AI coordinator scheduling reliability is implemented and validated locally; production deployment is in progress.
+AI coordinator scheduling reliability is implemented, validated, and deployed to production.
 
 ## Completed Tasks
 
@@ -416,6 +416,12 @@ AI coordinator scheduling reliability is implemented and validated locally; prod
 - WhatsApp reliability decision: persist each outage episode on `WhatsAppAccount`, apply a short grace period, and deliver one disconnect/recovery pair asynchronously through the existing worker job queue.
 
 ## Deployment Status
+
+- AI coordinator scheduling reliability deployed from commit `6fe9114` on 2026-07-16.
+  - Railway API deployment `20624fe9-ad46-4dd3-a970-c6b2dcd58615` completed successfully and applied migration `20260716000000_split_milestone_coordinator_jobs`.
+  - Railway worker deployment `23bd25c2-e3fc-42f2-a909-4626428af814` completed successfully and reached its job-waiting state.
+  - Railway cron deployment `166236d6-081b-4889-ae2d-b5cd418573e8` completed successfully with schedule `0 */4 * * *` and service ID `35e359ce-6105-4a30-bfc2-5b6aa769f7c4`.
+  - Production API health returned `{"status":"ok"}`; the cron endpoint returned HTTP 401 without its secret, accepted the shared secret, and retained the Redis lock across an immediate duplicate call.
 
 - Guided WhatsApp account setup is deployed from commit `b674ff6` on 2026-07-15.
   - Vercel production serves the three-step wizard bundle at `https://fieldos-sand.vercel.app/settings`.
