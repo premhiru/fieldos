@@ -19,7 +19,7 @@ FieldOS uses Railway for the first backend hosting target because the API, worke
 
 - `fieldos-api`: Fastify API using `infrastructure/railway/api.railway.json`.
 - `fieldos-worker`: long-running worker using `infrastructure/railway/worker.railway.json`.
-- `fieldos-coordinator-cron`: scheduled Railway Function using `infrastructure/railway/coordinator-cron.ts`; `infrastructure/railway/coordinator-cron.railway.json` documents the equivalent service config.
+- `fieldos-coordinator-cron`: short-lived source-backed cron service using `infrastructure/railway/coordinator-cron/railway.json`.
 - `Postgres`: managed PostgreSQL.
 - `Redis`: managed Redis.
 

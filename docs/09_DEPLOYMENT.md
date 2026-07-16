@@ -49,7 +49,7 @@ The service config files live in `infrastructure/railway/`.
 
 Use `infrastructure/railway/api.railway.json` for the API service.
 Use `infrastructure/railway/worker.railway.json` for the worker service.
-Use `infrastructure/railway/coordinator-cron.ts` for the scheduled Railway Function. `infrastructure/railway/coordinator-cron.railway.json` documents an equivalent source-backed cron service.
+Deploy `infrastructure/railway/coordinator-cron/` as the root for the coordinator cron service. Its `railway.json` owns the four-hour schedule and curl start command.
 
 ## Current Deployment
 
