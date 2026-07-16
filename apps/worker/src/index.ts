@@ -19,7 +19,7 @@ import {
   markProcessingJobFailed,
   prisma,
   processSearchIndexJob,
-  queueProjectCoordinatorJob,
+  queueProjectCoordinatorJobs,
   queueSearchIndexJob,
   type ProcessingJob,
   type ProjectReportType
@@ -124,6 +124,9 @@ const coordinatorRuntime = new ProjectCoordinatorRuntime(prisma, {
   })
 });
 const aiProviderThrottle = new ProviderRequestThrottle(workerEnv.AI_PROVIDER_MIN_INTERVAL_MS);
+const milestoneCoordinatorThrottle = new ProviderRequestThrottle(
+  workerEnv.MILESTONE_COORDINATOR_MIN_INTERVAL_MS
+);
 const whatsAppConnectionAlertProcessor = new WhatsAppConnectionAlertProcessor(
   createPrismaWhatsAppConnectionAlertStore(prisma),
   createResendEmailSender({ apiKey: workerEnv.RESEND_API_KEY }),
@@ -144,7 +147,6 @@ redis.on("error", (error: Error) => {
 let heartbeat: NodeJS.Timeout | undefined;
 let processingTimer: NodeJS.Timeout | undefined;
 let processingFailureCount = 0;
-let lastCoordinatorScanAt = 0;
 let shuttingDown = false;
 
 async function start() {
@@ -180,7 +182,6 @@ async function start() {
 }
 
 async function processBackgroundJobs(): Promise<void> {
-  await queueCoordinatorScanIfDue();
   const voiceProcessed = await processJobsOfType("VOICE_TRANSCRIPTION", processVoiceJob);
   const photoProcessed = await processJobsOfType("PHOTO_ANALYSIS", processPhotoJob, {
     limit: workerEnv.AI_PROVIDER_JOBS_PER_POLL
@@ -189,6 +190,10 @@ async function processBackgroundJobs(): Promise<void> {
   const coordinatorProcessed = await processJobsOfType(
     "PROJECT_COORDINATOR",
     processCoordinatorJob
+  );
+  const milestoneCoordinatorProcessed = await processJobsOfType(
+    "PROJECT_COORDINATOR_MILESTONE",
+    processMilestoneCoordinatorJob
   );
   const draftSendProcessed = await processJobsOfType(
     "WHATSAPP_DRAFT_SEND",
@@ -209,6 +214,7 @@ async function processBackgroundJobs(): Promise<void> {
     photoProcessed +
     reportProcessed +
     coordinatorProcessed +
+    milestoneCoordinatorProcessed +
     draftSendProcessed +
     connectionAlertProcessed;
 
@@ -219,6 +225,7 @@ async function processBackgroundJobs(): Promise<void> {
         connectionAlertProcessed,
         coordinatorProcessed,
         draftSendProcessed,
+        milestoneCoordinatorProcessed,
         photoProcessed,
         processed,
         reportProcessed,
@@ -260,6 +267,7 @@ async function processJobsOfType(
     | "AI_CLASSIFICATION"
     | "PHOTO_ANALYSIS"
     | "PROJECT_COORDINATOR"
+    | "PROJECT_COORDINATOR_MILESTONE"
     | "REPORT_GENERATION"
     | "SEARCH_INDEX"
     | "WHATSAPP_CONNECTION_ALERT"
@@ -312,7 +320,11 @@ async function processClaimedJob(
         error.retryAfterMs && error.retryAfterMs > 0
           ? error.retryAfterMs
           : workerEnv.AI_PROVIDER_RATE_LIMIT_RETRY_MS;
-      aiProviderThrottle.defer(retryAfterMs);
+      const throttle =
+        job.type === "PROJECT_COORDINATOR_MILESTONE"
+          ? milestoneCoordinatorThrottle
+          : aiProviderThrottle;
+      throttle.defer(retryAfterMs);
       await deferProcessingJob(prisma, {
         errorMessage: error.message,
         job,
@@ -610,7 +622,7 @@ async function processPhotoJob(job: ProcessingJob): Promise<void> {
       sourceType: "MESSAGE"
     });
     if (attachment.message.conversation.projectId) {
-      await queueProjectCoordinatorJob(tx, {
+      await queueProjectCoordinatorJobs(tx, {
         organizationId: attachment.message.conversation.organizationId,
         projectId: attachment.message.conversation.projectId,
         sourceId: attachment.message.conversation.projectId
@@ -639,7 +651,7 @@ async function processAIJob(job: ProcessingJob): Promise<void> {
   }
 
   if (classification?.projectId) {
-    await queueProjectCoordinatorJob(prisma, {
+    await queueProjectCoordinatorJobs(prisma, {
       organizationId: classification.organizationId,
       projectId: classification.projectId,
       sourceId: classification.projectId
@@ -648,8 +660,12 @@ async function processAIJob(job: ProcessingJob): Promise<void> {
 }
 
 async function processCoordinatorJob(job: ProcessingJob): Promise<void> {
-  await aiProviderThrottle.wait();
-  await coordinatorRuntime.runProjectCoordinators(job.sourceId);
+  await coordinatorRuntime.runLightweightCoordinators(job.sourceId);
+}
+
+async function processMilestoneCoordinatorJob(job: ProcessingJob): Promise<void> {
+  await milestoneCoordinatorThrottle.wait();
+  await coordinatorRuntime.runMilestoneCoordinator(job.sourceId);
 }
 
 async function processWhatsAppDraftSendJob(job: ProcessingJob): Promise<void> {
@@ -678,21 +694,6 @@ async function processWhatsAppDraftSendJob(job: ProcessingJob): Promise<void> {
 
   if (!result.sent) {
     throw new Error("error" in result ? result.error : "WhatsApp draft send was not completed.");
-  }
-}
-
-async function queueCoordinatorScanIfDue(): Promise<void> {
-  const now = Date.now();
-
-  if (now - lastCoordinatorScanAt < 60 * 60 * 1000) {
-    return;
-  }
-
-  const queued = await coordinatorRuntime.queueScheduledScan();
-  lastCoordinatorScanAt = now;
-
-  if (queued > 0) {
-    logger.info({ queued }, "queued scheduled coordinator scan");
   }
 }
 
@@ -791,7 +792,7 @@ async function processReportJob(job: ProcessingJob): Promise<void> {
         sourceId: event.id,
         sourceType: "TIMELINE_EVENT"
       });
-      await queueProjectCoordinatorJob(tx, {
+      await queueProjectCoordinatorJobs(tx, {
         organizationId: report.organizationId,
         projectId: report.projectId,
         sourceId: report.projectId

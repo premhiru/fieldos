@@ -5,6 +5,60 @@ import { ProjectCoordinatorRuntime } from "./runtime.js";
 const now = new Date("2026-07-08T08:00:00.000Z");
 
 describe("ProjectCoordinatorRuntime", () => {
+  it("queues both coordinator job types during local operating hours", async () => {
+    const prisma = createPrismaStub();
+    const runtime = new ProjectCoordinatorRuntime(prisma as never, { now: () => now });
+
+    const queued = await runtime.queueScheduledScan();
+
+    expect(queued).toBe(2);
+    expect(prisma.processingJob.upsert).toHaveBeenCalledTimes(2);
+  });
+
+  it("skips scheduled scans outside a project's local operating hours", async () => {
+    const prisma = createPrismaStub();
+    prisma.project.findMany.mockResolvedValue([
+      {
+        createdAt: now,
+        id: "project_1",
+        name: "Terminal 2",
+        organizationId: "org_1",
+        status: "ACTIVE",
+        timezone: "Pacific/Honolulu",
+        updatedAt: now
+      }
+    ]);
+    const runtime = new ProjectCoordinatorRuntime(prisma as never, { now: () => now });
+
+    const queued = await runtime.queueScheduledScan();
+
+    expect(queued).toBe(0);
+    expect(prisma.processingJob.upsert).not.toHaveBeenCalled();
+  });
+
+  it("runs lightweight coordinators without milestone detection", async () => {
+    const prisma = createPrismaStub();
+    const runtime = new ProjectCoordinatorRuntime(prisma as never, { now: () => now });
+
+    const result = await runtime.runLightweightCoordinators("project_1");
+
+    expect(result.results.map((entry) => entry.coordinatorType)).toEqual([
+      "PROGRESS",
+      "FOLLOW_UP",
+      "INSPECTION",
+      "REPORT"
+    ]);
+  });
+
+  it("runs milestone detection in an isolated coordinator run", async () => {
+    const prisma = createPrismaStub();
+    const runtime = new ProjectCoordinatorRuntime(prisma as never, { now: () => now });
+
+    const result = await runtime.runMilestoneCoordinator("project_1");
+
+    expect(result.results.map((entry) => entry.coordinatorType)).toEqual(["MILESTONE"]);
+  });
+
   it("creates deterministic ProjectState snapshots", async () => {
     const prisma = createPrismaStub();
     const runtime = new ProjectCoordinatorRuntime(prisma as never, { now: () => now });
@@ -364,6 +418,7 @@ function createPrismaStub() {
       findMany: vi.fn().mockResolvedValue([])
     },
     processingJob: {
+      findFirst: vi.fn().mockResolvedValue(null),
       upsert: vi.fn()
     },
     project: {

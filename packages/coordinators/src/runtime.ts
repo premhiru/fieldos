@@ -1,7 +1,7 @@
 import {
   Prisma,
   queueWhatsAppDraftSendJob,
-  queueProjectCoordinatorJob,
+  queueProjectCoordinatorJobs,
   queueReportGenerationJob,
   queueSearchIndexJob,
   type CoordinatorRun,
@@ -41,6 +41,24 @@ const urgentFollowUpThresholdMs = 5 * 24 * 60 * 60 * 1000;
 const recommendationDedupWindowMs = 7 * 24 * 60 * 60 * 1000;
 const inspectionPattern =
   /\b(ready for inspection|pending inspection|completed|complete|installed|testing required|ready to inspect)\b/i;
+
+function isWithinCoordinatorScanHours(now: Date, timezone: string | null | undefined): boolean {
+  const resolvedTimezone = timezone?.trim() || "UTC";
+
+  try {
+    const hourPart = new Intl.DateTimeFormat("en-US", {
+      hour: "2-digit",
+      hourCycle: "h23",
+      timeZone: resolvedTimezone
+    })
+      .formatToParts(now)
+      .find((part) => part.type === "hour");
+    const hour = Number(hourPart?.value);
+    return Number.isInteger(hour) && hour >= 7 && hour < 19;
+  } catch {
+    return isWithinCoordinatorScanHours(now, "UTC");
+  }
+}
 
 interface ProjectCoordinatorContext {
   actionItems: Array<{
@@ -128,34 +146,55 @@ export class ProjectCoordinatorRuntime {
     const projects = await this.prisma.project.findMany({
       select: {
         id: true,
-        organizationId: true
+        organizationId: true,
+        timezone: true
       },
       where: {
         status: "ACTIVE"
       }
     });
 
+    let queued = 0;
+
     for (const project of projects) {
-      await queueProjectCoordinatorJob(this.prisma, {
+      if (!isWithinCoordinatorScanHours(this.now(), project.timezone)) {
+        continue;
+      }
+
+      queued += await queueProjectCoordinatorJobs(this.prisma, {
         organizationId: project.organizationId,
         projectId: project.id,
         sourceId: project.id
       });
     }
 
-    return projects.length;
+    return queued;
+  }
+
+  async runLightweightCoordinators(projectId: string): Promise<ProjectCoordinatorRunResult> {
+    return this.runCoordinatorSet(projectId, ["PROGRESS", "FOLLOW_UP", "INSPECTION", "REPORT"]);
+  }
+
+  async runMilestoneCoordinator(projectId: string): Promise<ProjectCoordinatorRunResult> {
+    return this.runCoordinatorSet(projectId, ["MILESTONE"]);
   }
 
   async runProjectCoordinators(projectId: string): Promise<ProjectCoordinatorRunResult> {
-    const project = await this.requireProject(projectId);
-    const projectState = await this.rebuildProjectState(projectId);
-    const coordinators: CoordinatorType[] = [
+    return this.runCoordinatorSet(projectId, [
       "PROGRESS",
       "FOLLOW_UP",
       "INSPECTION",
       "MILESTONE",
       "REPORT"
-    ];
+    ]);
+  }
+
+  private async runCoordinatorSet(
+    projectId: string,
+    coordinators: CoordinatorType[]
+  ): Promise<ProjectCoordinatorRunResult> {
+    const project = await this.requireProject(projectId);
+    const projectState = await this.rebuildProjectState(projectId);
     const results = [];
 
     for (const coordinatorType of coordinators) {

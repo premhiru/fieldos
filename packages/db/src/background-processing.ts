@@ -34,6 +34,8 @@ export interface JobMetricsRow {
   type: ProcessingJobType;
 }
 
+const coordinatorJobDebounceMs = 15 * 60 * 1000;
+
 export async function queueProcessingJob(
   prisma: PrismaClient | Prisma.TransactionClient,
   input: QueueProcessingJobInput
@@ -138,11 +140,66 @@ export async function queueProjectCoordinatorJob(
   prisma: PrismaClient | Prisma.TransactionClient,
   input: Omit<QueueProcessingJobInput, "sourceType" | "type">
 ): Promise<ProcessingJob> {
-  return queueProcessingJob(prisma, {
-    ...input,
-    sourceType: "PROJECT",
-    type: "PROJECT_COORDINATOR"
+  return (await queueDebouncedProjectCoordinatorJob(prisma, input, "PROJECT_COORDINATOR")).job;
+}
+
+export async function queueProjectCoordinatorMilestoneJob(
+  prisma: PrismaClient | Prisma.TransactionClient,
+  input: Omit<QueueProcessingJobInput, "sourceType" | "type">
+): Promise<ProcessingJob> {
+  return (await queueDebouncedProjectCoordinatorJob(prisma, input, "PROJECT_COORDINATOR_MILESTONE"))
+    .job;
+}
+
+export async function queueProjectCoordinatorJobs(
+  prisma: PrismaClient | Prisma.TransactionClient,
+  input: Omit<QueueProcessingJobInput, "sourceType" | "type">
+): Promise<number> {
+  const [lightweight, milestone] = await Promise.all([
+    queueDebouncedProjectCoordinatorJob(prisma, input, "PROJECT_COORDINATOR"),
+    queueDebouncedProjectCoordinatorJob(prisma, input, "PROJECT_COORDINATOR_MILESTONE")
+  ]);
+
+  return Number(lightweight.queued) + Number(milestone.queued);
+}
+
+async function queueDebouncedProjectCoordinatorJob(
+  prisma: PrismaClient | Prisma.TransactionClient,
+  input: Omit<QueueProcessingJobInput, "sourceType" | "type">,
+  type: "PROJECT_COORDINATOR" | "PROJECT_COORDINATOR_MILESTONE"
+): Promise<{ job: ProcessingJob; queued: boolean }> {
+  const debounceCutoff = new Date(Date.now() - coordinatorJobDebounceMs);
+  const recentJob = await prisma.processingJob.findFirst({
+    orderBy: {
+      updatedAt: "desc"
+    },
+    where: {
+      OR: [
+        {
+          createdAt: { gte: debounceCutoff }
+        },
+        {
+          updatedAt: { gte: debounceCutoff }
+        }
+      ],
+      projectId: input.projectId ?? input.sourceId,
+      status: { in: ["PENDING", "RUNNING", "COMPLETED"] },
+      type
+    }
   });
+
+  if (recentJob) {
+    return { job: recentJob, queued: false };
+  }
+
+  return {
+    job: await queueProcessingJob(prisma, {
+      ...input,
+      sourceType: "PROJECT",
+      type
+    }),
+    queued: true
+  };
 }
 
 export async function queueWhatsAppDraftSendJob(
@@ -485,6 +542,7 @@ export async function getJobMetrics(
     "REPORT_GENERATION",
     "MEDIA_DOWNLOAD",
     "PROJECT_COORDINATOR",
+    "PROJECT_COORDINATOR_MILESTONE",
     "WHATSAPP_DRAFT_SEND"
   ] as const) {
     ensure(type);

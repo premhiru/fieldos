@@ -5,7 +5,7 @@
 | Purpose      | Track FieldOS milestone progress, task completion, technical debt, architecture decisions, and deployment readiness. |
 | Owner        | Founding Engineering                                                                                                 |
 | Status       | Active                                                                                                               |
-| Last Updated | 2026-07-15                                                                                                           |
+| Last Updated | 2026-07-16                                                                                                           |
 
 ## Table of Contents
 
@@ -19,9 +19,17 @@
 
 ## Current Milestone
 
-The guided WhatsApp account setup experience is implemented, validated, and deployed to production.
+AI coordinator scheduling reliability is implemented and validated locally; production deployment is in progress.
 
 ## Completed Tasks
+
+- AI coordinator scheduling reliability.
+  - Added independent 15-minute debounce windows for lightweight and milestone coordinator jobs.
+  - Split AI-assisted milestone detection into `PROJECT_COORDINATOR_MILESTONE` with an independent provider throttle.
+  - Added a protected scheduled-scan API endpoint with a 55-minute Redis distributed lock.
+  - Added project-timezone operating-hour gates for baseline scans while preserving 24/7 event-driven processing.
+  - Removed scan scheduling from the worker and added Railway cron configuration for four-hour UTC triggers.
+  - Added focused queue, runtime, timezone, authorization, and lock tests.
 
 - Guided WhatsApp account setup experience.
   - Replaced internal connection status labels with a three-step line naming, QR scanning, and connection wizard.

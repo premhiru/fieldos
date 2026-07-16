@@ -299,6 +299,8 @@ FieldOS includes five coordinators:
 
 Recommendations are first-class records. Users can approve, dismiss, complete, inspect details, and review WhatsApp drafts. FieldOS recommends; humans approve. WhatsApp drafts require a second explicit send action and are not sent automatically.
 
+Coordinator work is split into independently debounced queues. `PROJECT_COORDINATOR` runs the Progress, Follow-up, Inspection, and Report coordinators; `PROJECT_COORDINATOR_MILESTONE` runs AI-assisted milestone detection behind its own provider throttle. Event-triggered jobs are debounced per project and job type for 15 minutes. A protected Railway cron calls the API every four hours for baseline scans, which use a Redis lock and respect each project's 07:00-19:00 local operating window.
+
 ## Milestone Intelligence
 
 Milestone Intelligence converts explicit WhatsApp field updates and voice transcripts into reviewable project milestone recommendations. It uses deterministic phrase detection and title normalization first, with a strict OpenRouter-compatible AI prompt as a fallback. Relative dates are resolved from the message timestamp and project timezone; ambiguous phrases remain unset and are labeled for review.
@@ -345,7 +347,7 @@ The AI layer builds a `UnifiedEvidenceContext` for each message, classifies the 
 
 FieldOS includes a lightweight operations health page at `/admin/operations` for organization `OWNER` and `ADMIN` users. It shows worker heartbeat, job metrics, WhatsApp account status, AI queue health, search indexing health, coordinator run metrics, pending recommendations, and media/transcription queue placeholders.
 
-Background work is tracked in `ProcessingJob` rows. Search indexing is asynchronous: message, project, event, Action Item, and AI classification writes enqueue `SEARCH_INDEX` jobs, and the worker updates `SearchDocument`. Project coordinator scans use `PROJECT_COORDINATOR` jobs. Search endpoints only read the index.
+Background work is tracked in `ProcessingJob` rows. Search indexing is asynchronous: message, project, event, Action Item, and AI classification writes enqueue `SEARCH_INDEX` jobs, and the worker updates `SearchDocument`. Project coordinator scans use separate lightweight and milestone jobs. Search endpoints only read the index.
 
 Worker status is tracked through `WorkerHeartbeat`, updated every 30 seconds by the Railway worker. Failed jobs can be retried individually or in bulk from the operations page.
 

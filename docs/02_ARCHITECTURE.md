@@ -217,7 +217,9 @@ Coordinator logic is deterministic-first:
 - AI prompts are versioned in `packages/ai/src/prompts`, but model output is limited to concise summaries and draft wording.
 - Recommendations are persisted in `Recommendation` and require human approval before FieldOS creates Action Items, queues reports, or creates WhatsApp drafts.
 
-The worker queues `PROJECT_COORDINATOR` jobs after relevant processing events and also schedules an hourly scan of active projects. `CoordinatorRun` records run status, failures, and recommendation counts for `/admin/operations`.
+Relevant processing events queue two independently debounced jobs: `PROJECT_COORDINATOR` for Progress, Follow-up, Inspection, and Report, and `PROJECT_COORDINATOR_MILESTONE` for AI-assisted milestone detection. The milestone job has its own provider throttle, so rate limits do not delay deterministic coordinators.
+
+Baseline scans are scheduler-owned rather than worker-owned. Railway calls `POST /internal/coordinator-scan` every four hours with `CRON_SECRET`; the API acquires a 55-minute Redis lock and queues only active projects whose local time is between 07:00 and 19:00. Event-triggered jobs remain active at all hours. `CoordinatorRun` continues to record each coordinator's status, failure, and recommendation count for `/admin/operations`.
 
 Project intelligence API endpoints:
 
@@ -237,7 +239,7 @@ Dashboard intelligence surfaces must remain presentation-oriented. They call API
 
 The workflow is recommendation-first:
 
-1. The worker runs project coordinators after evidence processing and during the hourly scan.
+1. Evidence processing queues independently debounced lightweight and milestone coordinator jobs; Railway triggers the periodic baseline scan through the API.
 2. The Milestone Coordinator resolves evidence-backed changes and deduplicates pending recommendations by project, normalized title, action, source message, and target date.
 3. The API authorizes project contributors and exposes review, manual CRUD, approve, and edit-and-approve operations.
 4. Approval creates or changes a milestone in a transaction, marks the recommendation complete, writes a business `Event` with source type `MILESTONE`, queues search indexing, and rebuilds `ProjectState`.

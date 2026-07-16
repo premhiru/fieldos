@@ -52,6 +52,7 @@ import type {
 } from "./repository.js";
 
 vi.stubEnv("CORS_ORIGIN", "http://localhost:3000");
+vi.stubEnv("CRON_SECRET", "test-cron-secret-that-is-long-enough");
 vi.stubEnv("DATABASE_URL", "postgresql://fieldos:fieldos@localhost:5432/fieldos?schema=public");
 vi.stubEnv("JWT_SECRET", "test-secret-that-is-long-enough");
 vi.stubEnv("MEDIA_SIGNING_SECRET", "test-media-signing-secret");
@@ -89,6 +90,53 @@ describe("FieldOS API auth and tenancy", () => {
         })
       }
     });
+  });
+
+  it("protects scheduled coordinator scans with the cron secret and Redis lock", async () => {
+    const queueScheduledScan = vi.fn().mockResolvedValue(4);
+    const acquire = vi.fn().mockResolvedValue(true);
+    server = buildServer({
+      coordinatorRuntime: { queueScheduledScan } as never,
+      coordinatorScanLock: { acquire },
+      qrStore: new InMemoryQrStore(),
+      repository
+    });
+
+    const unauthorizedResponse = await server.inject({
+      method: "POST",
+      url: "/internal/coordinator-scan"
+    });
+    const response = await server.inject({
+      headers: { authorization: "Bearer test-cron-secret-that-is-long-enough" },
+      method: "POST",
+      url: "/internal/coordinator-scan"
+    });
+
+    expect(unauthorizedResponse.statusCode).toBe(401);
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ queued: 4 });
+    expect(acquire).toHaveBeenCalledWith("coordinator:scheduled-scan:lock", 55 * 60);
+    expect(queueScheduledScan).toHaveBeenCalledOnce();
+  });
+
+  it("skips a scheduled coordinator scan when another caller holds the lock", async () => {
+    const queueScheduledScan = vi.fn();
+    server = buildServer({
+      coordinatorRuntime: { queueScheduledScan } as never,
+      coordinatorScanLock: { acquire: vi.fn().mockResolvedValue(false) },
+      qrStore: new InMemoryQrStore(),
+      repository
+    });
+
+    const response = await server.inject({
+      headers: { authorization: "Bearer test-cron-secret-that-is-long-enough" },
+      method: "POST",
+      url: "/internal/coordinator-scan"
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ queued: 0 });
+    expect(queueScheduledScan).not.toHaveBeenCalled();
   });
 
   it("signs up a user", async () => {

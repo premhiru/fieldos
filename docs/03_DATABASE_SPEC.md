@@ -5,7 +5,7 @@
 | Purpose      | Define the data model, ownership boundaries, migration policy, and database standards. |
 | Owner        | Engineering                                                                            |
 | Status       | Draft                                                                                  |
-| Last Updated | 2026-07-13                                                                             |
+| Last Updated | 2026-07-16                                                                             |
 
 ## Table of Contents
 
@@ -486,6 +486,9 @@ Job types:
 - `PHOTO_ANALYSIS`
 - `REPORT_GENERATION`
 - `PROJECT_COORDINATOR`
+- `PROJECT_COORDINATOR_MILESTONE`
+
+Coordinator jobs are debounced per project and type for 15 minutes. The lightweight and milestone types are independent so AI provider throttling cannot block deterministic coordinator work.
 
 Job statuses:
 

@@ -127,6 +127,7 @@ import {
 const writableRoles = new Set<Role>(["OWNER", "ADMIN"]);
 
 export interface BuildServerOptions {
+  coordinatorScanLock?: CoordinatorScanLock;
   coordinatorRuntime?: CoordinatorRuntimePort;
   qrStore?: WhatsAppQrStore;
   passwordResetEmailSender?: PasswordResetEmailSender;
@@ -137,6 +138,10 @@ export interface BuildServerOptions {
   storageProvider?: StorageProvider;
   teamInvitationEmailSender?: TeamInvitationEmailSender;
   teamService?: TeamService;
+}
+
+export interface CoordinatorScanLock {
+  acquire(key: string, ttlSeconds: number): Promise<boolean>;
 }
 
 type CoordinatorRuntimePort = Pick<
@@ -157,6 +162,7 @@ type CoordinatorRuntimePort = Pick<
   | "listRecommendations"
   | "listWhatsAppDrafts"
   | "rebuildProjectState"
+  | "queueScheduledScan"
   | "runProjectCoordinators"
   | "createMilestone"
   | "deleteMilestone"
@@ -209,6 +215,15 @@ export function buildServer(options: BuildServerOptions = {}) {
     });
   const qrRedis = options.qrStore ? null : new Redis(apiEnv.REDIS_URL, { lazyConnect: true });
   const qrStore = options.qrStore ?? new RedisWhatsAppQrStore(qrRedis as Redis);
+  const coordinatorScanLock =
+    options.coordinatorScanLock ??
+    (qrRedis
+      ? createRedisCoordinatorScanLock(qrRedis)
+      : {
+          acquire: async () => {
+            throw new Error("Coordinator scan lock is not configured.");
+          }
+        });
   const server = fastify({
     logger: {
       level: process.env.LOG_LEVEL ?? "info"
@@ -289,6 +304,22 @@ export function buildServer(options: BuildServerOptions = {}) {
   server.get("/health", async () => ({
     status: "ok"
   }));
+
+  server.post("/internal/coordinator-scan", async (request) => {
+    if (request.headers.authorization !== `Bearer ${apiEnv.CRON_SECRET}`) {
+      throw unauthorized("Invalid coordinator scan credentials.");
+    }
+
+    const acquired = await coordinatorScanLock.acquire("coordinator:scheduled-scan:lock", 55 * 60);
+
+    if (!acquired) {
+      return { queued: 0 };
+    }
+
+    const queued = await coordinatorRuntime.queueScheduledScan();
+    request.log.info({ queued, requestId: request.id }, "queued scheduled coordinator scan");
+    return { queued };
+  });
 
   server.get("/invitations/resolve", async (request) => {
     const headers = invitationTokenHeadersSchema.parse(request.headers);
@@ -2430,6 +2461,7 @@ function createNoopCoordinatorRuntime(): CoordinatorRuntimePort {
     listRecommendations: async () => [],
     listWhatsAppDrafts: async () => [],
     rebuildProjectState: async () => null as never,
+    queueScheduledScan: async () => 0,
     runProjectCoordinators: async () => null as never,
     sendWhatsAppDraft: async () => ({
       draft: null as never,
@@ -2438,6 +2470,12 @@ function createNoopCoordinatorRuntime(): CoordinatorRuntimePort {
     }),
     updateMilestone: async () => null as never,
     updateWhatsAppDraft: async () => null as never
+  };
+}
+
+function createRedisCoordinatorScanLock(redis: Redis): CoordinatorScanLock {
+  return {
+    acquire: async (key, ttlSeconds) => (await redis.set(key, "1", "EX", ttlSeconds, "NX")) === "OK"
   };
 }
 

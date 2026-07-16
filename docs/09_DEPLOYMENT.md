@@ -5,7 +5,7 @@
 | Purpose      | Define the first production hosting approach for FieldOS services. |
 | Owner        | Founding Engineering                                               |
 | Status       | Active                                                             |
-| Last Updated | 2026-07-14                                                         |
+| Last Updated | 2026-07-16                                                         |
 
 ## Table of Contents
 
@@ -33,13 +33,15 @@ The dashboard is deployed to Vercel. The API, worker, PostgreSQL, and Redis are 
 | Worker    | Railway | Long-running process with Redis access.     |
 | Database  | Railway | Managed PostgreSQL near API and worker.     |
 | Cache     | Railway | Managed Redis near API and worker.          |
+| Scheduler | Railway | Short-lived cron service with visible runs. |
 
 ## Railway Services
 
-Railway project `fieldos` contains four services:
+Railway project `fieldos` contains five services:
 
 - `fieldos-api`
 - `fieldos-worker`
+- `fieldos-coordinator-cron`
 - `Postgres`
 - `Redis`
 
@@ -47,6 +49,7 @@ The service config files live in `infrastructure/railway/`.
 
 Use `infrastructure/railway/api.railway.json` for the API service.
 Use `infrastructure/railway/worker.railway.json` for the worker service.
+Use `infrastructure/railway/coordinator-cron.railway.json` for the coordinator cron service.
 
 ## Current Deployment
 
@@ -55,6 +58,7 @@ Use `infrastructure/railway/worker.railway.json` for the worker service.
 | Dashboard  | Vercel   | Deployed | `https://fieldos-sand.vercel.app`               |
 | API        | Railway  | Deployed | `https://fieldos-api-production.up.railway.app` |
 | Worker     | Railway  | Deployed | `fieldos-worker`                                |
+| Scheduler  | Railway  | Deployed | `fieldos-coordinator-cron`                      |
 | PostgreSQL | Railway  | Deployed | `Postgres`                                      |
 | Redis      | Railway  | Deployed | `Redis`                                         |
 
@@ -70,6 +74,7 @@ PORT=${{PORT}}
 DATABASE_URL=${{Postgres.DATABASE_URL}}
 REDIS_URL=${{Redis.REDIS_URL}}
 JWT_SECRET=<generated secret, at least 16 characters>
+CRON_SECRET=<generated secret shared with coordinator cron>
 CORS_ORIGIN=https://fieldos-sand.vercel.app
 WEB_APP_URL=https://fieldos-sand.vercel.app
 RESEND_API_KEY=<resend-api-key>
@@ -102,6 +107,7 @@ AI_PROVIDER_JOBS_PER_POLL=1
 AI_PROVIDER_MAX_ATTEMPTS=10
 AI_PROVIDER_MIN_INTERVAL_MS=12000
 AI_PROVIDER_RATE_LIMIT_RETRY_MS=60000
+MILESTONE_COORDINATOR_MIN_INTERVAL_MS=12000
 WHATSAPP_STORAGE_PATH=/data/whatsapp
 MEDIA_SIGNING_SECRET=<generated secret shared by API and worker>
 WHATSAPP_SESSION_POLL_INTERVAL_MS=10000
@@ -115,6 +121,15 @@ R2_REGION=auto
 R2_FORCE_PATH_STYLE=true
 SIGNED_URL_TTL_SECONDS=900
 ```
+
+Coordinator cron service:
+
+```text
+CRON_SECRET=<same value as fieldos-api>
+COORDINATOR_SCAN_URL=https://fieldos-api-production.up.railway.app
+```
+
+The cron schedule is `0 */4 * * *` UTC. Its process calls the protected scan endpoint and exits. The API keeps the Redis lock for 55 minutes and applies each project's configured timezone before queueing work.
 
 Vercel dashboard:
 

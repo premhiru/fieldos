@@ -12,6 +12,7 @@ export const workerEnv = createEnv(
       AI_PROVIDER_MIN_INTERVAL_MS: z.coerce.number().int().positive().default(12_000),
       AI_PROVIDER_RATE_LIMIT_RETRY_MS: z.coerce.number().int().positive().default(60_000),
       MEDIA_SIGNING_SECRET: z.string().trim().min(16).default("local-media-signing-secret"),
+      MILESTONE_COORDINATOR_MIN_INTERVAL_MS: z.coerce.number().int().positive().default(12_000),
       NODE_ENV: nodeEnvSchema,
       OPENROUTER_API_KEY: z.string().trim().optional(),
       OPENAI_API_KEY: z.string().trim().optional(),

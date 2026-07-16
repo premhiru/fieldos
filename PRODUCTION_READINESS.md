@@ -5,7 +5,7 @@
 | Purpose      | Track production readiness for the first FieldOS pilot. |
 | Owner        | Principal Engineering                                   |
 | Status       | Active                                                  |
-| Last Updated | 2026-07-14                                              |
+| Last Updated | 2026-07-16                                              |
 
 ## Table of Contents
 
@@ -44,7 +44,7 @@ Overall readiness: 88%.
 - Deploy API, worker, and dashboard after this commit.
 - Verify `GET /health`.
 - Verify Railway worker heartbeat on `/admin/operations`.
-- Verify coordinator scheduled scan queues `PROJECT_COORDINATOR` jobs at most hourly.
+- Verify the Railway coordinator cron calls the protected endpoint every four hours, the Redis lock suppresses duplicate triggers, and scans queue both coordinator job types only during project-local operating hours.
 - Verify a project state rebuild and recommendation approval flow in production.
 - Pair the dedicated WhatsApp pilot line and verify one `WHATSAPP_DRAFT_SEND` job succeeds.
 - Reset demo workspace in production and confirm dashboard data loads.

@@ -10,6 +10,7 @@ export const apiEnv = createEnv(
   z
     .object({
       CORS_ORIGIN: z.string().url().default("http://localhost:3000"),
+      CRON_SECRET: z.string().trim().min(16),
       DATABASE_URL: z.string().min(1),
       EMAIL_FROM: z.string().trim().min(3).optional(),
       JWT_SECRET: z.string().min(16),

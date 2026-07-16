@@ -636,6 +636,8 @@ model ProcessingJob {
   @@index([organizationId, status, createdAt])
   @@index([organizationId, type, status])
   @@index([projectId, status, createdAt])
+  @@index([projectId, type, status, createdAt])
+  @@index([projectId, type, status, updatedAt])
   @@index([status, createdAt])
   @@index([status, nextRunAt, createdAt])
 }
@@ -762,6 +764,7 @@ enum ProcessingJobType {
   REPORT_GENERATION
   MEDIA_DOWNLOAD
   PROJECT_COORDINATOR
+  PROJECT_COORDINATOR_MILESTONE
   WHATSAPP_DRAFT_SEND
   WHATSAPP_CONNECTION_ALERT
 }
