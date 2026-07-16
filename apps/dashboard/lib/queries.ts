@@ -42,6 +42,7 @@ export function useOperationsDashboard(organizationId: string | null) {
     enabled: Boolean(organizationId),
     queryFn: () => api.getDashboard(organizationId ?? ""),
     queryKey: ["operations-dashboard", organizationId],
+    refetchInterval: 30_000,
     retry: false
   });
 }

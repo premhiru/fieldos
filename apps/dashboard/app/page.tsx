@@ -48,6 +48,7 @@ function DashboardContent() {
     enabled: Boolean(organization?.id),
     queryFn: () => api.listRecommendations(organization?.id ?? "", "PENDING"),
     queryKey: ["recommendations", organization?.id, "PENDING"],
+    refetchInterval: 30_000,
     retry: false
   });
   const [snoozed, setSnoozed] = React.useState<Record<string, number>>({});
