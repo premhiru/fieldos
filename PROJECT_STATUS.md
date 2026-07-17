@@ -29,6 +29,13 @@ AI provider reliability hardening for the enterprise pilot.
   - Added exponential rate-limit backoff and prevented provider throttling from permanently exhausting processing jobs.
   - Reset attempt counters when failed jobs are explicitly retried or re-queued so production recovery is actionable.
   - Added focused text, vision, and processing-job retry tests and completed repository-wide lint, typecheck, test, and build validation.
+  - Deployed the provider chain to the production API and worker, verified a live Kimi JSON request, and re-queued the affected project's 53 exhausted classifications through the throttled worker.
+
+- Railway coordinator cron reliability repair.
+  - Removed the duplicate curl command caused by combining the `curlimages/curl` entrypoint with a Railway start command.
+  - Added a container-owned runner with HTTPS environment validation and bounded retries for connection and provider failures.
+  - Verified the image locally against the production API contract and deployed the corrected scheduled artifact to Railway.
+  - Completed an authenticated production scan that queued 10 eligible project coordinator jobs.
 
 - Final Pilot Product Editing.
   - Reduced the Project Command Center to Project Brief, Recommended Actions, What's Changed, and Quick Links.
@@ -662,3 +669,13 @@ AI provider reliability hardening for the enterprise pilot.
   - API health verified at `https://fieldos-api-production.up.railway.app/health`.
   - Worker startup verified in Railway logs with `worker started and waiting for jobs`.
   - Dashboard deployment is verified through the Vercel commit status and production domain.
+- Kimi-primary AI routing is deployed.
+  - API deployment `9af4d96f-d267-4097-92a0-12be8486647b` succeeded.
+  - Worker deployment `f65f5642-06c5-4305-aca0-27598cc841eb` succeeded.
+  - Production API health and a live `kimi-k2.6` JSON-mode request passed.
+  - OpenRouter remains configured on both services as the automatic fallback.
+  - The affected project's 53 exhausted AI classification jobs were re-queued; the production worker is draining them sequentially without new terminal failures.
+- Coordinator cron repair is deployed.
+  - Cron artifact deployment `3e0c5ce8-9514-4897-b389-6b610b5dcf2f` succeeded with the Dockerfile and four-hour schedule loaded.
+  - The production cron URL is valid, and its secret matches the API `CRON_SECRET`.
+  - An authenticated end-to-end invocation returned `queued: 10`.
