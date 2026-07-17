@@ -619,52 +619,62 @@ export class ProjectCoordinatorRuntime {
       };
     }
 
-    switch (recommendation.proposedActionType) {
-      case "CREATE_MILESTONE":
-      case "UPDATE_MILESTONE":
-      case "COMPLETE_MILESTONE":
-      case "START_MILESTONE": {
-        return this.approveMilestoneRecommendation(input);
+    const result = await (async (): Promise<RecommendationApprovalResult> => {
+      switch (recommendation.proposedActionType) {
+        case "CREATE_MILESTONE":
+        case "UPDATE_MILESTONE":
+        case "COMPLETE_MILESTONE":
+        case "START_MILESTONE": {
+          return this.approveMilestoneRecommendation(input);
+        }
+        case "SEND_WHATSAPP_MESSAGE_DRAFT":
+        case "REQUEST_PROGRESS_UPDATE": {
+          const draft = await this.createDraftForRecommendation(recommendation, input.userId);
+          const updated = await this.markRecommendationApproved(recommendation.id, input.userId);
+          return { draft, recommendation: updated };
+        }
+        case "CREATE_ACTION_ITEM":
+        case "SCHEDULE_INSPECTION_REMINDER": {
+          const actionItemId = await this.createActionItemForRecommendation(
+            recommendation,
+            input.userId
+          );
+          const updated = await this.markRecommendationApproved(recommendation.id, input.userId);
+          return { actionItemId, recommendation: updated };
+        }
+        case "GENERATE_REPORT": {
+          const report = await this.queueReportForRecommendation(recommendation);
+          const updated = await this.markRecommendationApproved(recommendation.id, input.userId);
+          return { recommendation: updated, reportId: report.id };
+        }
+        case "MARK_PROGRESS_REVIEWED": {
+          const updated = await this.prisma.recommendation.update({
+            data: {
+              approvedAt: this.now(),
+              approvedByUserId: input.userId,
+              completedAt: this.now(),
+              status: "COMPLETED"
+            },
+            where: {
+              id: recommendation.id
+            }
+          });
+          return { recommendation: updated };
+        }
+        case "REVIEW_EVIDENCE": {
+          const updated = await this.markRecommendationApproved(recommendation.id, input.userId);
+          return { recommendation: updated };
+        }
       }
-      case "SEND_WHATSAPP_MESSAGE_DRAFT":
-      case "REQUEST_PROGRESS_UPDATE": {
-        const draft = await this.createDraftForRecommendation(recommendation, input.userId);
-        const updated = await this.markRecommendationApproved(recommendation.id, input.userId);
-        return { draft, recommendation: updated };
-      }
-      case "CREATE_ACTION_ITEM":
-      case "SCHEDULE_INSPECTION_REMINDER": {
-        const actionItemId = await this.createActionItemForRecommendation(
-          recommendation,
-          input.userId
-        );
-        const updated = await this.markRecommendationApproved(recommendation.id, input.userId);
-        return { actionItemId, recommendation: updated };
-      }
-      case "GENERATE_REPORT": {
-        const report = await this.queueReportForRecommendation(recommendation);
-        const updated = await this.markRecommendationApproved(recommendation.id, input.userId);
-        return { recommendation: updated, reportId: report.id };
-      }
-      case "MARK_PROGRESS_REVIEWED": {
-        const updated = await this.prisma.recommendation.update({
-          data: {
-            approvedAt: this.now(),
-            approvedByUserId: input.userId,
-            completedAt: this.now(),
-            status: "COMPLETED"
-          },
-          where: {
-            id: recommendation.id
-          }
-        });
-        return { recommendation: updated };
-      }
-      case "REVIEW_EVIDENCE": {
-        const updated = await this.markRecommendationApproved(recommendation.id, input.userId);
-        return { recommendation: updated };
-      }
-    }
+    })();
+
+    await queueProjectCoordinatorJobs(this.prisma, {
+      organizationId: recommendation.organizationId,
+      projectId: recommendation.projectId,
+      sourceId: recommendation.projectId
+    });
+
+    return result;
   }
 
   async dismissRecommendation(input: {
