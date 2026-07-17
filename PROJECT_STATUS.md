@@ -5,7 +5,7 @@
 | Purpose      | Track FieldOS milestone progress, task completion, technical debt, architecture decisions, and deployment readiness. |
 | Owner        | Founding Engineering                                                                                                 |
 | Status       | Active                                                                                                               |
-| Last Updated | 2026-07-16                                                                                                           |
+| Last Updated | 2026-07-17                                                                                                           |
 
 ## Table of Contents
 
@@ -19,7 +19,7 @@
 
 ## Current Milestone
 
-Final pilot product editing is implemented and undergoing release validation.
+Final pilot product editing is deployed and verified for the enterprise pilot.
 
 ## Completed Tasks
 
@@ -429,6 +429,13 @@ Final pilot product editing is implemented and undergoing release validation.
 - WhatsApp reliability decision: persist each outage episode on `WhatsAppAccount`, apply a short grace period, and deliver one disconnect/recovery pair asynchronously through the existing worker job queue.
 
 ## Deployment Status
+
+- Final Pilot Product Editing deployed from commit `a941525` on 2026-07-17.
+  - Vercel production deployment `dpl_GDU7hfSSSi9kgR6KtjX9scVJxndM` completed successfully and is aliased to `https://fieldos-sand.vercel.app`.
+  - Railway API deployment `2416937c-b09b-409c-b02c-024fc628c291` completed successfully.
+  - Railway worker deployment `ae77d5f7-ba1a-4097-ad0b-9f4dc757333c` completed successfully, retained its persistent `/data` volume, and reached its job-waiting state.
+  - Production dashboard and API health checks returned HTTP 200; the API returned `{"status":"ok"}` and the existing WhatsApp session reconnected.
+  - GitHub Actions `lint`, `typecheck`, `tests`, and `build` completed successfully for the release commit.
 
 - AI coordinator scheduling reliability deployed from commit `6fe9114` on 2026-07-16.
   - Railway API deployment `20624fe9-ad46-4dd3-a970-c6b2dcd58615` completed successfully and applied migration `20260716000000_split_milestone_coordinator_jobs`.
