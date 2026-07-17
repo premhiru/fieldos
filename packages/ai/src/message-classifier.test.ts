@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { MessageClassifier } from "./message-classifier.js";
+import { createConfiguredAIProvider, MessageClassifier } from "./message-classifier.js";
 import { AIProviderRateLimitError } from "./provider-errors.js";
 import type { AIProvider } from "./types.js";
 
@@ -58,7 +58,81 @@ describe("MessageClassifier", () => {
       AIProviderRateLimitError
     );
   });
+
+  it("uses Kimi as the primary provider with compatible request parameters", async () => {
+    const requests: Array<{ body: Record<string, unknown>; url: string }> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        requests.push({
+          body: JSON.parse(String(init?.body)) as Record<string, unknown>,
+          url: String(input)
+        });
+        return jsonResponse({ status: "ok" });
+      })
+    );
+    const configured = createConfiguredAIProvider({
+      fallbackApiKey: "openrouter-key",
+      kimiApiKey: "kimi-key"
+    });
+
+    await configured.provider.completeJson({
+      messages: [{ content: "Return JSON.", role: "user" }],
+      model: configured.model
+    });
+
+    expect(requests[0]?.url).toBe("https://api.moonshot.ai/v1/chat/completions");
+    expect(requests[0]?.body).toMatchObject({
+      model: "kimi-k2.6",
+      thinking: { type: "disabled" }
+    });
+    expect(requests[0]?.body).not.toHaveProperty("temperature");
+  });
+
+  it("falls back to OpenRouter when Kimi is unavailable", async () => {
+    const urls: string[] = [];
+    const onFallback = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        urls.push(url);
+
+        if (url.startsWith("https://api.moonshot.ai")) {
+          return new Response(null, { status: 429 });
+        }
+
+        return jsonResponse({ status: "ok" });
+      })
+    );
+    const configured = createConfiguredAIProvider({
+      fallbackApiKey: "openrouter-key",
+      kimiApiKey: "kimi-key",
+      onFallback
+    });
+
+    await expect(
+      configured.provider.completeJson({
+        messages: [{ content: "Return JSON.", role: "user" }],
+        model: configured.model
+      })
+    ).resolves.toEqual({ status: "ok" });
+    expect(urls).toEqual([
+      "https://api.moonshot.ai/v1/chat/completions",
+      "https://openrouter.ai/api/v1/chat/completions"
+    ]);
+    expect(onFallback).toHaveBeenCalledOnce();
+  });
 });
+
+function jsonResponse(content: unknown): Response {
+  return {
+    json: async () => ({
+      choices: [{ message: { content: JSON.stringify(content) } }]
+    }),
+    ok: true
+  } as Response;
+}
 
 class CapturingProvider implements AIProvider {
   model: string | null = null;

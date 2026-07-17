@@ -11,6 +11,7 @@ import {
   type ClassifyMessageInput,
   type ClassifyMessageResult
 } from "./types.js";
+import { FallbackAIProvider } from "./fallback-provider.js";
 import { createAIProviderRequestError } from "./provider-errors.js";
 
 const openAiChatResponseSchema = z.object({
@@ -48,19 +49,84 @@ export interface MessageClassifierOptions {
 
 const defaultAIBaseUrl = "https://openrouter.ai/api/v1";
 const defaultAIModel = "openrouter/free";
+const defaultKimiBaseUrl = "https://api.moonshot.ai/v1";
+const defaultKimiModel = "kimi-k2.6";
+
+export interface ConfiguredAIProviderOptions {
+  fallbackApiKey?: string;
+  fallbackBaseUrl?: string;
+  fallbackModel?: string;
+  kimiApiKey?: string;
+  kimiBaseUrl?: string;
+  kimiModel?: string;
+  onFallback?: (error: unknown) => void;
+}
+
+export function createConfiguredAIProvider(options: ConfiguredAIProviderOptions = {}): {
+  model: string;
+  provider: AIProvider;
+} {
+  const fallbackApiKey =
+    options.fallbackApiKey ?? process.env.OPENROUTER_API_KEY ?? process.env.OPENAI_API_KEY;
+  const fallbackBaseUrl = options.fallbackBaseUrl ?? process.env.AI_BASE_URL ?? defaultAIBaseUrl;
+  const fallbackModel = options.fallbackModel ?? process.env.AI_MODEL ?? defaultAIModel;
+  const fallback = {
+    model: fallbackModel,
+    provider: new OpenAICompatibleProvider({
+      apiKey: fallbackApiKey,
+      baseUrl: fallbackBaseUrl,
+      providerLabel: "OpenRouter"
+    })
+  };
+  const kimiApiKey = options.kimiApiKey ?? process.env.KIMI_API_KEY ?? process.env.MOONSHOT_API_KEY;
+
+  if (!kimiApiKey) {
+    return fallback;
+  }
+
+  const kimiModel = options.kimiModel ?? process.env.KIMI_MODEL ?? defaultKimiModel;
+  const primary = {
+    model: kimiModel,
+    provider: new OpenAICompatibleProvider({
+      apiKey: kimiApiKey,
+      baseUrl: options.kimiBaseUrl ?? process.env.KIMI_BASE_URL ?? defaultKimiBaseUrl,
+      providerLabel: "Kimi",
+      temperature: null,
+      thinking: { type: "disabled" }
+    })
+  };
+
+  return fallbackApiKey
+    ? {
+        model: kimiModel,
+        provider: new FallbackAIProvider(primary, fallback, options.onFallback)
+      }
+    : primary;
+}
 
 export class MessageClassifier {
   private readonly model: string;
   private readonly provider: AIProvider;
 
   constructor(options: MessageClassifierOptions = {}) {
-    this.model = options.model ?? process.env.AI_MODEL ?? defaultAIModel;
-    this.provider =
-      options.provider ??
-      new OpenAICompatibleProvider({
+    if (options.provider) {
+      this.model = options.model ?? process.env.AI_MODEL ?? defaultAIModel;
+      this.provider = options.provider;
+      return;
+    }
+
+    if (options.apiKey || options.baseUrl) {
+      this.model = options.model ?? process.env.AI_MODEL ?? defaultAIModel;
+      this.provider = new OpenAICompatibleProvider({
         apiKey: options.apiKey ?? process.env.OPENROUTER_API_KEY ?? process.env.OPENAI_API_KEY,
         baseUrl: options.baseUrl ?? process.env.AI_BASE_URL
       });
+      return;
+    }
+
+    const configured = createConfiguredAIProvider();
+    this.model = options.model ?? configured.model;
+    this.provider = configured.provider;
   }
 
   async classifyMessage(input: ClassifyMessageInput): Promise<ClassifyMessageResult> {
@@ -92,10 +158,22 @@ export class MessageClassifier {
 export class OpenAICompatibleProvider implements AIProvider {
   private readonly apiKey?: string;
   private readonly baseUrl: string;
+  private readonly providerLabel: string;
+  private readonly temperature: number | null;
+  private readonly thinking?: { type: "disabled" | "enabled" };
 
-  constructor(options: { apiKey?: string; baseUrl?: string }) {
+  constructor(options: {
+    apiKey?: string;
+    baseUrl?: string;
+    providerLabel?: string;
+    temperature?: number | null;
+    thinking?: { type: "disabled" | "enabled" };
+  }) {
     this.apiKey = options.apiKey;
     this.baseUrl = options.baseUrl ?? defaultAIBaseUrl;
+    this.providerLabel = options.providerLabel ?? "AI provider";
+    this.temperature = options.temperature === undefined ? 0.1 : options.temperature;
+    this.thinking = options.thinking;
   }
 
   async completeJson(input: {
@@ -106,15 +184,24 @@ export class OpenAICompatibleProvider implements AIProvider {
       throw new AIConfigurationError();
     }
 
+    const requestBody: Record<string, unknown> = {
+      messages: input.messages,
+      model: input.model,
+      response_format: {
+        type: "json_object"
+      }
+    };
+
+    if (this.temperature !== null) {
+      requestBody.temperature = this.temperature;
+    }
+
+    if (this.thinking) {
+      requestBody.thinking = this.thinking;
+    }
+
     const response = await fetch(`${this.baseUrl}/chat/completions`, {
-      body: JSON.stringify({
-        messages: input.messages,
-        model: input.model,
-        response_format: {
-          type: "json_object"
-        },
-        temperature: 0.1
-      }),
+      body: JSON.stringify(requestBody),
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
         "Content-Type": "application/json"
@@ -124,7 +211,7 @@ export class OpenAICompatibleProvider implements AIProvider {
 
     if (!response.ok) {
       throw createAIProviderRequestError({
-        label: "AI provider",
+        label: this.providerLabel,
         retryAfterHeader: response.headers.get("retry-after"),
         status: response.status
       });

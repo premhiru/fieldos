@@ -4,7 +4,11 @@ import {
   buildMilestoneDetectionUserPrompt,
   milestoneDetectionSystemPrompt
 } from "./prompts/milestone-detection.v1.js";
-import { AIOutputValidationError, OpenAICompatibleProvider } from "./message-classifier.js";
+import {
+  AIOutputValidationError,
+  createConfiguredAIProvider,
+  OpenAICompatibleProvider
+} from "./message-classifier.js";
 import {
   milestoneDetectionInputSchema,
   milestoneDetectionResultSchema,
@@ -25,13 +29,24 @@ export class MilestoneDetector {
   private readonly provider: AIProvider;
 
   constructor(options: MilestoneDetectorOptions = {}) {
-    this.model = options.model ?? process.env.AI_MODEL ?? "openrouter/free";
-    this.provider =
-      options.provider ??
-      new OpenAICompatibleProvider({
+    if (options.provider) {
+      this.model = options.model ?? process.env.AI_MODEL ?? "openrouter/free";
+      this.provider = options.provider;
+      return;
+    }
+
+    if (options.apiKey || options.baseUrl) {
+      this.model = options.model ?? process.env.AI_MODEL ?? "openrouter/free";
+      this.provider = new OpenAICompatibleProvider({
         apiKey: options.apiKey ?? process.env.OPENROUTER_API_KEY ?? process.env.OPENAI_API_KEY,
         baseUrl: options.baseUrl ?? process.env.AI_BASE_URL
       });
+      return;
+    }
+
+    const configured = createConfiguredAIProvider();
+    this.model = options.model ?? configured.model;
+    this.provider = configured.provider;
   }
 
   async detectMilestones(input: MilestoneDetectionInput): Promise<MilestoneDetectionChange[]> {

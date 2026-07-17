@@ -55,6 +55,7 @@ export async function queueProcessingJob(
       type: input.type
     },
     update: {
+      attempts: 0,
       completedAt: null,
       errorMessage: null,
       failedAt: null,
@@ -64,6 +65,7 @@ export async function queueProcessingJob(
       projectId: input.projectId ?? null,
       sourceId: input.sourceId,
       sourceType: input.sourceType,
+      startedAt: null,
       status: "PENDING"
     },
     where: {
@@ -364,6 +366,7 @@ export async function retryProcessingJob(
 ): Promise<ProcessingJob> {
   await prisma.processingJob.updateMany({
     data: {
+      attempts: 0,
       completedAt: null,
       errorMessage: null,
       failedAt: null,
@@ -390,6 +393,7 @@ export async function retryFailedProcessingJobs(
 ): Promise<number> {
   const result = await prisma.processingJob.updateMany({
     data: {
+      attempts: 0,
       completedAt: null,
       errorMessage: null,
       failedAt: null,

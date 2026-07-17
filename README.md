@@ -133,7 +133,7 @@ pnpm db:migrate
 pnpm db:seed
 ```
 
-Configure AI classification and photo intelligence by setting `OPENROUTER_API_KEY`. `AI_BASE_URL` defaults to `https://openrouter.ai/api/v1`, `AI_MODEL` defaults to `openrouter/free`, and `VISION_MODEL` defaults to `openrouter/free`. `OPENAI_API_KEY` remains supported as a fallback for OpenAI-compatible providers and is used for voice transcription when available.
+Configure AI classification, search, milestone detection, and photo intelligence by setting `KIMI_API_KEY`. Kimi uses `https://api.moonshot.ai/v1` with `kimi-k2.6` as the primary text and vision model. Set `OPENROUTER_API_KEY` to retain `openrouter/free` as the automatic fallback through `AI_MODEL` and `VISION_MODEL`. `OPENAI_API_KEY` remains dedicated to voice transcription when available.
 
 Configure local signed media serving with `MEDIA_SIGNING_SECRET`. Local development defaults to `STORAGE_PROVIDER=local` and stores media under `WHATSAPP_STORAGE_PATH`.
 

@@ -19,9 +19,16 @@
 
 ## Current Milestone
 
-Final pilot product editing is deployed and verified for the enterprise pilot.
+AI provider reliability hardening for the enterprise pilot.
 
 ## Completed Tasks
+
+- Kimi-primary AI provider with OpenRouter fallback.
+  - Added a shared provider chain for message classification, project search, milestone detection, and photo analysis.
+  - Configured `kimi-k2.6` for deterministic JSON and vision requests, with automatic per-request OpenRouter fallback.
+  - Added exponential rate-limit backoff and prevented provider throttling from permanently exhausting processing jobs.
+  - Reset attempt counters when failed jobs are explicitly retried or re-queued so production recovery is actionable.
+  - Added focused text, vision, and processing-job retry tests and completed repository-wide lint, typecheck, test, and build validation.
 
 - Final Pilot Product Editing.
   - Reduced the Project Command Center to Project Brief, Recommended Actions, What's Changed, and Quick Links.

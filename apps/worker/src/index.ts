@@ -2,10 +2,11 @@ import { Redis } from "ioredis";
 import { createHash } from "node:crypto";
 import {
   AIClassificationProcessor,
+  createConfiguredAIProvider,
+  createConfiguredVisionProvider,
+  isAIProviderRateLimitError,
   MilestoneDetector,
   MessageClassifier,
-  OpenAICompatibleVisionProvider,
-  isAIProviderRateLimitError,
   type VisionResult
 } from "@fieldos/ai";
 import { BaileysWhatsAppSessionManager, RedisWhatsAppQrStore } from "@fieldos/baileys-whatsapp";
@@ -72,6 +73,7 @@ class ProviderRequestThrottle {
 }
 
 const logger = createLogger("fieldos-worker");
+const maxAIProviderRetryMs = 6 * 60 * 60 * 1000;
 const redis = new Redis(workerEnv.REDIS_URL, {
   lazyConnect: true,
   maxRetriesPerRequest: 3
@@ -92,11 +94,24 @@ const whatsappSessionManager = new BaileysWhatsAppSessionManager(
     rootStoragePath: workerEnv.WHATSAPP_STORAGE_PATH
   }
 );
+const textAIProvider = createConfiguredAIProvider({
+  fallbackApiKey: workerEnv.OPENROUTER_API_KEY ?? workerEnv.OPENAI_API_KEY,
+  fallbackBaseUrl: workerEnv.AI_BASE_URL,
+  fallbackModel: workerEnv.AI_MODEL,
+  kimiApiKey: workerEnv.KIMI_API_KEY,
+  kimiBaseUrl: workerEnv.KIMI_BASE_URL,
+  kimiModel: workerEnv.KIMI_MODEL,
+  onFallback: (error) => {
+    logger.warn(
+      { error, fallback: "openrouter", primary: "kimi" },
+      "AI provider fallback activated"
+    );
+  }
+});
 const aiClassificationProcessor = new AIClassificationProcessor(prisma, {
   classifier: new MessageClassifier({
-    apiKey: workerEnv.OPENROUTER_API_KEY ?? workerEnv.OPENAI_API_KEY,
-    baseUrl: workerEnv.AI_BASE_URL,
-    model: workerEnv.AI_MODEL
+    model: textAIProvider.model,
+    provider: textAIProvider.provider
   })
 });
 const voiceTranscriptionService = new VoiceTranscriptionService({
@@ -105,10 +120,19 @@ const voiceTranscriptionService = new VoiceTranscriptionService({
   storageProvider
 });
 const photoAnalysisService = new PhotoAnalysisService({
-  provider: new OpenAICompatibleVisionProvider({
-    apiKey: workerEnv.OPENROUTER_API_KEY ?? workerEnv.OPENAI_API_KEY,
-    baseUrl: workerEnv.AI_BASE_URL,
-    model: workerEnv.VISION_MODEL
+  provider: createConfiguredVisionProvider({
+    fallbackApiKey: workerEnv.OPENROUTER_API_KEY ?? workerEnv.OPENAI_API_KEY,
+    fallbackBaseUrl: workerEnv.AI_BASE_URL,
+    fallbackModel: workerEnv.VISION_MODEL,
+    kimiApiKey: workerEnv.KIMI_API_KEY,
+    kimiBaseUrl: workerEnv.KIMI_BASE_URL,
+    kimiModel: workerEnv.KIMI_VISION_MODEL,
+    onFallback: (error) => {
+      logger.warn(
+        { error, fallback: "openrouter", primary: "kimi" },
+        "vision provider fallback activated"
+      );
+    }
   }),
   storageProvider
 });
@@ -118,9 +142,8 @@ const coordinatorRuntime = new ProjectCoordinatorRuntime(prisma, {
     send: (input) => whatsappSessionManager.sendDraft(input)
   },
   milestoneDetector: new MilestoneDetector({
-    apiKey: workerEnv.OPENROUTER_API_KEY ?? workerEnv.OPENAI_API_KEY,
-    baseUrl: workerEnv.AI_BASE_URL,
-    model: workerEnv.AI_MODEL
+    model: textAIProvider.model,
+    provider: textAIProvider.provider
   })
 });
 const aiProviderThrottle = new ProviderRequestThrottle(workerEnv.AI_PROVIDER_MIN_INTERVAL_MS);
@@ -316,10 +339,14 @@ async function processClaimedJob(
     );
   } catch (error: unknown) {
     if (isAIProviderRateLimitError(error)) {
-      const retryAfterMs =
+      const providerRetryAfterMs =
         error.retryAfterMs && error.retryAfterMs > 0
           ? error.retryAfterMs
           : workerEnv.AI_PROVIDER_RATE_LIMIT_RETRY_MS;
+      const retryAfterMs = Math.min(
+        providerRetryAfterMs * 2 ** Math.max(job.attempts - 1, 0),
+        maxAIProviderRetryMs
+      );
       const throttle =
         job.type === "PROJECT_COORDINATOR_MILESTONE"
           ? milestoneCoordinatorThrottle
@@ -328,7 +355,7 @@ async function processClaimedJob(
       await deferProcessingJob(prisma, {
         errorMessage: error.message,
         job,
-        minimumMaxAttempts: workerEnv.AI_PROVIDER_MAX_ATTEMPTS,
+        minimumMaxAttempts: Math.max(workerEnv.AI_PROVIDER_MAX_ATTEMPTS, job.attempts + 1),
         retryAfterMs
       });
       logger.warn(

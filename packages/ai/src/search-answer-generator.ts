@@ -11,20 +11,11 @@ import {
   type SearchAnswerInput,
   type SearchAnswerResult
 } from "./types.js";
-import { AIConfigurationError, AIOutputValidationError } from "./message-classifier.js";
-import { createAIProviderRequestError } from "./provider-errors.js";
-
-const openAiChatResponseSchema = z.object({
-  choices: z
-    .array(
-      z.object({
-        message: z.object({
-          content: z.string()
-        })
-      })
-    )
-    .min(1)
-});
+import {
+  AIOutputValidationError,
+  createConfiguredAIProvider,
+  OpenAICompatibleProvider
+} from "./message-classifier.js";
 
 export interface SearchAnswerGeneratorOptions {
   apiKey?: string;
@@ -33,7 +24,6 @@ export interface SearchAnswerGeneratorOptions {
   provider?: AIProvider;
 }
 
-const defaultAIBaseUrl = "https://openrouter.ai/api/v1";
 const defaultAIModel = "openrouter/free";
 
 export class SearchAnswerGenerator {
@@ -41,13 +31,24 @@ export class SearchAnswerGenerator {
   private readonly provider: AIProvider;
 
   constructor(options: SearchAnswerGeneratorOptions = {}) {
-    this.model = options.model ?? process.env.AI_MODEL ?? defaultAIModel;
-    this.provider =
-      options.provider ??
-      new SearchOpenAICompatibleProvider({
+    if (options.provider) {
+      this.model = options.model ?? process.env.AI_MODEL ?? defaultAIModel;
+      this.provider = options.provider;
+      return;
+    }
+
+    if (options.apiKey || options.baseUrl) {
+      this.model = options.model ?? process.env.AI_MODEL ?? defaultAIModel;
+      this.provider = new OpenAICompatibleProvider({
         apiKey: options.apiKey ?? process.env.OPENROUTER_API_KEY ?? process.env.OPENAI_API_KEY,
         baseUrl: options.baseUrl ?? process.env.AI_BASE_URL
       });
+      return;
+    }
+
+    const configured = createConfiguredAIProvider();
+    this.model = options.model ?? configured.model;
+    this.provider = configured.provider;
   }
 
   async answer(input: SearchAnswerInput): Promise<SearchAnswerResult> {
@@ -72,61 +73,5 @@ export class SearchAnswerGenerator {
     }
 
     return result.data;
-  }
-}
-
-class SearchOpenAICompatibleProvider implements AIProvider {
-  private readonly apiKey?: string;
-  private readonly baseUrl: string;
-
-  constructor(options: { apiKey?: string; baseUrl?: string }) {
-    this.apiKey = options.apiKey;
-    this.baseUrl = options.baseUrl ?? defaultAIBaseUrl;
-  }
-
-  async completeJson(input: {
-    model: string;
-    messages: Array<{ role: "system" | "user"; content: string }>;
-  }): Promise<unknown> {
-    if (!this.apiKey) {
-      throw new AIConfigurationError();
-    }
-
-    const response = await fetch(`${this.baseUrl}/chat/completions`, {
-      body: JSON.stringify({
-        messages: input.messages,
-        model: input.model,
-        response_format: {
-          type: "json_object"
-        },
-        temperature: 0.1
-      }),
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        "Content-Type": "application/json"
-      },
-      method: "POST"
-    });
-
-    if (!response.ok) {
-      throw createAIProviderRequestError({
-        label: "AI provider",
-        retryAfterHeader: response.headers.get("retry-after"),
-        status: response.status
-      });
-    }
-
-    const payload = openAiChatResponseSchema.parse(await response.json());
-    const content = payload.choices[0]?.message.content;
-
-    if (!content) {
-      throw new AIOutputValidationError("AI provider returned an empty response.");
-    }
-
-    try {
-      return JSON.parse(content) as unknown;
-    } catch {
-      throw new AIOutputValidationError("AI provider returned invalid JSON.");
-    }
   }
 }

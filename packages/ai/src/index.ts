@@ -1,3 +1,4 @@
+export * from "./fallback-provider.js";
 export * from "./message-classifier.js";
 export * from "./milestone-detector.js";
 export * from "./provider-errors.js";
