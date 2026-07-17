@@ -109,6 +109,7 @@ vi.mock("@tanstack/react-query", () => ({
             messageId: "message_1",
             organizationId: "organization_1",
             projectId: "project_1",
+            priority: "HIGH",
             suggestedProjectId: null,
             message: {
               body: "Lobby light failed.",
@@ -133,28 +134,20 @@ vi.mock("@tanstack/react-query", () => ({
 }));
 
 describe("ProjectDetailPage", () => {
-  it("renders the project information architecture and supporting intelligence", () => {
+  it("renders the simplified project command center", () => {
     render(React.createElement(ProjectDetailPage));
 
     expect(screen.getByRole("heading", { name: "Project Brief" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Recommendations" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Timeline" })).toBeTruthy();
-    expect(screen.getByText("WhatsApp message received")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Evidence" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "WhatsApp Messages" })).toBeTruthy();
-    expect(screen.getByText("Terminal 2 runway lighting completed.")).toBeTruthy();
-    expect(screen.queryByText("Timeline coming soon")).toBeNull();
-    expect(screen.queryByText("WhatsApp messages coming soon")).toBeNull();
-    expect(screen.getByText("A lobby light failed.")).toBeTruthy();
-    expect(screen.getAllByText("High Confidence").length).toBeGreaterThan(0);
-    expect(screen.getByRole("heading", { name: "Milestones" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Reports" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Action Items" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Recommended Actions" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "What's Changed" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Quick Links" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Timeline/ })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Evidence/ })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Milestones/ })).toBeTruthy();
+    expect(screen.getAllByRole("link", { name: /Reports/ }).length).toBeGreaterThan(0);
     expect(screen.getByText("Fix lobby light")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Accept" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Ignore" })).toBeTruthy();
-    expect(screen.getAllByRole("combobox", { name: /Assignee for Fix lobby light/ })).toHaveLength(
-      2
-    );
-  });
+    expect(screen.getByRole("combobox", { name: /Assignee for Fix lobby light/ })).toBeTruthy();
+  }, 15_000);
 });

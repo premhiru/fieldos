@@ -72,6 +72,8 @@ describe("ProjectsPage", () => {
     render(React.createElement(ProjectsPage));
 
     expect(screen.getByRole("heading", { name: "Projects" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Create project" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Create project" }));
     expect(screen.getByRole("button", { name: "Create Project" })).toBeTruthy();
     expect(screen.getByText("No projects yet")).toBeTruthy();
     expect(

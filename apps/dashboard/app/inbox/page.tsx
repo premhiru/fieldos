@@ -174,6 +174,10 @@ function ConversationRow({
   onClick: () => void;
   unread: boolean;
 }) {
+  const urgent = /\b(urgent|safety|blocked|delay|defect|incident)\b/i.test(
+    conversation.lastMessageBody ?? ""
+  );
+
   return (
     <button
       className={
@@ -209,7 +213,7 @@ function ConversationRow({
             {conversation.lastMessageBody ?? "No messages yet"}
           </span>
           <span className="mt-2 flex flex-wrap items-center gap-2">
-            <Badge variant="muted">{conversation.channel}</Badge>
+            {urgent ? <Badge variant="warning">Needs attention</Badge> : null}
             <span className="max-w-40 truncate text-xs text-slate-500">
               {conversation.project?.name ?? "Unassigned"}
             </span>

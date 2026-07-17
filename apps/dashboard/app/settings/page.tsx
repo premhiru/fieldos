@@ -17,12 +17,16 @@ import { QRCodeSVG } from "qrcode.react";
 import { useRouter } from "next/navigation";
 import {
   Activity,
+  Building2,
+  Cable,
   Check,
   CheckCircle2,
+  LockKeyhole,
   MessageSquare,
   RefreshCw,
   Trash2,
-  UserPlus
+  UserPlus,
+  Users
 } from "lucide-react";
 import * as React from "react";
 
@@ -39,6 +43,9 @@ import {
 } from "../../lib/api";
 import { useOrganizations, useProjects } from "../../lib/queries";
 import { useActiveOrganizationStore } from "../../store/active-organization-store";
+
+type SettingsSection =
+  "workspace" | "team" | "whatsapp" | "integrations" | "security" | "operations";
 
 export default function SettingsPage() {
   return (
@@ -69,6 +76,7 @@ function SettingsContent() {
   const accounts = accountsQuery.data?.accounts ?? [];
   const [displayName, setDisplayName] = React.useState("");
   const [isAddingWhatsAppLine, setIsAddingWhatsAppLine] = React.useState(false);
+  const [section, setSection] = React.useState<SettingsSection>("workspace");
   const canManage = activeOrganization?.role === "OWNER" || activeOrganization?.role === "ADMIN";
   const createAccountMutation = useMutation({
     mutationFn: () =>
@@ -95,6 +103,28 @@ function SettingsContent() {
     setDisplayName("");
     setIsAddingWhatsAppLine(false);
   }, [activeOrganization?.id]);
+
+  React.useEffect(() => {
+    function syncSectionFromHash() {
+      const requested = window.location.hash.replace("#", "") as SettingsSection;
+      if (
+        ["workspace", "team", "whatsapp", "integrations", "security", "operations"].includes(
+          requested
+        )
+      ) {
+        setSection(requested);
+      }
+    }
+
+    syncSectionFromHash();
+    window.addEventListener("hashchange", syncSectionFromHash);
+    return () => window.removeEventListener("hashchange", syncSectionFromHash);
+  }, []);
+
+  function selectSection(nextSection: SettingsSection) {
+    setSection(nextSection);
+    window.history.replaceState(null, "", `#${nextSection}`);
+  }
 
   if (organizationsQuery.isLoading) return <Skeleton className="h-[680px]" />;
 
@@ -123,42 +153,82 @@ function SettingsContent() {
         aria-label="Settings sections"
         className="flex gap-2 overflow-x-auto border-b border-slate-200 pb-3"
       >
-        <a
-          className="shrink-0 rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
-          href="#security"
-        >
-          User settings
-        </a>
+        <SettingsTab
+          active={section === "workspace"}
+          icon={Building2}
+          label="Workspace"
+          onClick={() => selectSection("workspace")}
+        />
         {canManage ? (
-          <a
-            className="shrink-0 rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
-            href="#team"
-          >
-            Team & access
-          </a>
+          <SettingsTab
+            active={section === "team"}
+            icon={Users}
+            label="Team"
+            onClick={() => selectSection("team")}
+          />
         ) : null}
-        <a
-          className="shrink-0 rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
-          href="#whatsapp"
-        >
-          Integrations
-        </a>
+        <SettingsTab
+          active={section === "whatsapp"}
+          icon={MessageSquare}
+          label="WhatsApp"
+          onClick={() => selectSection("whatsapp")}
+        />
+        <SettingsTab
+          active={section === "integrations"}
+          icon={Cable}
+          label="Integrations"
+          onClick={() => selectSection("integrations")}
+        />
+        <SettingsTab
+          active={section === "security"}
+          icon={LockKeyhole}
+          label="Security"
+          onClick={() => selectSection("security")}
+        />
         {canManage ? (
-          <Link
-            className="inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
-            href="/admin/operations"
-          >
-            <Activity aria-hidden="true" className="size-4" />
-            Operations health
-          </Link>
+          <SettingsTab
+            active={section === "operations"}
+            icon={Activity}
+            label="Operations"
+            onClick={() => selectSection("operations")}
+          />
         ) : null}
       </nav>
 
-      <section className="scroll-mt-24" id="security">
-        <PasswordSecurityCard />
-      </section>
+      {section === "workspace" ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Workspace</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <dl className="grid gap-5 sm:grid-cols-2">
+              <div>
+                <dt className="text-xs font-medium text-[var(--text-secondary)]">Organization</dt>
+                <dd className="mt-1 font-medium text-[var(--text-primary)]">
+                  {activeOrganization?.name ?? "Workspace"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs font-medium text-[var(--text-secondary)]">Your access</dt>
+                <dd className="mt-1 font-medium text-[var(--text-primary)]">
+                  {formatDisplayLabel(activeOrganization?.role ?? "MEMBER")}
+                </dd>
+              </div>
+            </dl>
+            <p className="mt-5 border-t border-[var(--border-subtle)] pt-4 text-sm text-[var(--text-secondary)]">
+              Use the workspace selector above to move between organizations.
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
 
-      {canManage ? (
+      {section === "security" ? (
+        <section className="scroll-mt-24" id="security">
+          <PasswordSecurityCard />
+        </section>
+      ) : null}
+
+      {canManage && section === "team" ? (
         <TeamSettingsSection
           actorRole={activeOrganization.role as "OWNER" | "ADMIN"}
           organizationId={activeOrganization.id}
@@ -166,63 +236,144 @@ function SettingsContent() {
         />
       ) : null}
 
-      <section className="scroll-mt-24 space-y-4" id="whatsapp">
-        <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-          Connect a dedicated business number for field operations. Personal WhatsApp accounts are
-          not recommended because connected conversations can become shared workspace evidence.
-        </div>
+      {section === "whatsapp" ? (
+        <section className="scroll-mt-24 space-y-4" id="whatsapp">
+          <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+            Connect a dedicated business number for field operations. Personal WhatsApp accounts are
+            not recommended because connected conversations can become shared workspace evidence.
+          </div>
 
-        {canManage && !accountsQuery.isLoading ? (
-          accounts.length === 0 || isAddingWhatsAppLine ? (
-            <WhatsAppSetupWizard
-              currentStep={1}
-              isPending={createAccountMutation.isPending}
-              lineName={displayName}
-              onContinue={() => createAccountMutation.mutate()}
-              onLineNameChange={setDisplayName}
-            />
-          ) : (
-            <div className="flex justify-end">
-              <Button type="button" onClick={() => setIsAddingWhatsAppLine(true)}>
-                Add WhatsApp line
+          {canManage && !accountsQuery.isLoading ? (
+            accounts.length === 0 || isAddingWhatsAppLine ? (
+              <WhatsAppSetupWizard
+                currentStep={1}
+                isPending={createAccountMutation.isPending}
+                lineName={displayName}
+                onContinue={() => createAccountMutation.mutate()}
+                onLineNameChange={setDisplayName}
+              />
+            ) : (
+              <div className="flex justify-end">
+                <Button type="button" onClick={() => setIsAddingWhatsAppLine(true)}>
+                  Add WhatsApp line
+                </Button>
+              </div>
+            )
+          ) : null}
+          {createAccountMutation.isError ? (
+            <p className="text-sm text-[var(--status-critical-text)]">
+              We could not create this line. Please try again.
+            </p>
+          ) : null}
+
+          <div className="space-y-4">
+            {accountsQuery.isLoading ? (
+              <Skeleton className="h-64 w-full" />
+            ) : accounts.length === 0 && !canManage ? (
+              <Card>
+                <CardContent>
+                  <EmptyState
+                    description="Connect a dedicated business number to review and assign field conversations to projects."
+                    icon={<MessageSquare aria-hidden="true" className="size-5" />}
+                    title="No WhatsApp accounts connected"
+                  />
+                </CardContent>
+              </Card>
+            ) : (
+              accounts.map((account) => (
+                <WhatsAppAccountCard
+                  key={account.id}
+                  account={account}
+                  canManage={canManage}
+                  organizationId={activeOrganization?.id ?? ""}
+                  projects={projects}
+                />
+              ))
+            )}
+          </div>
+        </section>
+      ) : null}
+
+      {section === "integrations" ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Integrations</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="font-medium text-[var(--text-primary)]">WhatsApp</div>
+                <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                  {accounts.some((account) => account.status === "CONNECTED")
+                    ? "A field communication line is connected."
+                    : "No field communication line is connected."}
+                </p>
+              </div>
+              <Button onClick={() => selectSection("whatsapp")} variant="secondary">
+                Manage WhatsApp
               </Button>
             </div>
-          )
-        ) : null}
-        {createAccountMutation.isError ? (
-          <p className="text-sm text-[var(--status-critical-text)]">
-            We could not create this line. Please try again.
-          </p>
-        ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
 
-        <div className="space-y-4">
-          {accountsQuery.isLoading ? (
-            <Skeleton className="h-64 w-full" />
-          ) : accounts.length === 0 && !canManage ? (
-            <Card>
-              <CardContent>
-                <EmptyState
-                  description="Connect a dedicated business number to review and assign field conversations to projects."
-                  icon={<MessageSquare aria-hidden="true" className="size-5" />}
-                  title="No WhatsApp accounts connected"
-                />
-              </CardContent>
-            </Card>
-          ) : (
-            accounts.map((account) => (
-              <WhatsAppAccountCard
-                key={account.id}
-                account={account}
-                canManage={canManage}
-                organizationId={activeOrganization?.id ?? ""}
-                projects={projects}
-              />
-            ))
-          )}
-        </div>
-      </section>
+      {canManage && section === "operations" ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Operations</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-[var(--text-secondary)]">
+              Review service health, background processing, and failed work in the operations view.
+            </p>
+            <Link
+              className="mt-4 inline-flex h-10 items-center gap-2 rounded-md bg-[var(--action-primary)] px-4 text-sm font-medium text-[var(--action-primary-text)]"
+              href="/admin/operations"
+            >
+              <Activity aria-hidden="true" className="size-4" />
+              Open operations health
+            </Link>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
+}
+
+function SettingsTab({
+  active,
+  icon: Icon,
+  label,
+  onClick
+}: {
+  active: boolean;
+  icon: typeof Activity;
+  label: string;
+  onClick(): void;
+}) {
+  return (
+    <button
+      aria-current={active ? "page" : undefined}
+      className={
+        active
+          ? "inline-flex h-10 shrink-0 items-center gap-2 rounded-md bg-[var(--surface-muted)] px-3 text-sm font-medium text-[var(--text-primary)]"
+          : "inline-flex h-10 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)]"
+      }
+      onClick={onClick}
+      type="button"
+    >
+      <Icon aria-hidden="true" className="size-4" />
+      {label}
+    </button>
+  );
+}
+
+function formatDisplayLabel(value: string): string {
+  return value
+    .toLowerCase()
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 }
 
 function TeamSettingsSection({
@@ -911,11 +1062,13 @@ export function WhatsAppAccountCard({
   const [isPairingRequested, setIsPairingRequested] = React.useState(false);
   const [ignoreCurrentConnectionError, setIgnoreCurrentConnectionError] = React.useState(false);
   const [qrWaitTimedOut, setQrWaitTimedOut] = React.useState(false);
+  const [showChats, setShowChats] = React.useState(false);
+  const [chatPage, setChatPage] = React.useState(1);
   const [chatSearch, setChatSearch] = React.useState("");
   const [chatTypeFilter, setChatTypeFilter] = React.useState<"ALL" | "GROUPS" | "DIRECT">("ALL");
   const [projectFilter, setProjectFilter] = React.useState<"ALL" | "MAPPED" | "UNASSIGNED">("ALL");
   const [statusFilter, setStatusFilter] = React.useState<WhatsAppChatMapping["status"] | "ALL">(
-    "ALL"
+    "ACTIVE"
   );
   const isPairingStatus = account.status === "PENDING_QR" || account.status === "CONNECTING";
   const isConnected = account.status === "CONNECTED";
@@ -1030,16 +1183,30 @@ export function WhatsAppAccountCard({
       return true;
     });
   }, [chatSearch, chatTypeFilter, chats, projectFilter, projects, statusFilter]);
+  const chatPageSize = 15;
+  const chatPageCount = Math.max(1, Math.ceil(filteredChats.length / chatPageSize));
+  const paginatedChats = filteredChats.slice(
+    (chatPage - 1) * chatPageSize,
+    chatPage * chatPageSize
+  );
+
+  React.useEffect(() => {
+    setChatPage(1);
+  }, [chatSearch, chatTypeFilter, projectFilter, statusFilter]);
+
+  React.useEffect(() => {
+    setChatPage((page) => Math.min(page, chatPageCount));
+  }, [chatPageCount]);
   const hasActiveFilters =
     chatSearch.trim() ||
     chatTypeFilter !== "ALL" ||
-    statusFilter !== "ALL" ||
+    statusFilter !== "ACTIVE" ||
     projectFilter !== "ALL";
   const clearChatFilters = () => {
     setChatSearch("");
     setChatTypeFilter("ALL");
     setProjectFilter("ALL");
-    setStatusFilter("ALL");
+    setStatusFilter("ACTIVE");
   };
 
   return (
@@ -1124,124 +1291,169 @@ export function WhatsAppAccountCard({
           />
         ) : null}
 
-        <div className={showSetupPanel ? "mt-6 border-t border-slate-200 pt-6" : "mt-6"}>
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h2 className="text-sm font-semibold text-slate-950">Chats and Groups</h2>
-              <p className="mt-1 text-xs text-slate-500">
-                Showing {filteredChats.length} of {chats.length} discovered chats
-              </p>
-            </div>
-            {hasActiveFilters ? (
-              <Button type="button" variant="secondary" onClick={clearChatFilters}>
-                Clear filters
-              </Button>
-            ) : null}
-          </div>
-          {!isConnected ? (
-            <p className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-              Chats and groups will appear after this WhatsApp account is connected.
-            </p>
-          ) : chatsQuery.isLoading ? (
-            <div className="mt-3 space-y-2">
-              {Array.from({ length: 4 }, (_, index) => (
-                <Skeleton className="h-16 w-full" key={index} />
-              ))}
-            </div>
-          ) : chats.length === 0 ? (
-            <p className="mt-3 text-sm text-slate-600">No chats discovered yet.</p>
-          ) : (
-            <>
-              <div className="mt-4 grid gap-3 md:grid-cols-[minmax(220px,1fr)_160px_170px_170px]">
-                <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
-                  Search
-                  <input
-                    className="h-10 rounded-md border border-slate-300 px-3 text-sm"
-                    placeholder="Name, JID, status, or project"
-                    value={chatSearch}
-                    onChange={(event) => setChatSearch(event.target.value)}
-                  />
-                </label>
-                <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
-                  Type
-                  <select
-                    className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm"
-                    value={chatTypeFilter}
-                    onChange={(event) =>
-                      setChatTypeFilter(event.target.value as "ALL" | "GROUPS" | "DIRECT")
-                    }
-                  >
-                    <option value="ALL">All</option>
-                    <option value="GROUPS">Groups only</option>
-                    <option value="DIRECT">Direct only</option>
-                  </select>
-                </label>
-                <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
-                  Status
-                  <select
-                    className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm"
-                    value={statusFilter}
-                    onChange={(event) =>
-                      setStatusFilter(event.target.value as WhatsAppChatMapping["status"] | "ALL")
-                    }
-                  >
-                    <option value="ALL">All statuses</option>
-                    <option value="DISCOVERED">Discovered</option>
-                    <option value="ACTIVE">Active</option>
-                    <option value="IGNORED">Ignored</option>
-                    <option value="ARCHIVED">Archived</option>
-                  </select>
-                </label>
-                <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
-                  Project
-                  <select
-                    className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm"
-                    value={projectFilter}
-                    onChange={(event) =>
-                      setProjectFilter(event.target.value as "ALL" | "MAPPED" | "UNASSIGNED")
-                    }
-                  >
-                    <option value="ALL">All projects</option>
-                    <option value="MAPPED">Mapped</option>
-                    <option value="UNASSIGNED">Unassigned</option>
-                  </select>
-                </label>
-              </div>
-
-              {filteredChats.length === 0 ? (
-                <p className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                  No chats match the current filters.
+        {isConnected ? (
+          <div className={showSetupPanel ? "mt-6 border-t border-slate-200 pt-6" : "mt-6"}>
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-950">Chats and Groups</h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  {filteredChats.length} chats match the current view
                 </p>
-              ) : (
-                <div className="mt-3 overflow-x-auto">
-                  <table className="w-full min-w-[860px] border-collapse text-left text-sm">
-                    <thead>
-                      <tr className="border-b border-slate-200 text-xs font-semibold uppercase text-slate-500">
-                        <th className="py-3 pr-4">Chat/group name</th>
-                        <th className="py-3 pr-4">Type</th>
-                        <th className="py-3 pr-4">JID</th>
-                        <th className="py-3 pr-4">Status</th>
-                        <th className="py-3 pr-4">Mapped project</th>
-                        <th className="py-3 pr-4">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200">
-                      {filteredChats.map((chat) => (
-                        <ChatMappingRow
-                          key={chat.id}
-                          accountId={account.id}
-                          canManage={canManage}
-                          chat={chat}
-                          projects={projects}
-                        />
-                      ))}
-                    </tbody>
-                  </table>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {showChats && hasActiveFilters ? (
+                  <Button type="button" variant="ghost" onClick={clearChatFilters}>
+                    Reset view
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setShowChats((value) => !value)}
+                >
+                  {showChats ? "Hide chats" : "Manage chats"}
+                </Button>
+              </div>
+            </div>
+            {showChats ? (
+              !isConnected ? (
+                <p className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                  Chats and groups will appear after this WhatsApp account is connected.
+                </p>
+              ) : chatsQuery.isLoading ? (
+                <div className="mt-3 space-y-2">
+                  {Array.from({ length: 4 }, (_, index) => (
+                    <Skeleton className="h-16 w-full" key={index} />
+                  ))}
                 </div>
-              )}
-            </>
-          )}
-        </div>
+              ) : chats.length === 0 ? (
+                <p className="mt-3 text-sm text-slate-600">No chats discovered yet.</p>
+              ) : (
+                <>
+                  <div className="mt-4 grid gap-3 md:grid-cols-[minmax(220px,1fr)_160px_170px_170px]">
+                    <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+                      Search
+                      <input
+                        className="h-10 rounded-md border border-slate-300 px-3 text-sm"
+                        placeholder="Name, JID, status, or project"
+                        value={chatSearch}
+                        onChange={(event) => setChatSearch(event.target.value)}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+                      Type
+                      <select
+                        className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm"
+                        value={chatTypeFilter}
+                        onChange={(event) =>
+                          setChatTypeFilter(event.target.value as "ALL" | "GROUPS" | "DIRECT")
+                        }
+                      >
+                        <option value="ALL">All</option>
+                        <option value="GROUPS">Groups only</option>
+                        <option value="DIRECT">Direct only</option>
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+                      Status
+                      <select
+                        className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm"
+                        value={statusFilter}
+                        onChange={(event) =>
+                          setStatusFilter(
+                            event.target.value as WhatsAppChatMapping["status"] | "ALL"
+                          )
+                        }
+                      >
+                        <option value="ALL">All statuses</option>
+                        <option value="DISCOVERED">Discovered</option>
+                        <option value="ACTIVE">Active</option>
+                        <option value="IGNORED">Ignored</option>
+                        <option value="ARCHIVED">Archived</option>
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+                      Project
+                      <select
+                        className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm"
+                        value={projectFilter}
+                        onChange={(event) =>
+                          setProjectFilter(event.target.value as "ALL" | "MAPPED" | "UNASSIGNED")
+                        }
+                      >
+                        <option value="ALL">All projects</option>
+                        <option value="MAPPED">Mapped</option>
+                        <option value="UNASSIGNED">Unassigned</option>
+                      </select>
+                    </label>
+                  </div>
+
+                  {filteredChats.length === 0 ? (
+                    <p className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                      No chats match the current filters.
+                    </p>
+                  ) : (
+                    <div className="mt-3">
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[860px] border-collapse text-left text-sm">
+                          <thead>
+                            <tr className="border-b border-slate-200 text-xs font-semibold uppercase text-slate-500">
+                              <th className="py-3 pr-4">Chat/group name</th>
+                              <th className="py-3 pr-4">Type</th>
+                              <th className="py-3 pr-4">JID</th>
+                              <th className="py-3 pr-4">Status</th>
+                              <th className="py-3 pr-4">Mapped project</th>
+                              <th className="py-3 pr-4">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-200">
+                            {paginatedChats.map((chat) => (
+                              <ChatMappingRow
+                                key={chat.id}
+                                accountId={account.id}
+                                canManage={canManage}
+                                chat={chat}
+                                projects={projects}
+                              />
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      {chatPageCount > 1 ? (
+                        <div className="mt-4 flex items-center justify-between border-t border-[var(--border-subtle)] pt-4">
+                          <p className="text-xs text-[var(--text-secondary)]">
+                            Page {chatPage} of {chatPageCount}
+                          </p>
+                          <div className="flex gap-2">
+                            <Button
+                              disabled={chatPage === 1}
+                              onClick={() => setChatPage((page) => page - 1)}
+                              variant="ghost"
+                            >
+                              Previous
+                            </Button>
+                            <Button
+                              disabled={chatPage === chatPageCount}
+                              onClick={() => setChatPage((page) => page + 1)}
+                              variant="ghost"
+                            >
+                              Next
+                            </Button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+                </>
+              )
+            ) : (
+              <p className="mt-3 text-sm text-[var(--text-secondary)]">
+                Active chats are hidden until you choose to manage them. Ignored chats stay out of
+                view by default.
+              </p>
+            )}
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

@@ -197,7 +197,7 @@ function RiskCard({ risks }: Readonly<{ risks: IntelligenceRisk[] }>) {
             >
               <div className="flex items-center justify-between gap-3">
                 <div className="text-sm font-medium text-slate-950">{risk.title}</div>
-                <Badge variant="muted">{risk.confidence}</Badge>
+                <Badge variant="muted">{confidenceLabel(risk.confidence)}</Badge>
               </div>
               <p className="mt-2 text-sm text-slate-600">{risk.explanation}</p>
               <p className="mt-2 text-xs text-slate-500">{risk.mitigation}</p>
@@ -209,6 +209,12 @@ function RiskCard({ risks }: Readonly<{ risks: IntelligenceRisk[] }>) {
       </CardContent>
     </Card>
   );
+}
+
+function confidenceLabel(value: IntelligenceRisk["confidence"]): string {
+  if (value === "HIGH") return "High confidence";
+  if (value === "LOW") return "Low confidence";
+  return "Needs review";
 }
 
 function PendingDecisionCard({ decisions }: Readonly<{ decisions: PendingDecision[] }>) {

@@ -5,10 +5,11 @@
 | Purpose      | Capture demo steps and verification notes for FieldOS changes. |
 | Owner        | Product Engineering                                            |
 | Status       | Active                                                         |
-| Last Updated | 2026-07-14                                                     |
+| Last Updated | 2026-07-16                                                     |
 
 ## Table of Contents
 
+- [Final Pilot Product Editing](#final-pilot-product-editing)
 - [UX Refactoring Sprint](#ux-refactoring-sprint)
 - [Milestone Intelligence](#milestone-intelligence)
 - [Task 013B: Cloudflare R2 Durable Storage](#task-013b-cloudflare-r2-durable-storage)
@@ -18,6 +19,32 @@
 - [Task 012: Photo Intelligence](#task-012-photo-intelligence)
 - [Task 011: Unified Evidence Processing](#task-011-unified-evidence-processing)
 - [Task 010B: Operations Health](#task-010b-operations-health)
+
+## Final Pilot Product Editing
+
+What changed:
+
+- Project health now uses one status and one reason everywhere.
+- The Project Command Center contains only Project Brief, Recommended Actions, What's Changed, and Quick Links.
+- Timeline, Evidence, and Milestones open in focused project views.
+- Recommendations lead the dashboard and routine activity no longer competes with decisions.
+- Settings opens one administrative section at a time; WhatsApp chats stay hidden until Manage chats is selected.
+- FieldOS summaries replace raw classification status, provider errors, and prominent rerun controls.
+
+How to test:
+
+1. Open Projects and compare a project's health label and reason with its Project Brief.
+2. Open the project and confirm Recommended Actions is the dominant section.
+3. Confirm What's Changed omits routine message and system events, then open Full timeline and choose Show all activity.
+4. Use each Quick Link and confirm Timeline, Evidence, Milestones, Reports, and Action Items remain reachable.
+5. Open Settings and move between Workspace, Team, WhatsApp, Integrations, Security, and Operations without a long combined page.
+6. In WhatsApp Settings, select Manage chats, search, change status filters, and move between pages.
+7. Open an Inbox message and confirm the interpretation uses plain-language FieldOS summary states.
+
+Current limitations:
+
+- Inbox read state remains browser-local and conversation ownership is represented by project assignment.
+- WhatsApp discovery pagination is client-side for the pilot.
 
 ## UX Refactoring Sprint
 

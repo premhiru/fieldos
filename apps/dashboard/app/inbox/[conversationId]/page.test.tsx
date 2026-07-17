@@ -111,15 +111,17 @@ vi.mock("@tanstack/react-query", () => ({
   })
 }));
 
-describe("ConversationDetailPage AI panel", () => {
-  it("renders pending, completed, and failed AI states", () => {
+describe("ConversationDetailPage summary panel", () => {
+  it("renders plain-language pending, completed, and unavailable states", () => {
     render(React.createElement(ConversationDetailPage));
 
-    expect(screen.getAllByText("AI classification pending")).toHaveLength(1);
-    expect(screen.getByText("Category: DEFECT")).toBeTruthy();
-    expect(screen.getByText("Confidence: High Confidence")).toBeTruthy();
+    expect(screen.getAllByText("Reviewing this field update...")).toHaveLength(1);
+    expect(screen.getByText("Defect")).toBeTruthy();
+    expect(screen.getByText("High Confidence")).toBeTruthy();
     expect(screen.getByRole("combobox", { name: "Assignee for Fix lobby light" })).toBeTruthy();
-    expect(screen.getByText("AI classification failed: AI not configured.")).toBeTruthy();
+    expect(
+      screen.getByText("This update could not be summarized. The original message is unchanged.")
+    ).toBeTruthy();
   });
 });
 

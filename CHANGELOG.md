@@ -5,13 +5,23 @@
 | Purpose      | Track notable FieldOS product and platform work. |
 | Owner        | Engineering                                      |
 | Status       | Active                                           |
-| Last Updated | 2026-07-14                                       |
+| Last Updated | 2026-07-16                                       |
 
 ## Table of Contents
 
 - [Unreleased](#unreleased)
 
 ## Unreleased
+
+### Final Pilot Product Editing
+
+- Rebuilt the Project Command Center around Project Brief, Recommended Actions, What's Changed, and Quick Links.
+- Added focused project Timeline, Evidence, and Milestones destinations while preserving Reports and Action Items.
+- Centralized deterministic project health into one status-and-reason service consumed by list and detail views.
+- Made recommendations the first dashboard workflow and removed the duplicate Recent Activity feed.
+- Split Settings into task-oriented views and made WhatsApp chat management closed, active-first, searchable, and paginated.
+- Replaced customer-facing AI machinery and raw classification errors with natural FieldOS summaries and confidence labels.
+- Added `docs/PRODUCT_EDITING_REPORT.md` and resolved the critical findings from the first-customer UX critique.
 
 ### WhatsApp Connection Reliability
 

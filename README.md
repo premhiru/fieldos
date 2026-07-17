@@ -5,7 +5,7 @@
 | Purpose      | Introduce the FieldOS engineering foundation, repository layout, and development workflow. |
 | Owner        | Founding Engineering                                                                       |
 | Status       | Active                                                                                     |
-| Last Updated | 2026-07-14                                                                                 |
+| Last Updated | 2026-07-16                                                                                 |
 
 ## Table of Contents
 
@@ -215,7 +215,11 @@ Pilot documents:
 
 FieldOS uses five primary product destinations: Dashboard, Projects, Inbox, Search, and Reports. Account security, team access, WhatsApp integrations, and role-gated operations tooling live under Settings.
 
-The dashboard answers "What needs my attention today?" with recommendations, assigned Action Items, and recent activity. Project pages follow a stable operational order: Brief, Recommendations, Timeline, Evidence, Milestones, and Reports. See [docs/UX_AUDIT.md](./docs/UX_AUDIT.md) for the full pilot UX audit, information architecture, screenshots, and deferred gaps.
+The dashboard answers "What needs my attention today?" with recommendations first, followed by a compact operational summary and assigned Action Items. The Project Command Center has four stable sections: Project Brief, Recommended Actions, What's Changed, and Quick Links. Timeline, Evidence, Milestones, Reports, and Action Items remain available as focused destinations.
+
+Settings is divided into Workspace, Team, WhatsApp, Integrations, Security, and Operations views. WhatsApp chat management is progressively disclosed, searchable, filtered to active chats by default, and paginated. Customer workflows use natural confidence labels and FieldOS summaries rather than exposing provider, prompt, or processing machinery.
+
+See [docs/PRODUCT_EDITING_REPORT.md](./docs/PRODUCT_EDITING_REPORT.md) for the final pilot product-editing record and [docs/ui-review/UX_REVIEW.md](./docs/ui-review/UX_REVIEW.md) for the baseline critique and resolution status.
 
 ## Repository Layout
 

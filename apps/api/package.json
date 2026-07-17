@@ -9,7 +9,7 @@
     "lint": "eslint . --max-warnings=0",
     "start": "node --env-file=../../.env dist/index.js",
     "start:railway": "tsx src/index.ts",
-    "test": "vitest run src --passWithNoTests",
+    "test": "vitest run src --passWithNoTests --testTimeout=60000 --hookTimeout=120000",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

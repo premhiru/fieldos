@@ -68,7 +68,7 @@ describe("MilestoneSection", () => {
     );
 
     expect(await screen.findAllByText("Foundation Pour")).toHaveLength(2);
-    expect(screen.getByText("AI Milestone Recommendations")).toBeTruthy();
+    expect(screen.getByText("Milestone Suggestions")).toBeTruthy();
     expect(screen.getByText(/We finished the foundation pour today\./)).toBeTruthy();
     expect(screen.getByText("High Confidence")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Approve" })).toBeTruthy();

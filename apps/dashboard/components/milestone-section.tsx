@@ -126,7 +126,7 @@ export function MilestoneSection({
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <Sparkles aria-hidden="true" className="h-4 w-4 text-emerald-600" />
-          <h3 className="text-sm font-semibold text-slate-950">AI Milestone Recommendations</h3>
+          <h3 className="text-sm font-semibold text-slate-950">Milestone Suggestions</h3>
           {recommendations.length > 0 ? (
             <Badge variant="warning">{recommendations.length}</Badge>
           ) : null}
@@ -365,7 +365,7 @@ function MilestoneEditor({
           <div>
             <p className="text-xs font-semibold uppercase text-emerald-700">
               {editor.mode === "recommendation"
-                ? "Review AI suggestion"
+                ? "Review suggestion"
                 : editor.mode === "edit"
                   ? "Edit milestone"
                   : "New milestone"}

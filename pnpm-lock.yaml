@@ -229,6 +229,9 @@ importers:
       '@fieldos/db':
         specifier: workspace:*
         version: link:../db
+      '@fieldos/intelligence':
+        specifier: workspace:*
+        version: link:../intelligence
       '@fieldos/shared':
         specifier: workspace:*
         version: link:../shared

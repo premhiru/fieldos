@@ -10,12 +10,12 @@ import {
   type PrismaClient,
   type Project,
   type ProjectState,
-  type ProjectStateHealth,
   type Milestone,
   type Recommendation,
   type RecommendationPriority,
   type WhatsAppDraft
 } from "@fieldos/db";
+import { assessProjectHealth } from "@fieldos/intelligence";
 import { createLogger } from "@fieldos/shared";
 
 import type {
@@ -73,12 +73,15 @@ interface ProjectCoordinatorContext {
     title: string;
   }>;
   highPriorityActionItemCount: number;
+  hasAttentionSignal: boolean;
+  hasSafetyIssue: boolean;
   lastActivityAt: Date | null;
   lastEvidenceAt: Date | null;
   lastReportAt: Date | null;
   lastWhatsAppUpdateAt: Date | null;
   milestones: Milestone[];
   openActionItemCount: number;
+  overdueMilestoneCount: number;
   openActionItems: Array<{
     description: string | null;
     priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
@@ -237,7 +240,16 @@ export class ProjectCoordinatorRuntime {
   async rebuildProjectState(projectId: string): Promise<ProjectState> {
     const project = await this.requireProject(projectId);
     const context = await this.loadProjectContext(project);
-    const health = determineHealth(context, this.now());
+    const healthAssessment = assessProjectHealth({
+      hasAttentionSignal: context.hasAttentionSignal,
+      hasSafetyIssue: context.hasSafetyIssue,
+      highPriorityActionItemCount: context.highPriorityActionItemCount,
+      lastActivityAt: context.lastActivityAt,
+      now: this.now(),
+      openActionItemCount: context.openActionItemCount,
+      overdueMilestoneCount: context.overdueMilestoneCount,
+      urgentActionItemCount: context.urgentActionItemCount
+    });
     const completionPercent = determineCompletionPercent(context);
     const summaries = buildProjectStateSummaries(context);
     const milestoneState = buildMilestoneState(context.milestones, this.now());
@@ -247,13 +259,14 @@ export class ProjectCoordinatorRuntime {
         completionPercent,
         completedMilestonesCount: milestoneState.completedCount,
         delayedMilestonesCount: milestoneState.delayedCount,
-        health,
+        health: healthAssessment.status,
         highPriorityActionItemCount: context.highPriorityActionItemCount,
         lastActivityAt: context.lastActivityAt,
         lastEvidenceAt: context.lastEvidenceAt,
         lastReportAt: context.lastReportAt,
         lastWhatsAppUpdateAt: context.lastWhatsAppUpdateAt,
         metadata: {
+          healthReason: healthAssessment.reason,
           lastComputedAt: this.now().toISOString(),
           source: "deterministic"
         },
@@ -274,13 +287,14 @@ export class ProjectCoordinatorRuntime {
         completionPercent,
         completedMilestonesCount: milestoneState.completedCount,
         delayedMilestonesCount: milestoneState.delayedCount,
-        health,
+        health: healthAssessment.status,
         highPriorityActionItemCount: context.highPriorityActionItemCount,
         lastActivityAt: context.lastActivityAt,
         lastEvidenceAt: context.lastEvidenceAt,
         lastReportAt: context.lastReportAt,
         lastWhatsAppUpdateAt: context.lastWhatsAppUpdateAt,
         metadata: {
+          healthReason: healthAssessment.reason,
           lastComputedAt: this.now().toISOString(),
           source: "deterministic"
         },
@@ -303,7 +317,9 @@ export class ProjectCoordinatorRuntime {
 
   async getProjectState(projectId: string): Promise<ProjectState> {
     const projectState = await this.prisma.projectState.findUnique({ where: { projectId } });
-    return projectState ?? this.rebuildProjectState(projectId);
+    return projectState && getHealthReason(projectState.metadata)
+      ? projectState
+      : this.rebuildProjectState(projectId);
   }
 
   async listProjectCoordinatorRuns(projectId: string): Promise<CoordinatorRun[]> {
@@ -1371,56 +1387,80 @@ export class ProjectCoordinatorRuntime {
   }
 
   private async loadProjectContext(project: Project): Promise<ProjectCoordinatorContext> {
-    const [events, messages, actionItems, photoAnalyses, reports, recommendations, milestones] =
-      await Promise.all([
-        this.prisma.event.findMany({
-          orderBy: { occurredAt: "desc" },
-          take: 20,
-          where: { projectId: project.id }
-        }),
-        this.prisma.message.findMany({
-          include: {
-            attachments: true,
-            conversation: true
-          },
-          orderBy: { occurredAt: "desc" },
-          take: 30,
-          where: {
-            conversation: {
-              projectId: project.id
-            }
+    const [
+      events,
+      messages,
+      actionItems,
+      photoAnalyses,
+      reports,
+      recommendations,
+      milestones,
+      classifications
+    ] = await Promise.all([
+      this.prisma.event.findMany({
+        orderBy: { occurredAt: "desc" },
+        take: 20,
+        where: { projectId: project.id }
+      }),
+      this.prisma.message.findMany({
+        include: {
+          attachments: true,
+          conversation: true
+        },
+        orderBy: { occurredAt: "desc" },
+        take: 30,
+        where: {
+          conversation: {
+            projectId: project.id
           }
-        }),
-        this.prisma.actionItem.findMany({
-          orderBy: { createdAt: "desc" },
-          where: { projectId: project.id }
-        }),
-        this.prisma.photoAnalysis.findMany({
-          orderBy: { createdAt: "desc" },
-          take: 10,
-          where: { projectId: project.id }
-        }),
-        this.prisma.projectReport.findMany({
-          orderBy: { createdAt: "desc" },
-          take: 5,
-          where: { projectId: project.id }
-        }),
-        this.prisma.recommendation.findMany({
-          orderBy: { createdAt: "desc" },
-          take: 10,
-          where: { projectId: project.id }
-        }),
-        this.prisma.milestone.findMany({
-          orderBy: [{ plannedStartDate: "asc" }, { plannedEndDate: "asc" }],
-          where: { projectId: project.id }
-        })
-      ]);
-    const openActionItems = actionItems.filter((item) => item.status === "PENDING");
+        }
+      }),
+      this.prisma.actionItem.findMany({
+        orderBy: { createdAt: "desc" },
+        where: { projectId: project.id }
+      }),
+      this.prisma.photoAnalysis.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 10,
+        where: { projectId: project.id }
+      }),
+      this.prisma.projectReport.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        where: { projectId: project.id }
+      }),
+      this.prisma.recommendation.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 10,
+        where: { projectId: project.id }
+      }),
+      this.prisma.milestone.findMany({
+        orderBy: [{ plannedStartDate: "asc" }, { plannedEndDate: "asc" }],
+        where: { projectId: project.id }
+      }),
+      this.prisma.aIMessageClassification.findMany({
+        select: { category: true },
+        where: {
+          projectId: project.id,
+          status: { in: ["COMPLETED", "NEEDS_REVIEW"] }
+        }
+      })
+    ]);
+    const openActionItems = actionItems.filter((item) =>
+      ["PENDING", "ACCEPTED"].includes(item.status)
+    );
     const highPriorityActionItemCount = openActionItems.filter(
       (item) => item.priority === "HIGH"
     ).length;
     const urgentActionItemCount = openActionItems.filter(
       (item) => item.priority === "URGENT"
+    ).length;
+    const overdueMilestoneCount = milestones.filter(
+      (milestone) =>
+        milestone.status === "DELAYED" ||
+        (milestone.status !== "COMPLETED" &&
+          milestone.plannedEndDate &&
+          milestone.plannedEndDate.getTime() < this.now().getTime())
     ).length;
     const lastActivityAt = latestDate([
       ...events.map((event) => event.occurredAt),
@@ -1443,6 +1483,12 @@ export class ProjectCoordinatorRuntime {
     return {
       actionItems,
       events,
+      hasAttentionSignal: classifications.some((classification) =>
+        ["DELAY", "DEFECT", "INSPECTION_REQUEST"].includes(classification.category ?? "")
+      ),
+      hasSafetyIssue: classifications.some(
+        (classification) => classification.category === "SAFETY_ISSUE"
+      ),
       highPriorityActionItemCount,
       lastActivityAt,
       lastEvidenceAt,
@@ -1450,6 +1496,7 @@ export class ProjectCoordinatorRuntime {
       lastWhatsAppUpdateAt,
       milestones,
       openActionItemCount: openActionItems.length,
+      overdueMilestoneCount,
       openActionItems,
       photoAnalyses,
       project,
@@ -1460,26 +1507,13 @@ export class ProjectCoordinatorRuntime {
   }
 }
 
-function determineHealth(context: ProjectCoordinatorContext, now: Date): ProjectStateHealth {
-  if (!context.lastActivityAt) {
-    return "UNKNOWN";
+function getHealthReason(metadata: unknown): string | null {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return null;
   }
 
-  const lastActivityAgeMs = now.getTime() - context.lastActivityAt.getTime();
-
-  if (context.urgentActionItemCount > 0 || lastActivityAgeMs >= urgentFollowUpThresholdMs) {
-    return "CRITICAL";
-  }
-
-  if (
-    context.highPriorityActionItemCount > 0 ||
-    context.openActionItemCount > 0 ||
-    lastActivityAgeMs >= followUpThresholdMs
-  ) {
-    return "NEEDS_ATTENTION";
-  }
-
-  return "HEALTHY";
+  const reason = (metadata as Record<string, unknown>).healthReason;
+  return typeof reason === "string" && reason.trim() ? reason : null;
 }
 
 function determineCompletionPercent(context: ProjectCoordinatorContext): number {

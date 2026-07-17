@@ -19,9 +19,18 @@
 
 ## Current Milestone
 
-AI coordinator scheduling reliability is implemented, validated, and deployed to production.
+Final pilot product editing is implemented and undergoing release validation.
 
 ## Completed Tasks
+
+- Final Pilot Product Editing.
+  - Reduced the Project Command Center to Project Brief, Recommended Actions, What's Changed, and Quick Links.
+  - Added focused Timeline, Evidence, and Milestones views while preserving Reports and Action Items.
+  - Centralized deterministic project health into one status-and-reason service used by project list and detail contracts.
+  - Prioritized recommendations on the dashboard and removed the duplicate Recent Activity feed.
+  - Split Settings into six task-oriented views and made WhatsApp chat management active-first, hidden by default, searchable, and paginated.
+  - Replaced customer-facing AI machinery with FieldOS summaries and natural confidence labels.
+  - Added `docs/PRODUCT_EDITING_REPORT.md` and resolved the critical first-customer UX findings.
 
 - AI coordinator scheduling reliability.
   - Added independent 15-minute debounce windows for lightweight and milestone coordinator jobs.
@@ -369,6 +378,9 @@ AI coordinator scheduling reliability is implemented, validated, and deployed to
 - Inbox unread state is browser-local and does not synchronize across devices or users.
 - Action Items do not yet have domain-level due dates, so overdue work cannot be derived reliably.
 - Recommendation snoozes are browser-local until the Recommendation API exposes durable snooze state.
+- Conversations do not yet have a first-class owner; project assignment is the current ownership signal in Inbox.
+- WhatsApp discovery pagination is client-side; move it into the API before accounts routinely exceed several thousand chats.
+- Recommendation decision history does not yet have a dedicated audit hub.
 
 ## Upcoming Milestones
 
@@ -413,6 +425,7 @@ AI coordinator scheduling reliability is implemented, validated, and deployed to
 - ADR 0016: Require human approval for evidence-backed milestone changes, prefer existing milestone matching, and create business timeline events.
 - Sprint 14 implementation decision: Keep pilot readiness primitives small, tenant-scoped, and API-owned rather than introducing a product analytics service or tour framework before the first pilot.
 - UX Refactoring decision: Keep five stable primary destinations, organize projects around operational review order, and place support/admin capabilities under role-aware Settings.
+- Product Editing decision: expose one deterministic project-health status and reason, keep four primary project command-center sections, and progressively disclose administration and system mechanics.
 - WhatsApp reliability decision: persist each outage episode on `WhatsAppAccount`, apply a short grace period, and deliver one disconnect/recovery pair asynchronously through the existing worker job queue.
 
 ## Deployment Status

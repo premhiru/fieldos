@@ -285,43 +285,35 @@ function AIMessagePanel({ messageId, outbound }: { messageId: string; outbound: 
 
   return (
     <div className={surfaceClass}>
-      <div className="flex items-center justify-between gap-3">
-        <div className="font-medium">AI</div>
-        <button
-          className={
-            outbound
-              ? "rounded border border-slate-600 px-2 py-1 text-xs text-white disabled:opacity-50"
-              : "rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 disabled:opacity-50"
-          }
-          disabled={classifyMutation.isPending}
-          onClick={() => classifyMutation.mutate()}
-          type="button"
-        >
-          Re-run AI classification
-        </button>
-      </div>
+      <div className="font-medium">FieldOS summary</div>
 
       {classificationQuery.isLoading ? (
-        <p className="mt-2">AI classification pending</p>
+        <p className="mt-2">Reviewing this field update...</p>
       ) : !classification ? (
-        <p className="mt-2">AI classification pending</p>
+        <p className="mt-2">Reviewing this field update...</p>
       ) : classification.status === "PENDING" ? (
-        <p className="mt-2">AI classification pending</p>
+        <p className="mt-2">Reviewing this field update...</p>
       ) : classification.status === "FAILED" ? (
         <p className="mt-2">
-          AI classification failed
-          {classification.errorMessage ? `: ${classification.errorMessage}` : ""}
+          This update could not be summarized. The original message is unchanged.
         </p>
       ) : (
-        <div className="mt-2 grid gap-1">
-          <div>Category: {classification.category ?? "UNKNOWN"}</div>
-          <div>Summary: {classification.summary ?? "No summary"}</div>
-          <div>Location: {classification.location ?? "Unknown"}</div>
-          <div>Action required: {classification.actionRequired ? "Yes" : "No"}</div>
-          <div>Confidence: {getConfidenceLabel(classification.confidence)}</div>
-          <div>Status: {classification.status}</div>
+        <div className="mt-2 space-y-2">
+          <p className="text-sm leading-5">
+            {classification.summary ?? "No summary is available."}
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="muted">
+              {formatClassificationLabel(classification.category ?? "FIELD_UPDATE")}
+            </Badge>
+            <Badge variant="muted">{getConfidenceLabel(classification.confidence)}</Badge>
+            {classification.actionRequired ? (
+              <Badge variant="muted">Follow-up recommended</Badge>
+            ) : null}
+          </div>
+          {classification.location ? <div>Location: {classification.location}</div> : null}
           {classification.reasoningSummary ? (
-            <div>Reason: {classification.reasoningSummary}</div>
+            <div>Why it matters: {classification.reasoningSummary}</div>
           ) : null}
           {classification.actionRequired && actionItem ? (
             <div
@@ -343,8 +335,31 @@ function AIMessagePanel({ messageId, outbound }: { messageId: string; outbound: 
           ) : null}
         </div>
       )}
+      <details className="mt-3 border-t border-current/20 pt-2">
+        <summary className="cursor-pointer text-xs font-medium">More options</summary>
+        <button
+          className={
+            outbound
+              ? "mt-2 rounded border border-slate-600 px-2 py-1 text-xs text-white disabled:opacity-50"
+              : "mt-2 rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 disabled:opacity-50"
+          }
+          disabled={classifyMutation.isPending}
+          onClick={() => classifyMutation.mutate()}
+          type="button"
+        >
+          {classifyMutation.isPending ? "Reviewing..." : "Review this update again"}
+        </button>
+      </details>
     </div>
   );
+}
+
+function formatClassificationLabel(value: string): string {
+  return value
+    .toLowerCase()
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 }
 
 function MediaPlaceholder({ type }: { type: Message["type"] }) {

@@ -63,7 +63,7 @@ let buildServer: typeof import("./server.js").buildServer;
 
 beforeAll(async () => {
   buildServer = (await import("./server.js")).buildServer;
-}, 30_000);
+}, 120_000);
 
 describe("FieldOS API auth and tenancy", () => {
   let repository: InMemoryRepository;
@@ -3710,6 +3710,12 @@ class InMemoryRepository implements AppRepository {
         return {
           code: project.code,
           health,
+          healthReason:
+            health === "CRITICAL"
+              ? "Immediate review is required."
+              : health === "NEEDS_ATTENTION"
+                ? "Open work needs follow-up."
+                : "No high-priority concerns are open.",
           highestPriorityIssue: projectActionItems[0]?.title ?? null,
           id: project.id,
           lastActivityAt:

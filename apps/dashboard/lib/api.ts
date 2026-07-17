@@ -25,7 +25,7 @@ export type ActionItemPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 export type MilestoneStatus = "PLANNED" | "IN_PROGRESS" | "COMPLETED" | "DELAYED" | "CANCELLED";
 export type MilestonePriority = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 export type MilestoneSource = "MANUAL" | "AI_RECOMMENDATION" | "IMPORTED";
-export type DashboardHealth = "HEALTHY" | "NEEDS_ATTENTION" | "CRITICAL";
+export type DashboardHealth = "HEALTHY" | "NEEDS_ATTENTION" | "CRITICAL" | "UNKNOWN";
 export type SearchSourceType =
   | "PROJECT"
   | "MESSAGE"
@@ -186,6 +186,7 @@ export interface ProjectState {
   organizationId: string;
   projectId: string;
   health: ProjectStateHealth;
+  healthReason: string;
   completionPercent: number;
   lastActivityAt: string | null;
   lastWhatsAppUpdateAt: string | null;
@@ -657,6 +658,7 @@ export interface DashboardProject {
   name: string;
   status: ProjectStatus;
   health: DashboardHealth;
+  healthReason: string;
   lastActivityAt: string | null;
   highestPriorityIssue: string | null;
   openActionItemCount: number;

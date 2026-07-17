@@ -23,6 +23,7 @@
 - [AI Project Coordinators](#ai-project-coordinators)
 - [Milestone Intelligence](#milestone-intelligence)
 - [Media Serving](#media-serving)
+- [Project Health](#project-health)
 - [Operations Command Center](#operations-command-center)
 - [Background Processing and Operations Health](#background-processing-and-operations-health)
 - [AI Search](#ai-search)
@@ -259,6 +260,14 @@ Object keys are safe and tenant-namespaced:
 - `organizations/{organizationId}/projects/{projectId}/evidence/{evidenceId}/{filename}`
 - `organizations/{organizationId}/projects/{projectId}/reports/{reportId}.pdf`
 
+## Project Health
+
+`packages/intelligence` owns the deterministic `assessProjectHealth` domain service. Its input is a prepared set of operational signals: safety and attention signals, open, high-priority, and urgent Action Item counts, overdue milestone count, last activity time, and evaluation time. Its output is one `status` and one plain-language `reason`.
+
+`packages/coordinators` prepares the complete project context, calls the service, and persists the status plus reason in `ProjectState`. The API dashboard uses the persisted assessment and applies the same service as a fallback for projects without a current state snapshot. Project list and project detail responses therefore share one status vocabulary and reason contract. Dashboard components never infer health locally.
+
+Health is intentionally deterministic. Provider-generated classifications may contribute a safety or attention source signal, but no model directly chooses the displayed project status.
+
 ## Operations Command Center
 
 The Operations Command Center is the authenticated homepage. The dashboard remains presentation-oriented and consumes organization-scoped aggregates from the API instead of calculating health locally.
@@ -266,7 +275,7 @@ The Operations Command Center is the authenticated homepage. The dashboard remai
 The API owns:
 
 - Tenant authorization for dashboard endpoints.
-- Deterministic project health calculations.
+- Project health contract delivery from the shared domain service.
 - Project attention ranking.
 - Personal Action Item grouping by priority.
 - Recent business activity filtering.

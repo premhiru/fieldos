@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { api, type WhatsAppAccount } from "../../lib/api";
+import { api, type WhatsAppAccount, type WhatsAppChatMapping } from "../../lib/api";
 
 import { StepIndicator, WhatsAppAccountCard, WhatsAppSetupWizardContent } from "./page";
 
@@ -103,6 +103,28 @@ describe("WhatsApp setup experience", () => {
     });
     expect(progress.querySelectorAll("svg")).toHaveLength(2);
   });
+
+  it("keeps chat management collapsed and paginates active chats", async () => {
+    const chats = [
+      ...Array.from({ length: 17 }, (_, index) => whatsappChat(index + 1, "ACTIVE")),
+      whatsappChat(18, "IGNORED")
+    ];
+    vi.spyOn(api, "listWhatsAppChats").mockResolvedValue({ chats });
+
+    renderAccount(whatsappAccount());
+
+    expect(await screen.findByRole("button", { name: "Manage chats" })).toBeTruthy();
+    expect(screen.queryByRole("table")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Manage chats" }));
+    expect(await screen.findByText("Chat 1")).toBeTruthy();
+    expect(screen.queryByText("Chat 16")).toBeNull();
+    expect(screen.queryByText("Chat 18")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByText("Chat 16")).toBeTruthy();
+    expect(screen.getByText("Chat 17")).toBeTruthy();
+  });
 });
 
 function renderAccount(
@@ -142,5 +164,25 @@ function whatsappAccount(overrides: Partial<WhatsAppAccount> = {}): WhatsAppAcco
     status: "CONNECTED",
     updatedAt: "2026-07-15T01:00:00.000Z",
     ...overrides
+  };
+}
+
+function whatsappChat(index: number, status: WhatsAppChatMapping["status"]): WhatsAppChatMapping {
+  return {
+    activatedAt: status === "ACTIVE" ? "2026-07-15T01:00:00.000Z" : null,
+    activatedByUserId: status === "ACTIVE" ? "user-1" : null,
+    chatName: `Chat ${index}`,
+    conversation: null,
+    conversationId: null,
+    createdAt: "2026-07-15T00:00:00.000Z",
+    id: `chat-${index}`,
+    isGroup: true,
+    jid: `chat-${index}@g.us`,
+    organizationId: "organization-1",
+    project: null,
+    projectId: null,
+    status,
+    updatedAt: "2026-07-15T01:00:00.000Z",
+    whatsappAccountId: "whatsapp-account-1"
   };
 }

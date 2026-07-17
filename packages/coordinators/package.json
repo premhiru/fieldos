@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@fieldos/db": "workspace:*",
+    "@fieldos/intelligence": "workspace:*",
     "@fieldos/shared": "workspace:*"
   },
   "devDependencies": {

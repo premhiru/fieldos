@@ -1050,10 +1050,25 @@ export function buildServer(options: BuildServerOptions = {}) {
 
   server.get("/projects/:projectId/state", { preHandler: requireAuth }, async (request) => {
     const params = projectParamsSchema.parse(request.params);
+    const user = requireCurrentUser(request);
     const project = await requireProjectForRequest(request, params.projectId);
 
+    const state = await coordinatorRuntime.getProjectState(project.id);
+    const dashboard = await repository.getOperationsDashboard({
+      organizationId: project.organizationId,
+      userId: user.id
+    });
+    const dashboardProject = dashboard.projects.find((item) => item.id === project.id);
+    const stateWithReason = withProjectHealthReason(state);
+
     return {
-      state: await coordinatorRuntime.getProjectState(project.id)
+      state: dashboardProject
+        ? {
+            ...stateWithReason,
+            health: dashboardProject.health,
+            healthReason: dashboardProject.healthReason
+          }
+        : stateWithReason
     };
   });
 
@@ -1066,9 +1081,8 @@ export function buildServer(options: BuildServerOptions = {}) {
       const project = await requireProjectForRequest(request, params.projectId);
       await requireWritableOrganizationRole(user.id, project.organizationId);
 
-      return {
-        state: await coordinatorRuntime.rebuildProjectState(project.id)
-      };
+      const state = await coordinatorRuntime.rebuildProjectState(project.id);
+      return { state: withProjectHealthReason(state) };
     }
   );
 
@@ -2506,4 +2520,24 @@ function reportTypeLabel(type: ProjectReportRecord["type"]): string {
         : type === "RISK_SUMMARY"
           ? "Risk Summary"
           : "Pending Decisions";
+}
+
+function withProjectHealthReason<T extends { health: string; metadata: unknown }>(
+  state: T
+): T & { healthReason: string } {
+  const metadata =
+    state.metadata && typeof state.metadata === "object" && !Array.isArray(state.metadata)
+      ? (state.metadata as Record<string, unknown>)
+      : null;
+  const storedReason = metadata?.healthReason;
+
+  return {
+    ...state,
+    healthReason:
+      typeof storedReason === "string" && storedReason.trim()
+        ? storedReason
+        : state.health === "UNKNOWN"
+          ? "No field activity has been recorded yet."
+          : "Project health is based on current activity and open work."
+  };
 }

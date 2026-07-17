@@ -11,7 +11,7 @@ import {
   PageHeader,
   Skeleton
 } from "@fieldos/ui";
-import { FolderKanban } from "lucide-react";
+import { FolderKanban, Plus, X } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import * as React from "react";
@@ -69,6 +69,7 @@ function ProjectsContent() {
   const [codeEdited, setCodeEdited] = React.useState(false);
   const [validationError, setValidationError] = React.useState<string | null>(null);
   const [view, setView] = React.useState<ProjectView>("all");
+  const [showCreateForm, setShowCreateForm] = React.useState(false);
 
   const dashboardProjects = React.useMemo(
     () =>
@@ -98,6 +99,7 @@ function ProjectsContent() {
       setCode("");
       setCodeEdited(false);
       setStatus("ACTIVE");
+      setShowCreateForm(false);
       await queryClient.invalidateQueries({ queryKey: ["projects", activeOrganization?.id] });
     }
   });
@@ -127,6 +129,19 @@ function ProjectsContent() {
       />
 
       {canCreateProject ? (
+        <div className="flex justify-end">
+          <Button onClick={() => setShowCreateForm((value) => !value)} variant="secondary">
+            {showCreateForm ? (
+              <X aria-hidden="true" className="size-4" />
+            ) : (
+              <Plus aria-hidden="true" className="size-4" />
+            )}
+            {showCreateForm ? "Close" : "Create project"}
+          </Button>
+        </div>
+      ) : null}
+
+      {canCreateProject && showCreateForm ? (
         <Card id="create-project">
           <CardHeader>
             <CardTitle>Create Project</CardTitle>
@@ -228,12 +243,13 @@ function ProjectsContent() {
             <EmptyState
               action={
                 canCreateProject ? (
-                  <a
+                  <button
                     className="text-sm font-medium text-[var(--text-primary)] hover:underline"
-                    href="#create-project"
+                    onClick={() => setShowCreateForm(true)}
+                    type="button"
                   >
                     Create the first project
-                  </a>
+                  </button>
                 ) : undefined
               }
               description="Create your first project to start organizing field updates from WhatsApp."
@@ -267,6 +283,11 @@ function ProjectsContent() {
                     <div className="min-w-0 flex-1">
                       <div className="truncate font-medium text-slate-950">{project.name}</div>
                       <div className="text-sm text-slate-500">{project.code}</div>
+                      {dashboardProject?.healthReason ? (
+                        <p className="mt-1 line-clamp-1 text-xs text-[var(--text-secondary)]">
+                          {dashboardProject.healthReason}
+                        </p>
+                      ) : null}
                     </div>
                     <div className="shrink-0 text-right">
                       <Badge variant="muted">{projectHealthLabel(health)}</Badge>

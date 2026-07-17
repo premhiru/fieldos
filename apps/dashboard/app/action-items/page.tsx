@@ -289,7 +289,7 @@ function priorityBar(priority: ActionItem["priority"]) {
 function emptyDescription(view: ActionView) {
   if (view === "completed") return "Completed work will appear here for reference.";
   if (view === "overdue") return "Nothing is currently past its due date.";
-  if (view === "unassigned") return "New AI follow-ups waiting for an owner will appear here.";
+  if (view === "unassigned") return "New follow-ups waiting for an owner will appear here.";
   if (view === "team") return "Work assigned to other project members will appear here.";
   return "New work assigned to your account will appear here.";
 }

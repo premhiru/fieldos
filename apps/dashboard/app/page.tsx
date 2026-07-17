@@ -1,15 +1,7 @@
 "use client";
 
 import { Badge, Button, EmptyState, PageHeader, Skeleton } from "@fieldos/ui";
-import {
-  Activity,
-  Check,
-  CheckCircle2,
-  ClipboardCheck,
-  Inbox,
-  Sparkles,
-  TriangleAlert
-} from "lucide-react";
+import { Activity, Check, CheckCircle2, ClipboardCheck, Inbox, TriangleAlert } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import * as React from "react";
@@ -152,41 +144,6 @@ function DashboardContent() {
         />
       ) : (
         <>
-          <section
-            aria-label="Today's summary"
-            className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
-          >
-            <SummaryMetric
-              href="/projects"
-              icon={TriangleAlert}
-              label="Projects needing attention"
-              tone="amber"
-              value={
-                dashboard.summary.projectsNeedingAttention + dashboard.summary.criticalProjects
-              }
-            />
-            <SummaryMetric
-              href="/inbox"
-              icon={Inbox}
-              label="Unread messages"
-              value={recentMessages}
-            />
-            <SummaryMetric
-              href="#recommendations"
-              icon={Sparkles}
-              label="Pending recommendations"
-              tone="blue"
-              value={recommendations.length}
-            />
-            <SummaryMetric
-              href="/action-items"
-              icon={ClipboardCheck}
-              label="Outstanding Action Items"
-              tone="red"
-              value={actionItems.length}
-            />
-          </section>
-
           <section id="recommendations" className="scroll-mt-24 space-y-4">
             <SectionHeader
               count={recommendations.length}
@@ -220,7 +177,32 @@ function DashboardContent() {
             )}
           </section>
 
-          <section className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.7fr)]">
+          <section aria-label="Today's summary" className="grid gap-3 sm:grid-cols-3">
+            <SummaryMetric
+              href="/projects"
+              icon={TriangleAlert}
+              label="Projects needing attention"
+              tone="amber"
+              value={
+                dashboard.summary.projectsNeedingAttention + dashboard.summary.criticalProjects
+              }
+            />
+            <SummaryMetric
+              href="/inbox"
+              icon={Inbox}
+              label="Recent field messages"
+              value={recentMessages}
+            />
+            <SummaryMetric
+              href="/action-items"
+              icon={ClipboardCheck}
+              label="Assigned Action Items"
+              tone="red"
+              value={actionItems.length}
+            />
+          </section>
+
+          <section className="space-y-4">
             <div className="space-y-4">
               <SectionHeader
                 actionHref="/action-items"
@@ -246,28 +228,6 @@ function DashboardContent() {
                   ))}
                 </div>
               )}
-            </div>
-
-            <div className="space-y-4">
-              <SectionHeader title="Recent Activity" />
-              <div className="rounded-lg border border-slate-200 bg-white px-5">
-                {dashboard.recentActivity.slice(0, 10).map((activity) => (
-                  <Link
-                    className="block border-b border-slate-100 py-4 last:border-b-0 hover:text-slate-700"
-                    href={
-                      activity.conversationId
-                        ? `/inbox/${activity.conversationId}`
-                        : `/projects/${activity.projectId}`
-                    }
-                    key={activity.id}
-                  >
-                    <div className="text-sm font-medium text-slate-950">{activity.title}</div>
-                    <div className="mt-1 text-xs text-slate-500">
-                      {activity.projectName} · {formatTime(activity.occurredAt)}
-                    </div>
-                  </Link>
-                ))}
-              </div>
             </div>
           </section>
         </>

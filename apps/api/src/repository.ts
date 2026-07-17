@@ -34,7 +34,11 @@ import {
   type EvidenceSummary,
   type UnifiedEvidenceContext
 } from "@fieldos/db";
-import type { ProjectIntelligenceContext } from "@fieldos/intelligence";
+import {
+  assessProjectHealth,
+  type ProjectHealthStatus,
+  type ProjectIntelligenceContext
+} from "@fieldos/intelligence";
 import type {
   AttachmentRecord,
   ConversationRecord,
@@ -56,7 +60,7 @@ export type AICategory = AIMessageCategory;
 export type ActionStatus = ActionItemStatus;
 export type ActionType = ActionItemType;
 export type ActionPriority = ActionItemPriority;
-export type DashboardHealth = "HEALTHY" | "NEEDS_ATTENTION" | "CRITICAL";
+export type DashboardHealth = ProjectHealthStatus;
 export type DashboardBriefSource = "AI" | "FALLBACK";
 export type SearchSourceType = SearchDocumentSourceType;
 export type JobType = ProcessingJobType;
@@ -293,6 +297,7 @@ export interface DashboardProjectRecord {
   name: string;
   status: Status;
   health: DashboardHealth;
+  healthReason: string;
   lastActivityAt: Date | null;
   highestPriorityIssue: string | null;
   openActionItemCount: number;
@@ -3304,12 +3309,7 @@ function addMinutes(date: Date, minutes: number): Date {
   return new Date(date.getTime() + minutes * 60 * 1000);
 }
 
-const openActionItemStatuses = new Set<ActionStatus>(["PENDING"]);
-const dashboardHealthThresholds = {
-  overdueMilestonesForCritical: 2,
-  urgentActionItemsForCritical: 3
-};
-
+const openActionItemStatuses = new Set<ActionStatus>(["PENDING", "ACCEPTED"]);
 function isOpenActionItem(actionItem: Pick<ActionItemRecord, "status">): boolean {
   return openActionItemStatuses.has(actionItem.status);
 }
@@ -3354,22 +3354,27 @@ function buildDashboardProject(input: {
   const hasAttentionClassification = projectClassifications.some((classification) =>
     ["DELAY", "DEFECT", "INSPECTION_REQUEST"].includes(classification.category ?? "")
   );
-  const health = calculateProjectHealth({
-    hasAttentionClassification,
-    hasSafetyIssue,
-    highActionItemCount,
-    overdueMilestoneCount,
-    urgentActionItemCount
-  });
   const lastActivityAt = getLastActivityAt({
     actionItems: projectActionItems,
     events: input.events.filter((event) => event.projectId === input.project.id),
     project: input.project
   });
+  const healthAssessment = assessProjectHealth({
+    hasAttentionSignal: hasAttentionClassification,
+    hasSafetyIssue,
+    highPriorityActionItemCount: highActionItemCount,
+    lastActivityAt,
+    openActionItemCount: projectActionItems.length,
+    overdueMilestoneCount,
+    urgentActionItemCount
+  });
+  const health = healthAssessment.status;
+  const healthReason = healthAssessment.reason;
 
   return {
     code: input.project.code,
     health,
+    healthReason,
     highestPriorityIssue: getHighestPriorityIssue(projectActionItems, projectMilestones),
     id: input.project.id,
     lastActivityAt,
@@ -3385,32 +3390,6 @@ function buildDashboardProject(input: {
   };
 }
 
-function calculateProjectHealth(input: {
-  hasAttentionClassification: boolean;
-  hasSafetyIssue: boolean;
-  highActionItemCount: number;
-  overdueMilestoneCount: number;
-  urgentActionItemCount: number;
-}): DashboardHealth {
-  if (
-    input.hasSafetyIssue ||
-    input.urgentActionItemCount >= dashboardHealthThresholds.urgentActionItemsForCritical ||
-    input.overdueMilestoneCount >= dashboardHealthThresholds.overdueMilestonesForCritical
-  ) {
-    return "CRITICAL";
-  }
-
-  if (
-    input.highActionItemCount > 0 ||
-    input.hasAttentionClassification ||
-    input.overdueMilestoneCount > 0
-  ) {
-    return "NEEDS_ATTENTION";
-  }
-
-  return "HEALTHY";
-}
-
 function getProjectRankScore(input: {
   health: DashboardHealth;
   highActionItemCount: number;
@@ -3420,7 +3399,8 @@ function getProjectRankScore(input: {
   const healthScore = {
     CRITICAL: 300,
     HEALTHY: 0,
-    NEEDS_ATTENTION: 150
+    NEEDS_ATTENTION: 150,
+    UNKNOWN: 25
   } satisfies Record<DashboardHealth, number>;
 
   return (
