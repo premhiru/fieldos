@@ -314,6 +314,28 @@ export async function claimNextProcessingJob(
   }
 }
 
+export async function recoverStaleProcessingJobs(
+  prisma: PrismaClient,
+  staleAfterMs = 5 * 60 * 1000
+): Promise<number> {
+  const result = await prisma.processingJob.updateMany({
+    data: {
+      errorMessage: "Recovered after the previous worker stopped during processing.",
+      nextRunAt: null,
+      startedAt: null,
+      status: "PENDING"
+    },
+    where: {
+      startedAt: {
+        lte: new Date(Date.now() - staleAfterMs)
+      },
+      status: "RUNNING"
+    }
+  });
+
+  return result.count;
+}
+
 export async function markProcessingJobComplete(
   prisma: PrismaClient | Prisma.TransactionClient,
   jobId: string

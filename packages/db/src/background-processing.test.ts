@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { claimNextProcessingJob, queueProjectCoordinatorJobs } from "./background-processing.js";
+import {
+  claimNextProcessingJob,
+  queueProjectCoordinatorJobs,
+  recoverStaleProcessingJobs
+} from "./background-processing.js";
 
 const now = new Date("2026-07-16T08:00:00.000Z");
 
@@ -120,6 +124,25 @@ describe("processing job claiming", () => {
         where: expect.objectContaining({ id: "job_eligible" })
       })
     );
+  });
+
+  it("returns stale running jobs to the queue after a worker restart", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    const prisma = {
+      processingJob: {
+        updateMany: vi.fn().mockResolvedValue({ count: 2 })
+      }
+    };
+
+    await expect(recoverStaleProcessingJobs(prisma as never)).resolves.toBe(2);
+    expect(prisma.processingJob.updateMany).toHaveBeenCalledWith({
+      data: expect.objectContaining({ startedAt: null, status: "PENDING" }),
+      where: {
+        startedAt: { lte: new Date("2026-07-16T07:55:00.000Z") },
+        status: "RUNNING"
+      }
+    });
   });
 });
 

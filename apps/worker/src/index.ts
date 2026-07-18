@@ -22,6 +22,7 @@ import {
   processSearchIndexJob,
   queueProjectCoordinatorJobs,
   queueSearchIndexJob,
+  recoverStaleProcessingJobs,
   type ProcessingJob,
   type ProjectReportType
 } from "@fieldos/db";
@@ -178,6 +179,12 @@ async function start() {
     version: workerVersion,
     workerName
   });
+  const recoveredJobs = await recoverStaleProcessingJobs(prisma);
+
+  if (recoveredJobs > 0) {
+    logger.warn({ recoveredJobs }, "requeued jobs left running by a previous worker");
+  }
+
   await redis.connect();
   await redis.ping();
   await whatsappSessionManager.start();
