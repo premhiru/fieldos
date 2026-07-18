@@ -38,6 +38,17 @@ const numericConfidenceSchema = z.preprocess((value) => {
   }
 
   const normalized = value.trim();
+  const confidenceLabels: Record<string, number> = {
+    HIGH: 0.9,
+    LOW: 0.3,
+    MEDIUM: 0.6
+  };
+  const labelledConfidence = confidenceLabels[normalized.toUpperCase()];
+
+  if (labelledConfidence !== undefined) {
+    return labelledConfidence;
+  }
+
   const percentageMatch = /^(\d+(?:\.\d+)?)%$/.exec(normalized);
   const parsed = percentageMatch ? Number(percentageMatch[1]) / 100 : Number(normalized);
   return Number.isFinite(parsed) ? parsed : value;

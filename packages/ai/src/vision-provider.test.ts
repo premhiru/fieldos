@@ -21,7 +21,7 @@ describe("OpenAICompatibleVisionProvider", () => {
             {
               message: {
                 content: JSON.stringify({
-                  confidence: "68%",
+                  confidence: "HIGH",
                   detectedObjects: ["Runway Light", "Cable"],
                   possibleIssues: ["Possible alignment issue. Needs Review."],
                   summary: "Runway lighting installation appears substantially complete.",
@@ -54,7 +54,7 @@ describe("OpenAICompatibleVisionProvider", () => {
     });
 
     expect(result.tags).toContain("runway light");
-    expect(result.confidence).toBe(0.68);
+    expect(result.confidence).toBe(0.9);
     expect(fetchMock).toHaveBeenCalledWith(
       "https://vision.example.test/chat/completions",
       expect.objectContaining({
