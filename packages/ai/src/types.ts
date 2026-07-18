@@ -32,6 +32,15 @@ export const classifiableMessageTypeSchema = z.enum([
   "SYSTEM"
 ]);
 
+const numericConfidenceSchema = z.preprocess((value) => {
+  if (typeof value !== "string" || value.trim() === "") {
+    return value;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : value;
+}, z.number().min(0).max(1));
+
 const evidenceAttachmentMetadataSchema = z.object({
   createdAt: z.coerce.date(),
   filename: z.string().trim().min(1),
@@ -99,7 +108,7 @@ export const classifyMessageInputSchema = z.object({
 export const classifyMessageResultSchema = z.object({
   category: aiMessageCategorySchema,
   actionRequired: z.boolean(),
-  confidence: z.number().min(0).max(1),
+  confidence: numericConfidenceSchema,
   location: z.string().trim().min(1).max(160).nullable(),
   reasoningSummary: z.string().trim().min(1).max(500).nullable(),
   summary: z.string().trim().min(1).max(500)
@@ -148,7 +157,7 @@ export const visionRequestSchema = z.object({
 });
 
 export const visionResultSchema = z.object({
-  confidence: z.number().min(0).max(1),
+  confidence: numericConfidenceSchema,
   detectedObjects: z.array(z.string().trim().min(1).max(80)).max(20),
   possibleIssues: z.array(z.string().trim().min(1).max(160)).max(10),
   summary: z.string().trim().min(1).max(800),

@@ -32,6 +32,25 @@ describe("MessageClassifier", () => {
     });
   });
 
+  it("normalizes a numeric confidence string from the provider", async () => {
+    const classifier = new MessageClassifier({
+      provider: {
+        completeJson: async () => ({
+          actionRequired: false,
+          category: "GENERAL_NOTE",
+          confidence: "0.9",
+          location: null,
+          reasoningSummary: "The message is a status update.",
+          summary: "Terminal 2 runway lighting was completed."
+        })
+      }
+    });
+
+    await expect(classifier.classifyMessage(classificationContext())).resolves.toMatchObject({
+      confidence: 0.9
+    });
+  });
+
   it("raises a retryable provider error when the provider returns 429", async () => {
     vi.stubGlobal(
       "fetch",

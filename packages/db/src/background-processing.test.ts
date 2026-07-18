@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { queueProjectCoordinatorJobs } from "./background-processing.js";
+import { claimNextProcessingJob, queueProjectCoordinatorJobs } from "./background-processing.js";
 
 const now = new Date("2026-07-16T08:00:00.000Z");
 
@@ -80,6 +80,46 @@ describe("project coordinator job queueing", () => {
     });
 
     expect(prisma.processingJob.upsert).not.toHaveBeenCalled();
+  });
+});
+
+describe("processing job claiming", () => {
+  it("marks stranded exhausted jobs failed before claiming eligible work", async () => {
+    const exhaustedJob = {
+      ...createJob("PROJECT_COORDINATOR"),
+      attempts: 3,
+      id: "job_exhausted",
+      maxAttempts: 3
+    };
+    const eligibleJob = {
+      ...createJob("PROJECT_COORDINATOR"),
+      id: "job_eligible"
+    };
+    const prisma = {
+      processingJob: {
+        findMany: vi.fn().mockResolvedValue([exhaustedJob, eligibleJob]),
+        findUnique: vi.fn().mockResolvedValue({ ...eligibleJob, attempts: 1, status: "RUNNING" }),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 })
+      }
+    };
+
+    await expect(
+      claimNextProcessingJob(prisma as never, "PROJECT_COORDINATOR")
+    ).resolves.toMatchObject({ id: "job_eligible", status: "RUNNING" });
+    expect(prisma.processingJob.updateMany).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "FAILED" }),
+        where: expect.objectContaining({ id: { in: ["job_exhausted"] } })
+      })
+    );
+    expect(prisma.processingJob.updateMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        data: expect.objectContaining({ attempts: { increment: 1 }, status: "RUNNING" }),
+        where: expect.objectContaining({ id: "job_eligible" })
+      })
+    );
   });
 });
 

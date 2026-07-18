@@ -257,6 +257,26 @@ export async function claimNextProcessingJob(
       type
     }
   });
+  const exhaustedJobIds = jobs
+    .filter((candidate) => candidate.attempts >= candidate.maxAttempts)
+    .map((candidate) => candidate.id);
+
+  if (exhaustedJobIds.length > 0) {
+    await prisma.processingJob.updateMany({
+      data: {
+        errorMessage: "Processing job exhausted its attempts before reaching a terminal state.",
+        failedAt: now,
+        nextRunAt: null,
+        startedAt: null,
+        status: "FAILED"
+      },
+      where: {
+        id: { in: exhaustedJobIds },
+        status: "PENDING"
+      }
+    });
+  }
+
   const job = jobs.find((candidate) => candidate.attempts < candidate.maxAttempts);
 
   if (!job) {
