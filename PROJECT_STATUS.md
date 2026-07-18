@@ -5,7 +5,7 @@
 | Purpose      | Track FieldOS milestone progress, task completion, technical debt, architecture decisions, and deployment readiness. |
 | Owner        | Founding Engineering                                                                                                 |
 | Status       | Active                                                                                                               |
-| Last Updated | 2026-07-17                                                                                                           |
+| Last Updated | 2026-07-18                                                                                                           |
 
 ## Table of Contents
 
@@ -22,6 +22,13 @@
 AI provider reliability hardening for the enterprise pilot.
 
 ## Completed Tasks
+
+- Railway AI job queue production recovery.
+  - Normalized decimal, percentage, and labelled confidence values returned by Kimi and OpenRouter while retaining strict bounded validation.
+  - Added automatic recovery for jobs stranded in `RUNNING` when a worker deployment replaces the processing container.
+  - Marked legacy jobs that had exhausted their attempts as failed, selectively requeued the five affected records, and preserved unrelated job history.
+  - Verified 61 recent message classifications and all six affected photo analyses completed with no remaining failed jobs.
+  - Deployed worker release `84ab228f-44af-45c5-a38e-5bce8cda050d` successfully with its persistent WhatsApp volume intact.
 
 - Kimi-primary AI provider with OpenRouter fallback.
   - Added a shared provider chain for message classification, project search, milestone detection, and photo analysis.
@@ -358,6 +365,8 @@ AI provider reliability hardening for the enterprise pilot.
 
 ## In-Progress Tasks
 
+- AI Decision Layer v2 rebuild: baseline architecture review, cautious multi-signal classification, central recommendation gating, coordinator policies, shadow telemetry, and labelled evaluation.
+
 - None.
 
 ## Known Technical Debt
@@ -443,6 +452,12 @@ AI provider reliability hardening for the enterprise pilot.
 - WhatsApp reliability decision: persist each outage episode on `WhatsAppAccount`, apply a short grace period, and deliver one disconnect/recovery pair asynchronously through the existing worker job queue.
 
 ## Deployment Status
+
+- AI job queue reliability fixes deployed from commit `84ef796` on 2026-07-18.
+  - Railway worker deployment `84ab228f-44af-45c5-a38e-5bce8cda050d` completed successfully.
+  - Startup recovery returned two jobs stranded by earlier container replacements to the queue; both resumed processing.
+  - Production verification found zero failed jobs, 61 completed recent classifications, and six completed affected photo analyses.
+  - New pending classification and search-index jobs were confirmed as normal live ingestion activity.
 
 - Final Pilot Product Editing deployed from commit `a941525` on 2026-07-17.
   - Vercel production deployment `dpl_GDU7hfSSSi9kgR6KtjX9scVJxndM` completed successfully and is aliased to `https://fieldos-sand.vercel.app`.
