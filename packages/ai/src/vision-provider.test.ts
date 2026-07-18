@@ -21,7 +21,7 @@ describe("OpenAICompatibleVisionProvider", () => {
             {
               message: {
                 content: JSON.stringify({
-                  confidence: "0.68",
+                  confidence: "68%",
                   detectedObjects: ["Runway Light", "Cable"],
                   possibleIssues: ["Possible alignment issue. Needs Review."],
                   summary: "Runway lighting installation appears substantially complete.",

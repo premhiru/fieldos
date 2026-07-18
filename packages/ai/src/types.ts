@@ -37,7 +37,9 @@ const numericConfidenceSchema = z.preprocess((value) => {
     return value;
   }
 
-  const parsed = Number(value);
+  const normalized = value.trim();
+  const percentageMatch = /^(\d+(?:\.\d+)?)%$/.exec(normalized);
+  const parsed = percentageMatch ? Number(percentageMatch[1]) / 100 : Number(normalized);
   return Number.isFinite(parsed) ? parsed : value;
 }, z.number().min(0).max(1));
 
