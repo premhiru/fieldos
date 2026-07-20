@@ -8,8 +8,14 @@ import {
 import { createLogger } from "@fieldos/shared";
 
 import { AIConfigurationError, MessageClassifier } from "./message-classifier.js";
+import { MessageClassifierV2 } from "./message-classifier-v2.js";
+import { messageClassificationPromptVersionV2 } from "./prompts/message-classification.v2.js";
 import { isAIProviderRateLimitError } from "./provider-errors.js";
-import type { ClassifyMessageResult } from "./types.js";
+import type {
+  ClassifyMessageResult,
+  ClassifyMessageV2Input,
+  ClassifyMessageV2Result
+} from "./types.js";
 
 interface ProjectCandidate {
   code: string;
@@ -20,11 +26,15 @@ interface ProjectCandidate {
 export interface AIClassificationProcessorOptions {
   batchSize?: number;
   classifier?: Pick<MessageClassifier, "classifyMessage">;
+  classifierV2?: Pick<MessageClassifierV2, "classifyMessage" | "model">;
+  decisionEngineMode?: "legacy" | "shadow" | "v2";
 }
 
 export class AIClassificationProcessor {
   private readonly batchSize: number;
   private readonly classifier: Pick<MessageClassifier, "classifyMessage">;
+  private readonly classifierV2: Pick<MessageClassifierV2, "classifyMessage" | "model">;
+  private readonly decisionEngineMode: "legacy" | "shadow" | "v2";
   private readonly logger = createLogger("ai-classification");
 
   constructor(
@@ -33,6 +43,8 @@ export class AIClassificationProcessor {
   ) {
     this.batchSize = options.batchSize ?? 5;
     this.classifier = options.classifier ?? new MessageClassifier();
+    this.classifierV2 = options.classifierV2 ?? new MessageClassifierV2();
+    this.decisionEngineMode = options.decisionEngineMode ?? "legacy";
   }
 
   async enqueueMessage(messageId: string): Promise<void> {
@@ -116,7 +128,6 @@ export class AIClassificationProcessor {
     }
 
     try {
-      const result = await this.classifier.classifyMessage(input);
       const projects = await this.prisma.project.findMany({
         select: {
           code: true,
@@ -130,14 +141,44 @@ export class AIClassificationProcessor {
           }
         }
       });
-      await this.saveResult(classification.id, {
-        currentProjectId: input.project?.id ?? null,
-        evidenceContext: input,
-        messageBody: input.messageText,
-        organizationId: input.organizationId,
-        projects,
-        result
-      });
+      if (this.decisionEngineMode !== "v2") {
+        const result = await this.classifier.classifyMessage(input);
+        await this.saveResult(classification.id, {
+          currentProjectId: input.project?.id ?? null,
+          evidenceContext: input,
+          messageBody: input.messageText,
+          organizationId: input.organizationId,
+          projects,
+          result
+        });
+      }
+
+      if (this.decisionEngineMode !== "legacy") {
+        try {
+          const decisionContext = await this.buildDecisionContext(input);
+          const resultV2 = await this.classifierV2.classifyMessage(decisionContext);
+          await this.saveV2Decision(classification.id, decisionContext, resultV2);
+
+          if (this.decisionEngineMode === "v2") {
+            await this.saveResult(classification.id, {
+              currentProjectId: input.project?.id ?? null,
+              evidenceContext: input,
+              messageBody: input.messageText,
+              organizationId: input.organizationId,
+              projects,
+              result: compatibilityResult(resultV2)
+            });
+          }
+        } catch (error) {
+          if (this.decisionEngineMode !== "shadow") {
+            throw error;
+          }
+          this.logger.warn(
+            { classificationId: classification.id, error },
+            "AI v2 shadow classification failed without affecting legacy result"
+          );
+        }
+      }
     } catch (error: unknown) {
       if (isAIProviderRateLimitError(error)) {
         this.logger.warn(
@@ -161,6 +202,226 @@ export class AIClassificationProcessor {
       this.logger.warn({ classificationId: classification.id, error }, "AI classification failed");
       await this.markFailed(classification.id, errorMessage);
     }
+  }
+
+  private async buildDecisionContext(
+    input: UnifiedEvidenceContext
+  ): Promise<ClassifyMessageV2Input> {
+    if (!input.project) {
+      return {
+        ...input,
+        activeMilestones: [],
+        openActionItems: [],
+        projectState: null,
+        recentMessages: [],
+        recentTimelineEvents: []
+      };
+    }
+
+    const [activeMilestones, openActionItems, projectState, recentMessages, recentTimelineEvents] =
+      await Promise.all([
+        this.prisma.milestone.findMany({
+          orderBy: { updatedAt: "desc" },
+          select: { id: true, plannedEndDate: true, status: true, title: true },
+          take: 10,
+          where: {
+            projectId: input.project.id,
+            status: { in: ["PLANNED", "IN_PROGRESS", "DELAYED"] }
+          }
+        }),
+        this.prisma.actionItem.findMany({
+          orderBy: { updatedAt: "desc" },
+          select: { id: true, status: true, title: true },
+          take: 10,
+          where: {
+            projectId: input.project.id,
+            status: { in: ["PENDING", "ACCEPTED"] }
+          }
+        }),
+        this.prisma.projectState.findUnique({
+          select: {
+            health: true,
+            nextMilestone: true,
+            pendingDecisionSummary: true,
+            recentBlockerSummary: true,
+            recentProgressSummary: true
+          },
+          where: { projectId: input.project.id }
+        }),
+        this.prisma.message.findMany({
+          orderBy: { occurredAt: "desc" },
+          select: {
+            body: true,
+            direction: true,
+            id: true,
+            occurredAt: true,
+            senderParticipant: { select: { displayName: true } }
+          },
+          take: 8,
+          where: {
+            conversationId: input.conversation.id,
+            id: { not: input.messageId },
+            occurredAt: { lte: input.timestamp }
+          }
+        }),
+        this.prisma.event.findMany({
+          orderBy: { occurredAt: "desc" },
+          select: { description: true, eventType: true, id: true, occurredAt: true, title: true },
+          take: 10,
+          where: { projectId: input.project.id }
+        })
+      ]);
+
+    return {
+      ...input,
+      activeMilestones: activeMilestones.map((milestone) => ({
+        ...milestone,
+        plannedEndDate: milestone.plannedEndDate?.toISOString() ?? null
+      })),
+      openActionItems,
+      projectState,
+      recentMessages: recentMessages.reverse().map((message) => ({
+        body: message.body,
+        direction: message.direction,
+        id: message.id,
+        occurredAt: message.occurredAt,
+        senderName: message.senderParticipant.displayName
+      })),
+      recentTimelineEvents: recentTimelineEvents.reverse()
+    };
+  }
+
+  private async saveV2Decision(
+    classificationId: string,
+    input: ClassifyMessageV2Input,
+    result: ClassifyMessageV2Result
+  ): Promise<void> {
+    const mode = this.decisionEngineMode === "v2" ? "V2" : "SHADOW";
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.aIClassificationDecision.upsert({
+        create: {
+          abstentionReason: result.abstentionReason,
+          classificationId,
+          completionClaim: result.completionClaim,
+          confidence: result.confidence,
+          inspectionReadiness: result.inspectionReadiness,
+          location: result.location,
+          mode,
+          model: this.classifierV2.model,
+          operationalImpact: result.operationalImpact,
+          organizationId: input.organizationId,
+          primaryCategory: result.primaryCategory,
+          processedAt: new Date(),
+          projectId: input.project?.id ?? null,
+          promptVersion: messageClassificationPromptVersionV2,
+          provider: "kimi-primary-openrouter-fallback",
+          recommendationEligible: result.recommendationEligible,
+          relevance: result.relevance,
+          responseExpectation: result.responseExpectation,
+          schemaVersion: "2.0",
+          secondarySignals: result.secondarySignals,
+          summary: result.summary,
+          uncertainty: result.uncertainty,
+          userFacingReason: result.userFacingReason
+        },
+        update: {
+          abstentionReason: result.abstentionReason,
+          completionClaim: result.completionClaim,
+          confidence: result.confidence,
+          inspectionReadiness: result.inspectionReadiness,
+          location: result.location,
+          mode,
+          model: this.classifierV2.model,
+          operationalImpact: result.operationalImpact,
+          primaryCategory: result.primaryCategory,
+          processedAt: new Date(),
+          promptVersion: messageClassificationPromptVersionV2,
+          provider: "kimi-primary-openrouter-fallback",
+          recommendationEligible: result.recommendationEligible,
+          relevance: result.relevance,
+          responseExpectation: result.responseExpectation,
+          schemaVersion: "2.0",
+          secondarySignals: result.secondarySignals,
+          summary: result.summary,
+          uncertainty: result.uncertainty,
+          userFacingReason: result.userFacingReason
+        },
+        where: { classificationId }
+      });
+
+      const expectation = result.responseExpectation;
+      if (input.project && expectation.status === "RESOLVED" && expectation.requestedItem) {
+        await tx.outstandingExpectation.updateMany({
+          data: {
+            resolutionReason: `Resolved by later message ${input.messageId}.`,
+            resolvedByMessageId: input.messageId,
+            status: "RESOLVED"
+          },
+          where: {
+            conversationId: input.conversation.id,
+            projectId: input.project.id,
+            requestedItem: { equals: expectation.requestedItem, mode: "insensitive" },
+            status: "OPEN"
+          }
+        });
+      }
+      if (
+        input.project &&
+        expectation.status === "OPEN" &&
+        expectation.type !== "NONE" &&
+        expectation.requestedItem
+      ) {
+        await tx.outstandingExpectation.upsert({
+          create: {
+            confidence: result.confidence,
+            conversationId: input.conversation.id,
+            dueAt: expectation.dueAt ? new Date(expectation.dueAt) : null,
+            evidence: {
+              classificationId,
+              messageId: input.messageId,
+              support: expectation.evidence
+            },
+            expectedResponder: expectation.expectedResponder,
+            organizationId: input.organizationId,
+            projectId: input.project.id,
+            requestedItem: expectation.requestedItem,
+            sourceMessageId: input.messageId,
+            type: expectation.type
+          },
+          update: {
+            confidence: result.confidence,
+            dueAt: expectation.dueAt ? new Date(expectation.dueAt) : null,
+            evidence: {
+              classificationId,
+              messageId: input.messageId,
+              support: expectation.evidence
+            },
+            expectedResponder: expectation.expectedResponder,
+            status: "OPEN"
+          },
+          where: {
+            sourceMessageId_type_requestedItem: {
+              requestedItem: expectation.requestedItem,
+              sourceMessageId: input.messageId,
+              type: expectation.type
+            }
+          }
+        });
+      }
+    });
+
+    this.logger.info(
+      {
+        classificationId,
+        mode,
+        operationalImpact: result.operationalImpact,
+        projectId: input.project?.id ?? null,
+        recommendationEligible: result.recommendationEligible,
+        relevance: result.relevance
+      },
+      "AI classification v2 decision persisted"
+    );
   }
 
   private async saveResult(
@@ -400,6 +661,17 @@ function buildFollowUpTitle(result: ClassifyMessageResult): string {
   }
 
   return `${summary.slice(0, 117).trimEnd()}...`;
+}
+
+function compatibilityResult(result: ClassifyMessageV2Result): ClassifyMessageResult {
+  return {
+    actionRequired: false,
+    category: result.primaryCategory,
+    confidence: result.confidence,
+    location: result.location,
+    reasoningSummary: result.userFacingReason,
+    summary: result.summary
+  };
 }
 
 function buildEvidenceEventTitle(context: UnifiedEvidenceContext): string {

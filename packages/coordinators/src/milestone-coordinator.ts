@@ -30,6 +30,22 @@ export class MilestoneCoordinator {
     private readonly prisma: CoordinatorPrisma,
     private readonly options: {
       detector?: MilestoneDetectorPort;
+      evaluateCandidate?: (input: {
+        action: RecommendationActionType;
+        candidate: {
+          confidence: "HIGH" | "MEDIUM" | "LOW";
+          description: string;
+          evidenceIds: string[];
+          payload: Prisma.InputJsonValue;
+          priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+          reason: string;
+          scope: string;
+          sourceEntityId: string;
+          title: string;
+          type: RecommendationType;
+        };
+        project: Project;
+      }) => Promise<boolean>;
       now?: () => Date;
     } = {}
   ) {}
@@ -148,11 +164,15 @@ export class MilestoneCoordinator {
 
     let created = 0;
     for (const change of changes.slice(0, 5)) {
-      if (!change.hasMilestoneChange || change.action === "NONE") {
+      if (
+        !change.hasMilestoneChange ||
+        change.action === "NONE" ||
+        !change.milestoneTitle?.trim()
+      ) {
         continue;
       }
       const wasCreated = await this.upsertRecommendation({
-        change,
+        change: { ...change, milestoneTitle: change.milestoneTitle },
         classification,
         evidenceText,
         milestones,
@@ -164,7 +184,7 @@ export class MilestoneCoordinator {
   }
 
   private async upsertRecommendation(input: {
-    change: MilestoneDetectionCandidate;
+    change: MilestoneDetectionCandidate & { milestoneTitle: string };
     classification: ClassificationEvidence;
     evidenceText: string;
     milestones: Milestone[];
@@ -208,6 +228,25 @@ export class MilestoneCoordinator {
       sourceEntityType: "MESSAGE",
       title
     };
+
+    if (this.options.evaluateCandidate) {
+      return this.options.evaluateCandidate({
+        action,
+        candidate: {
+          confidence: data.confidence,
+          description: data.description,
+          evidenceIds: [input.classification.messageId],
+          payload,
+          priority: data.priority,
+          reason: data.reason,
+          scope: payload.milestoneTitle,
+          sourceEntityId: input.classification.messageId,
+          title: data.title,
+          type
+        },
+        project: input.project
+      });
+    }
 
     if (duplicate) {
       if (duplicate.status !== "PENDING") return false;
@@ -367,7 +406,7 @@ export function detectMilestoneChanges(
     }
   }
 
-  return changes.filter((item) => item.milestoneTitle.length > 1);
+  return changes.filter((item) => (item.milestoneTitle?.length ?? 0) > 1);
 }
 
 export function matchExistingMilestone(title: string, milestones: Milestone[]): Milestone | null {

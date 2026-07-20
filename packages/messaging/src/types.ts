@@ -25,6 +25,11 @@ export interface PhotoAnalysisSummaryRecord {
   possibleIssues: string[];
   confidence: number;
   tags: string[];
+  observations: string[];
+  limitations: string[];
+  senderClaim: string | null;
+  claimAssessment: string;
+  operationalConclusion: string;
   createdAt: Date;
 }
 

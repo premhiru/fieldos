@@ -5,7 +5,7 @@
 | Purpose      | Describe the FieldOS system architecture, boundaries, integration points, and evolution plan. |
 | Owner        | Engineering                                                                                   |
 | Status       | Draft                                                                                         |
-| Last Updated | 2026-07-13                                                                                    |
+| Last Updated | 2026-07-18                                                                                    |
 
 ## Table of Contents
 
@@ -139,7 +139,11 @@ Baileys auth session files remain under `.storage` locally and under `/data/what
 
 AI classification runs after message persistence, never before it. WhatsApp ingestion creates or updates a pending classification row only for messages that belong to active conversations.
 
-The worker polls pending `AIMessageClassification` rows, builds a `UnifiedEvidenceContext`, sends that context to the OpenAI-compatible provider, validates strict JSON output, stores a concise user-facing summary and reasoning statement, and optionally creates an `ActionItem`.
+The worker polls pending `AIMessageClassification` rows and selects the decision engine through `AI_DECISION_ENGINE_MODE`. Legacy mode preserves the rollback path. Shadow mode runs the legacy customer-visible path and persists v2 decisions without creating v2 recommendations. V2 mode uses the rebuilt classification and recommendation path.
+
+Classification v2 builds an explicit bounded context: the current message, attachment and transcript metadata, at most eight nearby messages, and at most ten active milestones, open Action Items, unresolved expectations, and recent meaningful events. The provider returns strict structured operational extraction with relevance, primary and secondary signals, impact, response expectation, completion claim, inspection readiness, confidence, and an explicit abstention reason. A single bounded repair call is permitted for structurally invalid output. Raw provider output and chain-of-thought are never stored.
+
+`AIClassificationDecision` stores the versioned v2 result beside the historical `AIMessageClassification` record. This additive model preserves pilot data and makes shadow/legacy comparison possible without changing existing customer reads.
 
 Action Items are not operational tasks. They are human-review records that can be accepted or ignored through the API and dashboard. Future task-domain work can convert accepted follow-up Action Items into first-class task records.
 
@@ -180,15 +184,20 @@ The API exposes `GET /messages/:id/context` and `GET /messages/:id/evidence-summ
 
 Photo Intelligence is worker-owned asynchronous enrichment for image attachments. The WhatsApp adapter stores the attachment and queues a `PHOTO_ANALYSIS` job; the worker reads the stored file, calls the configured OpenAI-compatible vision provider, validates compact JSON, and upserts a `PhotoAnalysis` row.
 
-The persisted output is intentionally small:
+The persisted output is intentionally bounded:
 
 - `summary`
+- `observations`
 - `detectedObjects`
 - `possibleIssues`
 - `confidence`
 - `tags`
+- `senderClaim` and `claimAssessment`
+- `limitations`
+- `operationalConclusion`
+- analysis and prompt versions
 
-Vision output is advisory. It can help field teams notice possible issues, but it never certifies completion, safety, compliance, or defect presence without human review.
+Vision output is advisory. `NO_OPERATIONAL_CONCLUSION` is the safe default. The worker separates visible observations from sender claims and records what cannot be determined. A single photo never certifies completion, safety, compliance, workmanship, functionality, quantities, hidden conditions, or defect presence without human review and corroborating evidence.
 
 Photo analysis results are visible in the inbox, project detail page, command-center recent evidence snippets, admin operations health, and AI Search. The API exposes project-scoped and evidence-scoped read routes while keeping authorization organization-scoped.
 
@@ -210,13 +219,19 @@ Report generation can run synchronously for ad hoc export or asynchronously thro
 
 ## AI Project Coordinators
 
-AI Project Coordinators are the active recommendation layer. They use `ProjectState` as a shared snapshot so the Progress, Follow-up, Inspection, Report, and Milestone coordinators do not repeatedly scan full project history.
+AI Project Coordinators are the active recommendation layer. One bounded `DecisionCoordinatorContext` supplies Project, ProjectState, active milestones, recent v2 decisions and meaningful events, open expectations and Action Items, recent recommendation outcomes, and recent reports. Coordinators do not repeatedly scan unlimited project history.
 
-Coordinator logic is deterministic-first:
+Coordinator logic is deterministic-first and candidate-based:
 
-- Health, stale-update thresholds, open Action Item counts, report readiness, deduplication, and approval state are computed from database records.
-- AI prompts are versioned in `packages/ai/src/prompts`, but model output is limited to concise summaries and draft wording.
-- Recommendations are persisted in `Recommendation` and require human approval before FieldOS creates Action Items, queues reports, or creates WhatsApp drafts.
+- Routine progress updates project knowledge but cannot create generic review work.
+- Follow-up requires a specific overdue `OutstandingExpectation`; silence alone is not evidence.
+- Inspection requires identified scope, inspection-ready evidence, an inspection requirement, no unresolved prerequisite, and no equivalent open work.
+- Report readiness uses calendar obligation and substantive activity rather than a raw event count.
+- Milestone changes require explicit scope and evidence; `NONE` allows null milestone fields.
+
+Each coordinator may emit a `RecommendationCandidate`, but only the central `RecommendationGate` may persist a customer-visible `Recommendation`. The gate validates evidence, project state, materiality, actionability, confidence, unresolved state, novelty, timing, and ownership. It records every create, suppression, and shadow outcome in `RecommendationCandidate` with a safe semantic fingerprint and reason code.
+
+Semantic fingerprints combine the project, recommendation and action types, normalized scope, and relevant business identifiers. Pending equivalents are suppressed; dismissed equivalents have a 30-day cooldown; approved or completed equivalents have a 7-day cooldown. New evidence must materially change the business key before the same recommendation can reappear.
 
 Relevant processing events queue two independently debounced jobs: `PROJECT_COORDINATOR` for Progress, Follow-up, Inspection, and Report, and `PROJECT_COORDINATOR_MILESTONE` for AI-assisted milestone detection. The milestone job has its own provider throttle, so rate limits do not delay deterministic coordinators.
 

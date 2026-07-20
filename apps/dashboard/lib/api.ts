@@ -319,6 +319,11 @@ export interface PhotoAnalysisSummary {
   possibleIssues: string[];
   confidence: number;
   tags: string[];
+  observations?: string[];
+  limitations?: string[];
+  senderClaim?: string | null;
+  claimAssessment?: string;
+  operationalConclusion?: string;
   createdAt: string;
 }
 
@@ -894,6 +899,9 @@ export interface AdminOperations {
   workers: WorkerHeartbeat[];
   coordinators: {
     approvalRate: number;
+    candidatesGeneratedToday: number;
+    candidatesShadowedToday: number;
+    candidatesSuppressedToday: number;
     failedRunsToday: number;
     lastRunPerProject: Array<{
       projectId: string;
@@ -905,6 +913,7 @@ export interface AdminOperations {
     pendingRecommendations: number;
     recommendationsCreatedToday: number;
     runsToday: number;
+    suppressionsByReason: Array<{ count: number; reason: string }>;
   };
 }
 

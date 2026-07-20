@@ -377,6 +377,11 @@ export interface PhotoAnalysisRecord {
   possibleIssues: string[];
   confidence: number;
   tags: string[];
+  observations: string[];
+  limitations: string[];
+  senderClaim: string | null;
+  claimAssessment: string;
+  operationalConclusion: string;
   createdAt: Date;
   evidence: {
     filename: string;
@@ -3577,6 +3582,11 @@ function toAttachmentRecord(
       possibleIssues: Prisma.JsonValue;
       summary: string;
       tags: Prisma.JsonValue;
+      observations?: Prisma.JsonValue;
+      limitations?: Prisma.JsonValue;
+      senderClaim?: string | null;
+      claimAssessment?: string;
+      operationalConclusion?: string;
     } | null;
   }
 ): AttachmentRecord {
@@ -3590,7 +3600,13 @@ function toAttachmentRecord(
           id: attachment.photoAnalysis.id,
           possibleIssues: jsonStringArray(attachment.photoAnalysis.possibleIssues),
           summary: attachment.photoAnalysis.summary,
-          tags: jsonStringArray(attachment.photoAnalysis.tags)
+          tags: jsonStringArray(attachment.photoAnalysis.tags),
+          observations: jsonStringArray(attachment.photoAnalysis.observations ?? []),
+          limitations: jsonStringArray(attachment.photoAnalysis.limitations ?? []),
+          senderClaim: attachment.photoAnalysis.senderClaim ?? null,
+          claimAssessment: attachment.photoAnalysis.claimAssessment ?? "NOT_ASSESSED",
+          operationalConclusion:
+            attachment.photoAnalysis.operationalConclusion ?? "NO_OPERATIONAL_CONCLUSION"
         }
       : null
   };
@@ -3613,6 +3629,11 @@ function toPhotoAnalysisRecord(analysis: {
   provider: string;
   summary: string;
   tags: Prisma.JsonValue;
+  observations: Prisma.JsonValue;
+  limitations: Prisma.JsonValue;
+  senderClaim: string | null;
+  claimAssessment: string;
+  operationalConclusion: string;
 }): PhotoAnalysisRecord {
   return {
     confidence: analysis.confidence,
@@ -3630,7 +3651,12 @@ function toPhotoAnalysisRecord(analysis: {
     projectId: analysis.projectId,
     provider: analysis.provider,
     summary: analysis.summary,
-    tags: jsonStringArray(analysis.tags)
+    tags: jsonStringArray(analysis.tags),
+    observations: jsonStringArray(analysis.observations),
+    limitations: jsonStringArray(analysis.limitations),
+    senderClaim: analysis.senderClaim,
+    claimAssessment: analysis.claimAssessment,
+    operationalConclusion: analysis.operationalConclusion
   };
 }
 

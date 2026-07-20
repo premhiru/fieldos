@@ -31,7 +31,11 @@ const visionSystemPrompt = [
   "You analyze field-operation photos for project managers.",
   "You assist but do not certify work, completion, safety, or engineering compliance.",
   "Never invent details. If a detail is unclear, say Unable to determine.",
-  "Return only compact JSON with keys: summary, detectedObjects, possibleIssues, confidence, tags.",
+  "Return only compact JSON with keys: summary, observations, detectedObjects, possibleIssues, confidence, tags, senderClaim, claimAssessment, operationalConclusion, limitations.",
+  "Describe only visible observations. Separate the sender's claim from what the image visibly supports.",
+  "Use NO_OPERATIONAL_CONCLUSION for ordinary photos, unclear images, and any image that cannot independently justify action.",
+  "Never certify completion, compliance, workmanship, safety, quantities, test results, asset operation, or hidden conditions from one image.",
+  "Do not treat absence from the frame as proof that something is missing.",
   "detectedObjects and tags must be short generic terms that can support keyword search.",
   "possibleIssues must be cautious and use words like possible, may, appears, or Needs Review."
 ].join(" ");
@@ -220,6 +224,7 @@ function buildVisionUserPrompt(input: VisionRequest): string {
     input.context.messageText ? `Message text: ${input.context.messageText}` : "Message text: None",
     "Analyze only visible content in the image.",
     "Use generic detected object labels such as Runway Light, Electrical Cabinet, Cable, Concrete, Vehicle, Worker, Pallet, Equipment, or Unknown when appropriate.",
-    "If confidence is low, include Needs Review in possibleIssues or tags."
+    "If confidence is low, include Needs Review in possibleIssues or tags.",
+    "State what cannot be determined from this single image in limitations."
   ].join("\n");
 }

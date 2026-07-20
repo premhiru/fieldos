@@ -132,6 +132,133 @@ export type ClassificationStatus = z.infer<typeof classificationStatusSchema>;
 export type ClassifyMessageInput = z.infer<typeof classifyMessageInputSchema>;
 export type ClassifyMessageResult = z.infer<typeof classifyMessageResultSchema>;
 
+export const messageRelevanceSchema = z.enum(["OPERATIONAL", "NON_OPERATIONAL", "AMBIGUOUS"]);
+export const operationalImpactSchema = z.enum(["NONE", "LOW", "MEDIUM", "HIGH", "CRITICAL"]);
+export const responseExpectationTypeSchema = z.enum([
+  "NONE",
+  "QUESTION",
+  "COMMITMENT",
+  "DOCUMENT",
+  "PHOTO",
+  "APPROVAL",
+  "DECISION",
+  "DELIVERY_UPDATE",
+  "INSPECTION_RESULT"
+]);
+export const responseExpectationStatusSchema = z.enum(["NONE", "OPEN", "RESOLVED", "UNCLEAR"]);
+export const completionClaimSchema = z.enum(["NONE", "PARTIAL", "CLAIMED", "AMBIGUOUS"]);
+export const inspectionReadinessSchema = z.enum([
+  "NONE",
+  "NOT_READY",
+  "READY_CLAIMED",
+  "REQUESTED",
+  "AMBIGUOUS"
+]);
+
+export const classifyMessageV2InputSchema = classifyMessageInputSchema.extend({
+  activeMilestones: z
+    .array(
+      z.object({
+        id: z.string().trim().min(1),
+        plannedEndDate: z.string().nullable(),
+        status: z.enum(["PLANNED", "IN_PROGRESS", "COMPLETED", "DELAYED", "CANCELLED"]),
+        title: z.string().trim().min(1)
+      })
+    )
+    .max(10),
+  openActionItems: z
+    .array(
+      z.object({
+        id: z.string().trim().min(1),
+        status: z.string().trim().min(1),
+        title: z.string().trim().min(1)
+      })
+    )
+    .max(10),
+  projectState: z
+    .object({
+      health: z.string(),
+      nextMilestone: z.string().nullable(),
+      pendingDecisionSummary: z.string().nullable(),
+      recentBlockerSummary: z.string().nullable(),
+      recentProgressSummary: z.string().nullable()
+    })
+    .nullable(),
+  recentMessages: z
+    .array(
+      z.object({
+        body: z.string().nullable(),
+        direction: z.enum(["INBOUND", "OUTBOUND"]),
+        id: z.string().trim().min(1),
+        occurredAt: z.coerce.date(),
+        senderName: z.string().trim().min(1)
+      })
+    )
+    .max(8),
+  recentTimelineEvents: z
+    .array(
+      z.object({
+        description: z.string().nullable(),
+        eventType: z.string().trim().min(1),
+        id: z.string().trim().min(1),
+        occurredAt: z.coerce.date(),
+        title: z.string().trim().min(1)
+      })
+    )
+    .max(10)
+});
+
+export const classifyMessageV2ResultSchema = z
+  .object({
+    abstentionReason: z.string().trim().min(1).max(300).nullable(),
+    completionClaim: completionClaimSchema,
+    confidence: numericConfidenceSchema,
+    inspectionReadiness: inspectionReadinessSchema,
+    location: z.string().trim().min(1).max(160).nullable(),
+    operationalImpact: operationalImpactSchema,
+    primaryCategory: aiMessageCategorySchema,
+    recommendationEligible: z.boolean(),
+    relevance: messageRelevanceSchema,
+    responseExpectation: z.object({
+      dueAt: z.string().datetime().nullable(),
+      evidence: z.string().trim().min(1).max(300).nullable(),
+      expectedResponder: z.string().trim().min(1).max(120).nullable(),
+      requestedItem: z.string().trim().min(1).max(200).nullable(),
+      status: responseExpectationStatusSchema,
+      type: responseExpectationTypeSchema
+    }),
+    secondarySignals: z.array(aiMessageCategorySchema).max(5),
+    summary: z.string().trim().min(1).max(500),
+    uncertainty: z.string().trim().min(1).max(300).nullable(),
+    userFacingReason: z.string().trim().min(1).max(300)
+  })
+  .superRefine((value, context) => {
+    if (value.relevance !== "OPERATIONAL" && value.recommendationEligible) {
+      context.addIssue({
+        code: "custom",
+        message: "Only operational evidence can be recommendation eligible.",
+        path: ["recommendationEligible"]
+      });
+    }
+    if (value.recommendationEligible && value.confidence < 0.75) {
+      context.addIssue({
+        code: "custom",
+        message: "Recommendation eligibility requires confidence of at least 0.75.",
+        path: ["confidence"]
+      });
+    }
+    if (!value.recommendationEligible && !value.abstentionReason) {
+      context.addIssue({
+        code: "custom",
+        message: "Abstaining classifications must explain why.",
+        path: ["abstentionReason"]
+      });
+    }
+  });
+
+export type ClassifyMessageV2Input = z.infer<typeof classifyMessageV2InputSchema>;
+export type ClassifyMessageV2Result = z.infer<typeof classifyMessageV2ResultSchema>;
+
 export const searchAnswerSourceSchema = z.object({
   occurredAt: z.string().nullable(),
   projectName: z.string().nullable(),
@@ -170,9 +297,18 @@ export const visionRequestSchema = z.object({
 });
 
 export const visionResultSchema = z.object({
+  claimAssessment: z
+    .enum(["NOT_ASSESSED", "SUPPORTED", "NOT_SUPPORTED", "INCONCLUSIVE"])
+    .default("NOT_ASSESSED"),
   confidence: numericConfidenceSchema,
   detectedObjects: z.array(z.string().trim().min(1).max(80)).max(20),
+  limitations: z.array(z.string().trim().min(1).max(200)).max(10).default([]),
+  observations: z.array(z.string().trim().min(1).max(200)).max(20).default([]),
+  operationalConclusion: z
+    .enum(["NO_OPERATIONAL_CONCLUSION", "HUMAN_VERIFICATION_RECOMMENDED"])
+    .default("NO_OPERATIONAL_CONCLUSION"),
   possibleIssues: z.array(z.string().trim().min(1).max(160)).max(10),
+  senderClaim: z.string().trim().min(1).max(300).nullable().default(null),
   summary: z.string().trim().min(1).max(800),
   tags: z.array(z.string().trim().min(1).max(80)).max(20)
 });
@@ -196,32 +332,49 @@ export const milestoneDetectionActionSchema = z.enum([
   "NONE"
 ]);
 
-export const milestoneDetectionChangeSchema = z.object({
-  action: milestoneDetectionActionSchema,
-  actualEndDate: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .nullable(),
-  actualStartDate: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .nullable(),
-  confidence: z.enum(["HIGH", "MEDIUM", "LOW"]),
-  description: z.string().trim().min(1).max(500).nullable(),
-  hasMilestoneChange: z.boolean(),
-  milestoneTitle: z.string().trim().min(1).max(160),
-  originalDatePhrase: z.string().trim().min(1).max(80).nullable(),
-  plannedEndDate: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .nullable(),
-  plannedStartDate: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .nullable(),
-  reason: z.string().trim().min(1).max(500),
-  status: z.enum(["PLANNED", "IN_PROGRESS", "COMPLETED", "DELAYED", "CANCELLED"]).nullable()
-});
+export const milestoneDetectionChangeSchema = z
+  .object({
+    action: milestoneDetectionActionSchema,
+    actualEndDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .nullable(),
+    actualStartDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .nullable(),
+    confidence: z.enum(["HIGH", "MEDIUM", "LOW"]),
+    description: z.string().trim().min(1).max(500).nullable(),
+    hasMilestoneChange: z.boolean(),
+    milestoneTitle: z.string().trim().min(1).max(160).nullable(),
+    originalDatePhrase: z.string().trim().min(1).max(80).nullable(),
+    plannedEndDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .nullable(),
+    plannedStartDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .nullable(),
+    reason: z.string().trim().min(1).max(500),
+    status: z.enum(["PLANNED", "IN_PROGRESS", "COMPLETED", "DELAYED", "CANCELLED"]).nullable()
+  })
+  .superRefine((value, context) => {
+    if (value.action === "NONE" && value.hasMilestoneChange) {
+      context.addIssue({
+        code: "custom",
+        message: "NONE cannot declare a milestone change.",
+        path: ["hasMilestoneChange"]
+      });
+    }
+    if (value.action !== "NONE" && !value.milestoneTitle) {
+      context.addIssue({
+        code: "custom",
+        message: "Actionable milestone changes require a title.",
+        path: ["milestoneTitle"]
+      });
+    }
+  });
 
 export const milestoneDetectionInputSchema = z.object({
   existingMilestones: z.array(

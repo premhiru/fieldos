@@ -5,7 +5,7 @@
 | Purpose      | Document Railway service configuration for FieldOS backend hosting. |
 | Owner        | Founding Engineering                                                |
 | Status       | Active                                                              |
-| Last Updated | 2026-07-16                                                          |
+| Last Updated | 2026-07-18                                                          |
 
 ## Table of Contents
 
@@ -72,6 +72,7 @@ KIMI_VISION_MODEL=kimi-k2.6
 OPENROUTER_API_KEY=<OpenRouter fallback API key>
 AI_BASE_URL=https://openrouter.ai/api/v1
 AI_MODEL=openrouter/free
+AI_DECISION_ENGINE_MODE=shadow
 VISION_MODEL=openrouter/free
 WHATSAPP_STORAGE_PATH=/data/whatsapp
 WHATSAPP_SESSION_POLL_INTERVAL_MS=10000
@@ -90,3 +91,4 @@ NEXT_PUBLIC_API_URL=https://fieldos-api-production.up.railway.app
 - Railway runs `fieldos-coordinator-cron` at `0 */4 * * *` UTC. The API applies a 55-minute Redis lock and queues only projects whose local time is between 07:00 and 19:00.
 - Attach a persistent volume to `fieldos-worker` at `/data`; `WHATSAPP_STORAGE_PATH=/data/whatsapp` keeps Baileys credentials across deployments.
 - Cloudflare R2 stores evidence and generated reports. It does not replace the worker volume used by Baileys multi-file auth state.
+- `AI_DECISION_ENGINE_MODE` accepts `legacy`, `shadow`, or `v2`. Production rollout starts in `shadow`; changing it to `legacy` is the one-variable rollback. Do not set production to `v2` until shadow telemetry and evaluation results are approved.

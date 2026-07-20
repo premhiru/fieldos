@@ -19,7 +19,7 @@
 
 ## Current Milestone
 
-AI provider reliability hardening for the enterprise pilot.
+AI Decision Layer v2 shadow rollout and production-quality verification.
 
 ## Completed Tasks
 
@@ -367,8 +367,6 @@ AI provider reliability hardening for the enterprise pilot.
 
 - AI Decision Layer v2 rebuild: baseline architecture review, cautious multi-signal classification, central recommendation gating, coordinator policies, shadow telemetry, and labelled evaluation.
 
-- None.
-
 ## Known Technical Debt
 
 - CODEOWNERS references `@fieldos/engineering`, which must be replaced or backed by a real GitHub team after the organization is created.
@@ -450,6 +448,7 @@ AI provider reliability hardening for the enterprise pilot.
 - UX Refactoring decision: Keep five stable primary destinations, organize projects around operational review order, and place support/admin capabilities under role-aware Settings.
 - Product Editing decision: expose one deterministic project-health status and reason, keep four primary project command-center sections, and progressively disclose administration and system mechanics.
 - WhatsApp reliability decision: persist each outage episode on `WhatsAppAccount`, apply a short grace period, and deliver one disconnect/recovery pair asynchronously through the existing worker job queue.
+- AI Decision Layer v2 decision: preserve the legacy rollback path, run bounded multi-signal extraction and all v2 recommendations through a central gate, persist suppression telemetry, and deploy in shadow mode before any customer-visible activation.
 
 ## Deployment Status
 

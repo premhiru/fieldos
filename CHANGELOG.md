@@ -5,13 +5,21 @@
 | Purpose      | Track notable FieldOS product and platform work. |
 | Owner        | Engineering                                      |
 | Status       | Active                                           |
-| Last Updated | 2026-07-16                                       |
+| Last Updated | 2026-07-18                                       |
 
 ## Table of Contents
 
 - [Unreleased](#unreleased)
 
 ## Unreleased
+
+### AI Decision Layer v2
+
+- Added bounded multi-signal classification with explicit ambiguity and abstention.
+- Added a central evidence, confidence, deduplication, cooldown, and shadow-mode recommendation gate.
+- Rebuilt progress, follow-up, inspection, report, and milestone decision policies around shared ProjectState context.
+- Added structured outstanding expectations and safe photo conclusions.
+- Added an 81-case labelled evaluation suite and recorded actual precision-first metrics.
 
 ### Final Pilot Product Editing
 

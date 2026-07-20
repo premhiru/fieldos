@@ -55,6 +55,45 @@ describe("MilestoneDetector", () => {
     expect(provider.userPrompt).toContain("Foundation work started");
     expect(provider.systemPrompt).toContain("Never invent a date or milestone name");
   });
+
+  it("allows NONE to abstain without inventing a milestone title", async () => {
+    const detector = new MilestoneDetector({
+      provider: {
+        completeJson: async () => ({
+          changes: [
+            {
+              action: "NONE",
+              actualEndDate: null,
+              actualStartDate: null,
+              confidence: "LOW",
+              description: null,
+              hasMilestoneChange: false,
+              milestoneTitle: null,
+              originalDatePhrase: null,
+              plannedEndDate: null,
+              plannedStartDate: null,
+              reason: "The message does not identify milestone scope.",
+              status: null
+            }
+          ]
+        })
+      }
+    });
+
+    await expect(
+      detector.detectMilestones({
+        existingMilestones: [],
+        messageText: "Done",
+        occurredAt: new Date("2026-07-18T00:00:00.000Z"),
+        project: { id: "project-1", name: "Terminal", timezone: "UTC" },
+        projectState: null,
+        recentTimelineEvents: [],
+        relativeDateHints: {},
+        sender: "Supervisor",
+        voiceTranscript: null
+      })
+    ).resolves.toEqual([]);
+  });
 });
 
 class MilestoneProvider implements AIProvider {

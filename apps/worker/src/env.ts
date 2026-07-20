@@ -6,6 +6,7 @@ export const workerEnv = createEnv(
     .object({
       AI_BASE_URL: z.string().url().default("https://openrouter.ai/api/v1"),
       AI_CLASSIFICATION_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(15_000),
+      AI_DECISION_ENGINE_MODE: z.enum(["legacy", "shadow", "v2"]).default("legacy"),
       AI_MODEL: z.string().trim().min(1).default("openrouter/free"),
       AI_PROVIDER_JOBS_PER_POLL: z.coerce.number().int().positive().default(1),
       AI_PROVIDER_MAX_ATTEMPTS: z.coerce.number().int().positive().default(10),

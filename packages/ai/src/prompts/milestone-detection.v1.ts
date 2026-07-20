@@ -28,6 +28,8 @@ Rules:
 - Prefer the title of a matching existing milestone.
 - Use the supplied resolved dates for relative phrases. If a phrase is ambiguous, leave dates null and lower confidence.
 - Return an empty changes array when the evidence is unclear or only says work is generally progressing.
+- If action is NONE, hasMilestoneChange must be false and milestoneTitle, status, and every date may be null.
+- Generic words such as done, completed, or installed do not establish a milestone unless the milestone scope is explicit.
 - Reasons must be concise and user-facing. Do not expose hidden reasoning or chain-of-thought.`;
 
 export function buildMilestoneDetectionUserPrompt(input: MilestoneDetectionInput): string {

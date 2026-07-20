@@ -5,7 +5,7 @@
 | Purpose      | Define the data model, ownership boundaries, migration policy, and database standards. |
 | Owner        | Engineering                                                                            |
 | Status       | Draft                                                                                  |
-| Last Updated | 2026-07-16                                                                             |
+| Last Updated | 2026-07-18                                                                             |
 
 ## Table of Contents
 
@@ -56,6 +56,9 @@ Current MVP models:
 - `CoordinatorRun`: Operations log for coordinator executions.
 - `WhatsAppDraft`: Human-editable WhatsApp message draft created from approved recommendations.
 - `AIMessageClassification`: AI-derived classification, summary, extracted fields, and processing status for one message.
+- `AIClassificationDecision`: Versioned v2 operational extraction stored beside the historical classification.
+- `RecommendationCandidate`: Internal candidate, suppression, deduplication, and shadow telemetry.
+- `OutstandingExpectation`: Explicit unresolved question, commitment, document, approval, or update awaited from a conversation.
 - `ActionItem`: Human-reviewable recommendation derived from an AI classification or deterministic project suggestion.
 - `Event`: Generic organization-scoped activity record prepared for timeline features.
 - `Milestone`: Lightweight project deadline used by the Operations Command Center.
@@ -195,6 +198,12 @@ Fields:
 - `possibleIssues`: JSON string array of possible issues that require human review.
 - `confidence`: Numeric provider confidence used to derive user-facing confidence states.
 - `tags`: JSON string array for filtering and search.
+- `observations`: JSON array of facts visibly supported by the image.
+- `limitations`: JSON array of material facts that cannot be determined.
+- `senderClaim`: Optional claim from the source message, kept separate from visual evidence.
+- `claimAssessment`: Whether the image supports that claim.
+- `operationalConclusion`: Safe conclusion state; defaults to `NO_OPERATIONAL_CONCLUSION`.
+- `analysisVersion` and `promptVersion`: Reproducibility metadata.
 - `createdAt`: Analysis creation timestamp.
 
 Key constraints and indexes:
@@ -238,12 +247,15 @@ Completed reports are indexed as `SearchDocument` records with source type `PROJ
 
 ## AI Project Coordinator Model
 
-Project coordinators use four tables:
+Project coordinators use seven tables:
 
 - `ProjectState`: One deterministic snapshot per project.
 - `Recommendation`: Human-approval record for coordinator proposals.
 - `CoordinatorRun`: Execution log for operational visibility.
 - `WhatsAppDraft`: Editable draft created only after recommendation approval.
+- `AIClassificationDecision`: Bounded operational evidence consumed by v2 coordinators.
+- `RecommendationCandidate`: Central-gate decision and suppression telemetry.
+- `OutstandingExpectation`: Specific unresolved response obligation used by Follow-up.
 
 `ProjectState` fields:
 
@@ -267,12 +279,18 @@ Project coordinators use four tables:
 
 `WhatsAppDraft` stores draft body, linked recommendation, optional account/conversation, creator/approver users, send timestamp, and status. Drafts are not sent automatically.
 
+`RecommendationCandidate` stores decision-engine mode, coordinator and action types, evidence ids, confidence, priority, proposed payload, semantic fingerprint, status, suppression reason, and engine version. It is internal telemetry and is not exposed in normal customer workflows.
+
+`OutstandingExpectation` stores the source message, expected responder, requested item, optional due time, status, supporting evidence, confidence, and optional resolving message. The unique source-message/type/requested-item key makes extraction idempotent.
+
 Key constraints and indexes:
 
 - `ProjectState.projectId` is unique.
 - Recommendation indexes support organization/project pending recommendation views and deduplication.
 - Coordinator run indexes support operations health by organization, project, type, status, and time.
 - WhatsApp draft indexes support organization/project draft lists and recommendation detail views.
+- Candidate indexes support tenant-scoped status metrics, coordinator analysis, semantic deduplication, and suppression-reason reporting.
+- Expectation indexes support organization, project, and conversation queries by status and due time.
 
 ## WhatsApp Connector Model
 
@@ -319,6 +337,8 @@ Status meanings:
 ## AI Classification Model
 
 `AIMessageClassification` stores one classification job/result per message. It belongs to an organization, optionally belongs to a project, and is unique by `messageId`.
+
+`AIClassificationDecision` is the additive v2 companion record. It stores mode, relevance, multi-signal categories, operational impact, response expectation, completion claim, inspection readiness, recommendation eligibility, abstention and uncertainty, concise user-facing reason, confidence, and schema/prompt/model/provider metadata. It does not store raw provider output or private reasoning.
 
 Classification statuses:
 
@@ -375,7 +395,9 @@ ActionItem priorities:
 Key constraints:
 
 - `AIMessageClassification.messageId` is unique.
+- `AIClassificationDecision.classificationId` is unique so each historical classification has at most one current v2 decision.
 - Classification rows cascade with messages, projects, and organizations.
+- V2 decision indexes cover tenant/project processing time, mode and relevance, and recommendation eligibility.
 - Action Items cascade with their source message and optional classification.
 - `assignedToUserId`, `acceptedByUserId`, and `ignoredByUserId` are nullable user references.
 - Organization, project, status, priority, assignee, message, classification, and suggested-project query paths are indexed.

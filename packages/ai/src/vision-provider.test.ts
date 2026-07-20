@@ -22,8 +22,13 @@ describe("OpenAICompatibleVisionProvider", () => {
               message: {
                 content: JSON.stringify({
                   confidence: "HIGH",
+                  claimAssessment: "INCONCLUSIVE",
                   detectedObjects: ["Runway Light", "Cable"],
+                  limitations: ["Testing and hidden wiring cannot be determined."],
+                  observations: ["A runway light fitting and cable are visible."],
+                  operationalConclusion: "NO_OPERATIONAL_CONCLUSION",
                   possibleIssues: ["Possible alignment issue. Needs Review."],
+                  senderClaim: "Installation is complete.",
                   summary: "Runway lighting installation appears substantially complete.",
                   tags: ["runway light", "installation", "needs review"]
                 })
@@ -55,6 +60,7 @@ describe("OpenAICompatibleVisionProvider", () => {
 
     expect(result.tags).toContain("runway light");
     expect(result.confidence).toBe(0.9);
+    expect(result.operationalConclusion).toBe("NO_OPERATIONAL_CONCLUSION");
     expect(fetchMock).toHaveBeenCalledWith(
       "https://vision.example.test/chat/completions",
       expect.objectContaining({

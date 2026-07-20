@@ -7,6 +7,7 @@ import {
   isAIProviderRateLimitError,
   MilestoneDetector,
   MessageClassifier,
+  MessageClassifierV2,
   type VisionResult
 } from "@fieldos/ai";
 import { BaileysWhatsAppSessionManager, RedisWhatsAppQrStore } from "@fieldos/baileys-whatsapp";
@@ -113,7 +114,12 @@ const aiClassificationProcessor = new AIClassificationProcessor(prisma, {
   classifier: new MessageClassifier({
     model: textAIProvider.model,
     provider: textAIProvider.provider
-  })
+  }),
+  classifierV2: new MessageClassifierV2({
+    model: textAIProvider.model,
+    provider: textAIProvider.provider
+  }),
+  decisionEngineMode: workerEnv.AI_DECISION_ENGINE_MODE
 });
 const voiceTranscriptionService = new VoiceTranscriptionService({
   apiKey: workerEnv.OPENAI_API_KEY,
@@ -139,6 +145,7 @@ const photoAnalysisService = new PhotoAnalysisService({
 });
 const projectIntelligenceService = new ProjectIntelligenceService();
 const coordinatorRuntime = new ProjectCoordinatorRuntime(prisma, {
+  decisionEngineMode: workerEnv.AI_DECISION_ENGINE_MODE,
   draftSender: {
     send: (input) => whatsappSessionManager.sendDraft(input)
   },
@@ -584,24 +591,38 @@ async function processPhotoJob(job: ProcessingJob): Promise<void> {
   await prisma.$transaction(async (tx) => {
     const analysis = await tx.photoAnalysis.upsert({
       create: {
+        analysisVersion: "2.0",
+        claimAssessment: result.claimAssessment,
         confidence: result.confidence,
         conversationId: attachment.conversationId,
         detectedObjects: result.detectedObjects,
         evidenceId: attachment.id,
         messageId: attachment.messageId,
+        limitations: result.limitations,
+        observations: result.observations,
+        operationalConclusion: result.operationalConclusion,
         organizationId: attachment.message.conversation.organizationId,
         possibleIssues: result.possibleIssues,
         projectId: attachment.message.conversation.projectId,
         provider: workerEnv.VISION_MODEL,
+        promptVersion: "photo-analysis.v2",
+        senderClaim: result.senderClaim,
         summary: result.summary,
         tags: result.tags
       },
       update: {
+        analysisVersion: "2.0",
+        claimAssessment: result.claimAssessment,
         confidence: result.confidence,
         detectedObjects: result.detectedObjects,
+        limitations: result.limitations,
+        observations: result.observations,
+        operationalConclusion: result.operationalConclusion,
         possibleIssues: result.possibleIssues,
         projectId: attachment.message.conversation.projectId,
         provider: workerEnv.VISION_MODEL,
+        promptVersion: "photo-analysis.v2",
+        senderClaim: result.senderClaim,
         summary: result.summary,
         tags: result.tags
       },
@@ -910,14 +931,21 @@ function buildReportArtifact(
 function buildPhotoAnalysisEventDescription(result: VisionResult): string {
   return [
     `Visual Summary: ${result.summary}`,
+    result.observations.length > 0
+      ? `Visible observations: ${result.observations.join(", ")}`
+      : "Visible observations: Unable to determine.",
     result.detectedObjects.length > 0
       ? `Detected: ${result.detectedObjects.join(", ")}`
       : "Detected: Unable to determine.",
     result.possibleIssues.length > 0
       ? `Possible Issue: ${result.possibleIssues.join(", ")}`
       : "Possible Issue: None obvious. Needs Review.",
+    `Operational conclusion: ${result.operationalConclusion === "NO_OPERATIONAL_CONCLUSION" ? "No operational conclusion" : "Human verification recommended"}`,
+    result.limitations.length > 0 ? `Limitations: ${result.limitations.join(" ")}` : "",
     `Confidence: ${formatVisionConfidence(result.confidence)}`
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function formatVisionConfidence(confidence: number): string {

@@ -65,7 +65,7 @@ export class MilestoneDetector {
     }
 
     return result.data.changes.filter(
-      (change) => change.hasMilestoneChange && change.action !== "NONE"
+      (change) => change.hasMilestoneChange && change.action !== "NONE" && change.milestoneTitle
     );
   }
 }

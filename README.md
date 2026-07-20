@@ -5,7 +5,7 @@
 | Purpose      | Introduce the FieldOS engineering foundation, repository layout, and development workflow. |
 | Owner        | Founding Engineering                                                                       |
 | Status       | Active                                                                                     |
-| Last Updated | 2026-07-16                                                                                 |
+| Last Updated | 2026-07-18                                                                                 |
 
 ## Table of Contents
 
@@ -41,6 +41,8 @@ The repository is a pnpm and Turborepo monorepo containing a Next.js dashboard, 
 ## Architecture
 
 FieldOS starts as a modular monolith with clear package boundaries. The current product slice supports JWT-cookie authentication, organization workspaces, organization memberships, projects, a channel-agnostic messaging foundation, a WhatsApp Web connector that feeds messages into the unified inbox, human-reviewed AI classification for active project messages, worker-owned photo intelligence for image attachments, and project intelligence reports grounded in timeline events, Action Items, classifications, transcripts, and evidence metadata.
+
+The AI Decision Layer v2 separates bounded multi-signal extraction from recommendation decisions. Context-aware coordinators emit candidates through one deterministic gate, which records evidence, suppression reasons, semantic deduplication, cooldowns, and shadow telemetry. Production rollout is controlled by `AI_DECISION_ENGINE_MODE=legacy|shadow|v2`.
 
 ```mermaid
 flowchart TD
