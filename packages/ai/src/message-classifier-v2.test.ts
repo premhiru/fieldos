@@ -39,9 +39,13 @@ describe("MessageClassifierV2", () => {
 
   it("repairs one malformed result and requires an abstention reason", async () => {
     let calls = 0;
+    let repairPrompt = "";
     const provider: AIProvider = {
-      completeJson: async () => {
+      completeJson: async ({ messages }) => {
         calls += 1;
+        if (calls === 2) {
+          repairPrompt = messages.at(-1)?.content ?? "";
+        }
         return calls === 1
           ? { relevance: "AMBIGUOUS" }
           : {
@@ -77,6 +81,8 @@ describe("MessageClassifierV2", () => {
       relevance: "AMBIGUOUS"
     });
     expect(calls).toBe(2);
+    expect(repairPrompt).toContain('relevance: "OPERATIONAL" | "NON_OPERATIONAL" | "AMBIGUOUS"');
+    expect(repairPrompt).toContain("responseExpectation: an object");
   });
 });
 

@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import {
   buildMessageClassificationUserPromptV2,
+  messageClassificationOutputContractV2,
   messageClassificationSystemPromptV2
 } from "./prompts/message-classification.v2.js";
 import { AIOutputValidationError, createConfiguredAIProvider } from "./message-classifier.js";
@@ -45,7 +46,7 @@ export class MessageClassifierV2 {
       messages: [
         ...messages,
         {
-          content: `Your previous JSON failed validation. Return a corrected complete object only. Validation errors: ${z.prettifyError(result.error)}`,
+          content: `Your previous JSON failed validation. Return one corrected complete JSON object only. Preserve the cautious meaning, but conform every field to this exact contract:\n${messageClassificationOutputContractV2}\nValidation errors:\n${z.prettifyError(result.error)}`,
           role: "user"
         }
       ],
