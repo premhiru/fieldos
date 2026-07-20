@@ -5,7 +5,7 @@
 | Purpose      | Track FieldOS milestone progress, task completion, technical debt, architecture decisions, and deployment readiness. |
 | Owner        | Founding Engineering                                                                                                 |
 | Status       | Active                                                                                                               |
-| Last Updated | 2026-07-18                                                                                                           |
+| Last Updated | 2026-07-20                                                                                                           |
 
 ## Table of Contents
 
@@ -19,9 +19,18 @@
 
 ## Current Milestone
 
-AI Decision Layer v2 shadow rollout and production-quality verification.
+AI Decision Layer v2 production shadow observation and promotion readiness review.
 
 ## Completed Tasks
+
+- AI Decision Layer v2 rebuild and production shadow rollout.
+  - Added bounded multi-signal classification, cautious abstention, structured expectations, completion and inspection semantics, and one bounded structural repair attempt.
+  - Routed every v2 coordinator recommendation through a central evidence, confidence, deduplication, and cooldown gate while preserving the legacy rollback path.
+  - Added persisted classification decisions, recommendation candidates, suppression telemetry, outstanding expectations, and conservative photo-analysis fields.
+  - Added 81 labelled evaluation cases; deterministic policy acceptance measured 94.29% recommendation precision, 90.12% primary-category accuracy, 95.06% abstention accuracy, 0% inspection false positives, 1.30% follow-up false positives, and 0% duplicate rate.
+  - Corrected Kimi's v2 output contract with exact enums and nested response-expectation requirements while retaining strict validation.
+  - Migrated the API and worker from retired Nixpacks to Railpack so Railway can build the repository's pinned pnpm 11.7.0 toolchain.
+  - Applied production migration `20260718010000_ai_decision_layer_v2` and verified a disposable queue job persisted a `SHADOW` decision through the Kimi-primary/OpenRouter-fallback provider without creating a visible recommendation.
 
 - Railway AI job queue production recovery.
   - Normalized decimal, percentage, and labelled confidence values returned by Kimi and OpenRouter while retaining strict bounded validation.
@@ -365,13 +374,12 @@ AI Decision Layer v2 shadow rollout and production-quality verification.
 
 ## In-Progress Tasks
 
-- AI Decision Layer v2 rebuild: baseline architecture review, cautious multi-signal classification, central recommendation gating, coordinator policies, shadow telemetry, and labelled evaluation.
+- Observe production AI Decision Layer v2 shadow telemetry and review quality with pilot traffic before explicitly promoting `AI_DECISION_ENGINE_MODE` from `shadow` to `v2`.
 
 ## Known Technical Debt
 
 - CODEOWNERS references `@fieldos/engineering`, which must be replaced or backed by a real GitHub team after the organization is created.
 - Git author identity is configured locally as `FieldOS Engineering <engineering@fieldos.local>` and should be replaced with the company identity when available.
-- Vitest is configured with `--passWithNoTests`; real tests should be added with the first product and infrastructure behavior.
 - Email verification is not implemented yet; invitation and membership administration are live.
 - Password-reset request rate limiting is not yet implemented.
 - Production password resets and team invitations use Resend with the verified `leesaapp.com` sending domain.
@@ -386,7 +394,7 @@ AI Decision Layer v2 shadow rollout and production-quality verification.
 - AI provider failures are recorded on the classification row; worker retries now use bounded exponential backoff, but provider-specific retry policy remains intentionally minimal.
 - Pagination is still limited to the highest-volume AI and ActionItem project views; conversation and message pagination should be formalized before large customer imports.
 - API route response envelopes are improved but not yet generated from a shared OpenAPI contract.
-- Production environments must set `OPENROUTER_API_KEY` and confirm the intended `AI_MODEL` before AI classification can run. `VISION_MODEL` must point to a multimodal model before production photo analysis can be considered fully verified. `OPENAI_API_KEY` remains a fallback for OpenAI-compatible providers.
+- Production AI uses Kimi as the primary text and vision provider with OpenRouter as the per-request fallback. Voice transcription still requires `OPENAI_API_KEY` because chat-provider keys do not provide audio transcription.
 - Voice transcription uses OpenAI audio transcription when `OPENAI_API_KEY` is configured; OpenRouter chat keys do not provide audio transcription.
 - Search uses PostgreSQL keyword search for the MVP; semantic/vector search is intentionally deferred until search telemetry proves the need.
 - Baileys auth session files use the persistent Railway worker volume; automated backup and restoration remain deferred, while media and report objects use R2.
@@ -402,9 +410,11 @@ AI Decision Layer v2 shadow rollout and production-quality verification.
 - Conversations do not yet have a first-class owner; project assignment is the current ownership signal in Inbox.
 - WhatsApp discovery pagination is client-side; move it into the API before accounts routinely exceed several thousand chats.
 - Recommendation decision history does not yet have a dedicated audit hub.
+- AI Decision Layer v2 remains intentionally non-visible in production shadow mode until representative pilot telemetry is reviewed; deterministic evaluation is not a substitute for live-provider quality measurement.
 
 ## Upcoming Milestones
 
+- Review production shadow classifications, recommendation candidates, and suppression reasons, then make an explicit go/no-go decision before enabling customer-visible v2 recommendations.
 - Validate the redesigned product shell with pilot users and prioritize findings from real workflows.
 - Add server-backed unread state, Action Item due dates, and durable recommendation snoozes when workflow telemetry confirms the required semantics.
 - Monitor transactional-email delivery and suppression rates during pilot onboarding.
@@ -451,6 +461,15 @@ AI Decision Layer v2 shadow rollout and production-quality verification.
 - AI Decision Layer v2 decision: preserve the legacy rollback path, run bounded multi-signal extraction and all v2 recommendations through a central gate, persist suppression telemetry, and deploy in shadow mode before any customer-visible activation.
 
 ## Deployment Status
+
+- AI Decision Layer v2 is deployed in production shadow mode from commits `8b859b0`, `ff464ce`, and `3909bca` on 2026-07-20.
+  - Railway API deployment `710aa9c0-c385-425b-8fbe-b444390cd3d5` completed successfully, applied migration `20260718010000_ai_decision_layer_v2`, and returns `{"status":"ok"}`.
+  - Railway worker deployment `dac61c8c-d5f9-4b93-9f10-53528da103c1` completed successfully with `AI_DECISION_ENGINE_MODE=shadow`, mounted the persistent `/data` volume, reached its job-waiting state, and reconnected the existing WhatsApp session.
+  - Railway API and worker now use Railpack with Node 22 because retired Nixpacks does not support pnpm 11.
+  - A disposable production AI classification completed and persisted a `SHADOW` decision through `kimi-primary-openrouter-fallback`; all disposable records were removed afterward.
+  - The final 72-hour queue audit reports 390 completed jobs, zero failed, pending, or running jobs, and an `ONLINE` worker heartbeat.
+  - Railway coordinator cron deployment `3e0c5ce8-9514-4897-b389-6b610b5dcf2f` remains successful and is the sole scheduled coordinator-scan trigger.
+  - Vercel preview deployment completed at `https://fieldos-n08g4beg1-premhirus-projects.vercel.app`; production dashboard promotion is intentionally deferred while the pull request remains in review.
 
 - AI job queue reliability fixes deployed from commit `84ef796` on 2026-07-18.
   - Railway worker deployment `84ab228f-44af-45c5-a38e-5bce8cda050d` completed successfully.
