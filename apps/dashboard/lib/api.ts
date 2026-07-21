@@ -1258,6 +1258,8 @@ export const api = {
     apiRequest<{ analysis: PhotoAnalysis }>(`/evidence/${evidenceId}/photo-analysis`),
   getEvidenceView: (evidenceId: string) =>
     apiRequest<{ evidence: EvidenceView }>(`/evidence/${evidenceId}/view`),
+  deleteEvidence: (evidenceId: string) =>
+    apiRequest<void>(`/evidence/${evidenceId}`, { method: "DELETE" }),
   getWhatsAppQr: (accountId: string) =>
     apiRequest<{ qr: string | null; status: WhatsAppAccountStatus }>(
       `/whatsapp/accounts/${accountId}/qr`

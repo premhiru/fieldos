@@ -664,6 +664,7 @@ export interface AppRepository extends MessagingRepository {
     organizationId: string;
   }): Promise<RecentProjectReportRecord[]>;
   getEvidenceView(evidenceId: string): Promise<EvidenceViewRecord | null>;
+  deleteEvidence(evidenceId: string): Promise<boolean>;
   queueProjectReport(input: { projectId: string; type: ReportType }): Promise<ProjectReportRecord>;
   getActionItem(actionItemId: string): Promise<ActionItemRecord | null>;
   getOperationsDashboard(input: {
@@ -1460,6 +1461,64 @@ export function createPrismaRepository(): AppRepository {
         transcript: attachment.transcript,
         transcriptionStatus: attachment.transcriptionStatus
       };
+    },
+
+    async deleteEvidence(evidenceId) {
+      const prisma = await getPrisma();
+
+      return prisma.$transaction(async (tx) => {
+        const attachment = await tx.attachment.findUnique({
+          select: {
+            id: true,
+            photoAnalysis: {
+              select: {
+                id: true
+              }
+            }
+          },
+          where: {
+            id: evidenceId
+          }
+        });
+
+        if (!attachment) {
+          return false;
+        }
+
+        const sourceIds = [attachment.id, attachment.photoAnalysis?.id].filter(
+          (sourceId): sourceId is string => Boolean(sourceId)
+        );
+
+        await tx.processingJob.deleteMany({
+          where: {
+            sourceId: {
+              in: sourceIds
+            },
+            status: {
+              not: "RUNNING"
+            }
+          }
+        });
+        await tx.searchDocument.deleteMany({
+          where: {
+            sourceId: {
+              in: sourceIds
+            }
+          }
+        });
+        await tx.event.deleteMany({
+          where: {
+            sourceId: attachment.id
+          }
+        });
+        await tx.attachment.delete({
+          where: {
+            id: attachment.id
+          }
+        });
+
+        return true;
+      });
     },
 
     async getActionItem(actionItemId) {

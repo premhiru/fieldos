@@ -1696,6 +1696,32 @@ export function buildServer(options: BuildServerOptions = {}) {
     };
   });
 
+  server.delete("/evidence/:id", { preHandler: requireAuth }, async (request, reply) => {
+    const params = evidenceParamsSchema.parse(request.params);
+    const evidence = await repository.getEvidenceView(params.id);
+
+    if (!evidence) {
+      throw notFound("Evidence not found.");
+    }
+
+    const userId = requireCurrentUser(request).id;
+    await requireWritableOrganizationRole(userId, evidence.organizationId);
+    await requireScopedProjectAccess(userId, evidence.project?.id ?? null, "Evidence");
+    await storageProvider.delete(evidence.storageKey);
+    await repository.deleteEvidence(evidence.id);
+    request.log.info(
+      {
+        evidenceId: evidence.id,
+        organizationId: evidence.organizationId,
+        projectId: evidence.project?.id ?? null,
+        userId
+      },
+      "evidence deleted"
+    );
+
+    return reply.status(204).send();
+  });
+
   server.post("/messages/:id/classify", { preHandler: requireAuth }, async (request) => {
     const params = messageParamsSchema.parse(request.params);
     const context = await repository.findMessageContext(params.id);

@@ -1,8 +1,8 @@
 "use client";
 
-import { Badge, EmptyState, PageHeader, Skeleton } from "@fieldos/ui";
-import { FileImage, MessageSquareText } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { Badge, Button, EmptyState, PageHeader, Skeleton } from "@fieldos/ui";
+import { FileImage, LoaderCircle, MessageSquareText, Trash2 } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
@@ -14,6 +14,7 @@ import {
   type PhotoAnalysis,
   type ProjectWhatsAppMessage
 } from "../../../../lib/api";
+import { useOrganizations } from "../../../../lib/queries";
 
 export default function ProjectEvidencePage() {
   return (
@@ -27,6 +28,7 @@ export default function ProjectEvidencePage() {
 
 function ProjectEvidence() {
   const params = useParams<{ projectId: string }>();
+  const organizationsQuery = useOrganizations();
   const projectQuery = useQuery({
     queryFn: () => api.getProject(params.projectId),
     queryKey: ["project", params.projectId],
@@ -51,6 +53,10 @@ function ProjectEvidence() {
     return <p className="text-sm text-[var(--status-critical-text)]">Project not found.</p>;
   const messages = project.whatsAppMessages ?? [];
   const analyses = photoQuery.data?.analyses ?? [];
+  const organizationRole = organizationsQuery.data?.organizations.find(
+    (organization) => organization.id === project.organizationId
+  )?.role;
+  const canDeleteEvidence = organizationRole === "OWNER" || organizationRole === "ADMIN";
 
   return (
     <div className="space-y-8">
@@ -95,7 +101,12 @@ function ProjectEvidence() {
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {analyses.map((analysis) => (
-              <PhotoEvidence analysis={analysis} key={analysis.id} />
+              <PhotoEvidence
+                analysis={analysis}
+                canDelete={canDeleteEvidence}
+                key={analysis.id}
+                projectId={project.id}
+              />
             ))}
           </div>
         )}
@@ -142,12 +153,32 @@ function MessageEvidence({ message }: { message: ProjectWhatsAppMessage }) {
   );
 }
 
-function PhotoEvidence({ analysis }: { analysis: PhotoAnalysis }) {
+function PhotoEvidence({
+  analysis,
+  canDelete,
+  projectId
+}: {
+  analysis: PhotoAnalysis;
+  canDelete: boolean;
+  projectId: string;
+}) {
+  const queryClient = useQueryClient();
   const evidenceQuery = useQuery({
     queryFn: () => api.getEvidenceView(analysis.evidenceId),
     queryKey: ["evidence-view", analysis.evidenceId],
     retry: false
   });
+  const deleteMutation = useMutation({
+    mutationFn: () => api.deleteEvidence(analysis.evidenceId),
+    onSuccess: async () => {
+      queryClient.removeQueries({ queryKey: ["evidence-view", analysis.evidenceId] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["project", projectId] }),
+        queryClient.invalidateQueries({ queryKey: ["project-photo-analysis", projectId] })
+      ]);
+    }
+  });
+
   return (
     <article className="overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)]">
       <div className="aspect-[4/3] bg-[var(--surface-subtle)]">
@@ -165,12 +196,44 @@ function PhotoEvidence({ analysis }: { analysis: PhotoAnalysis }) {
       <div className="p-4">
         <Badge variant="muted">{confidenceLabel(analysis.confidence)}</Badge>
         <p className="mt-3 text-sm leading-6 text-[var(--text-primary)]">{analysis.summary}</p>
-        <Link
-          className="mt-3 inline-flex text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-          href={`/inbox/${analysis.message.conversation.id}`}
-        >
-          View source message
-        </Link>
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <Link
+            className="inline-flex text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+            href={`/inbox/${analysis.message.conversation.id}`}
+          >
+            View source message
+          </Link>
+          {canDelete ? (
+            <Button
+              aria-label={`Delete ${analysis.evidence.filename}`}
+              className="size-8 shrink-0 p-0 text-[var(--status-critical-text)] hover:text-[var(--status-critical-text)]"
+              disabled={deleteMutation.isPending}
+              onClick={() => {
+                if (
+                  window.confirm(
+                    `Delete ${analysis.evidence.filename}? This permanently removes the media and its AI analysis. The source message will remain.`
+                  )
+                ) {
+                  deleteMutation.mutate();
+                }
+              }}
+              title="Delete media"
+              type="button"
+              variant="ghost"
+            >
+              {deleteMutation.isPending ? (
+                <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
+              ) : (
+                <Trash2 aria-hidden="true" className="size-4" />
+              )}
+            </Button>
+          ) : null}
+        </div>
+        {deleteMutation.isError ? (
+          <p className="mt-2 text-xs text-[var(--status-critical-text)]">
+            Unable to delete this media. Please try again.
+          </p>
+        ) : null}
       </div>
     </article>
   );

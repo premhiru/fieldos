@@ -1424,6 +1424,89 @@ describe("FieldOS API auth and tenancy", () => {
     expect(outsiderResponse.statusCode).toBe(404);
   });
 
+  it("deletes authorized evidence from storage while preserving the source message", async () => {
+    const storageProvider = new InMemoryStorageProvider();
+    const evidenceServer = buildServer({
+      qrStore: new InMemoryQrStore(),
+      repository,
+      storageProvider
+    });
+    const ownerCookie = await signup(evidenceServer, "owner-delete-evidence@example.com");
+    const organization = await createOrganization(evidenceServer, ownerCookie);
+    const project = await repository.createProject({
+      code: "EDELETE",
+      name: "Evidence deletion project",
+      organizationId: organization.id,
+      status: "ACTIVE"
+    });
+    const message = await createProjectMessage(repository, organization.id, project.id);
+    const conversation = repository.conversations.find(
+      (candidate) => candidate.id === message.conversationId
+    );
+
+    if (!conversation) {
+      throw new Error("conversation missing");
+    }
+
+    const storageKey = "organizations/org/projects/project/evidence/evidence/photo.jpg";
+    await storageProvider.upload({
+      contentType: "image/jpeg",
+      data: Buffer.from("photo"),
+      key: storageKey
+    });
+    const attachment = await repository.createAttachment({
+      conversationId: conversation.id,
+      filename: "photo.jpg",
+      messageId: message.id,
+      mimeType: "image/jpeg",
+      size: 5,
+      storageKey
+    });
+    const analysis = repository.addPhotoAnalysis({
+      attachment,
+      conversation,
+      message,
+      organizationId: organization.id,
+      project,
+      summary: "Disposable photo analysis."
+    });
+    repository.addProcessingJob({
+      organizationId: organization.id,
+      projectId: project.id,
+      sourceId: analysis.id,
+      sourceType: "PHOTO_ANALYSIS",
+      type: "SEARCH_INDEX"
+    });
+    const outsiderCookie = await signup(evidenceServer, "outsider-delete-evidence@example.com");
+
+    const outsiderResponse = await evidenceServer.inject({
+      headers: { cookie: outsiderCookie },
+      method: "DELETE",
+      url: `/evidence/${attachment.id}`
+    });
+    expect(outsiderResponse.statusCode).toBe(404);
+    expect(await storageProvider.exists(storageKey)).toBe(true);
+
+    const deleteResponse = await evidenceServer.inject({
+      headers: { cookie: ownerCookie },
+      method: "DELETE",
+      url: `/evidence/${attachment.id}`
+    });
+    const deletedViewResponse = await evidenceServer.inject({
+      headers: { cookie: ownerCookie },
+      method: "GET",
+      url: `/evidence/${attachment.id}/view`
+    });
+
+    expect(deleteResponse.statusCode).toBe(204);
+    expect(await storageProvider.exists(storageKey)).toBe(false);
+    expect(repository.attachments.some((candidate) => candidate.id === attachment.id)).toBe(false);
+    expect(repository.photoAnalyses.some((candidate) => candidate.id === analysis.id)).toBe(false);
+    expect(repository.messages.some((candidate) => candidate.id === message.id)).toBe(true);
+    expect(repository.processingJobs.some((job) => job.sourceId === analysis.id)).toBe(false);
+    expect(deletedViewResponse.statusCode).toBe(404);
+  });
+
   it("uses authorized provider-signed evidence URLs without returning raw storage keys", async () => {
     const storageProvider = new InMemoryStorageProvider();
     const r2Server = buildServer({
@@ -3610,6 +3693,34 @@ class InMemoryRepository implements AppRepository {
       transcript: attachment.transcript,
       transcriptionStatus: attachment.transcriptionStatus
     };
+  }
+
+  async deleteEvidence(evidenceId: string): Promise<boolean> {
+    const attachment = this.attachments.find((candidate) => candidate.id === evidenceId);
+
+    if (!attachment) {
+      return false;
+    }
+
+    const photoAnalysisIds = this.photoAnalyses
+      .filter((analysis) => analysis.evidenceId === evidenceId)
+      .map((analysis) => analysis.id);
+    const sourceIds = new Set([evidenceId, ...photoAnalysisIds]);
+    this.attachments = this.attachments.filter((candidate) => candidate.id !== evidenceId);
+    this.photoAnalyses = this.photoAnalyses.filter(
+      (analysis) => analysis.evidenceId !== evidenceId
+    );
+    this.events = this.events.filter((event) => event.sourceId !== evidenceId);
+    this.processingJobs = this.processingJobs.filter(
+      (job) => job.status === "RUNNING" || !sourceIds.has(job.sourceId)
+    );
+
+    const message = this.messages.find((candidate) => candidate.id === attachment.messageId);
+    if (message) {
+      message.attachments = message.attachments.filter((candidate) => candidate.id !== evidenceId);
+    }
+
+    return true;
   }
 
   async ignoreActionItem(input: {
