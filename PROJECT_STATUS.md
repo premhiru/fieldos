@@ -19,9 +19,16 @@
 
 ## Current Milestone
 
-AI Decision Layer v2 production shadow observation and promotion readiness review.
+AI Decision Layer v2 production observation and pilot quality monitoring.
 
 ## Completed Tasks
+
+- AI Decision Layer v2 production promotion.
+  - Squash-merged pull request 1 into `main` at commit `6652efa` after lint, typecheck, tests, build, browser smoke, and the 86-case provider-backed evaluation passed.
+  - Promoted the Railway worker from `AI_DECISION_ENGINE_MODE=shadow` to `AI_DECISION_ENGINE_MODE=v2` while retaining `legacy` as the one-variable rollback path.
+  - Deployed worker release `bf8d6520-c99e-4cd6-ac49-35a1039cdac3`, retained the persistent WhatsApp volume, and reconnected the active line.
+  - Verified zero failed jobs, zero failed coordinator runs, no pending or running backlog, and an `ONLINE` worker heartbeat after promotion.
+  - Promoted the dashboard from `main` through Vercel production deployment `dpl_Fztkjsx3AhJssR1JiK7KXqDVqkvp`; login and proxied API health return HTTP 200.
 
 - AI Decision Layer v2 rebuild and production shadow rollout.
   - Added bounded multi-signal classification, cautious abstention, structured expectations, completion and inspection semantics, and one bounded structural repair attempt.
@@ -375,8 +382,8 @@ AI Decision Layer v2 production shadow observation and promotion readiness revie
 
 ## In-Progress Tasks
 
-- Observe production AI Decision Layer v2 shadow telemetry and review quality with pilot traffic before explicitly promoting `AI_DECISION_ENGINE_MODE` from `shadow` to `v2`.
-- Prepare the complete additive AI v2 migration and shadow telemetry changes for review in draft pull request 1; production promotion remains out of scope.
+- Monitor customer-visible v2 decisions, recommendation acceptance, suppression reasons, and extraction quality with pilot traffic.
+- Confirm the first post-promotion inbound classification persists a `V2` decision; no new inbound message arrived during the deployment verification window.
 
 ## Known Technical Debt
 
@@ -412,13 +419,13 @@ AI Decision Layer v2 production shadow observation and promotion readiness revie
 - Conversations do not yet have a first-class owner; project assignment is the current ownership signal in Inbox.
 - WhatsApp discovery pagination is client-side; move it into the API before accounts routinely exceed several thousand chats.
 - Recommendation decision history does not yet have a dedicated audit hub.
-- AI Decision Layer v2 remains intentionally non-visible in production shadow mode until representative pilot telemetry is reviewed; deterministic evaluation is not a substitute for live-provider quality measurement.
+- AI Decision Layer v2 is customer-visible in production. Its recommendation gates passed the labelled evaluation, but 88.37% primary-category accuracy and weaker secondary-signal extraction still require pilot monitoring; `legacy` remains the immediate rollback mode.
 - Operations job metrics retain historical failures indefinitely, so the all-time failed count can look unhealthy after recovery. Recent failures, queue depth, coordinator runs, and worker heartbeat are the authoritative current-health signals until the API exposes separate time windows.
 - The stale `Demo airport operations line` WhatsApp account remains in `PENDING_QR` and produces recurring pairing timeout logs. Removing or resetting it requires an explicit administrator decision because it is production account data.
 
 ## Upcoming Milestones
 
-- Review production shadow classifications, recommendation candidates, and suppression reasons, then make an explicit go/no-go decision before enabling customer-visible v2 recommendations.
+- Review customer-visible v2 classifications, recommendation candidates, suppression reasons, and human decisions after the first representative pilot traffic window.
 - Validate the redesigned product shell with pilot users and prioritize findings from real workflows.
 - Add server-backed unread state, Action Item due dates, and durable recommendation snoozes when workflow telemetry confirms the required semantics.
 - Monitor transactional-email delivery and suppression rates during pilot onboarding.
@@ -463,16 +470,24 @@ AI Decision Layer v2 production shadow observation and promotion readiness revie
 - Product Editing decision: expose one deterministic project-health status and reason, keep four primary project command-center sections, and progressively disclose administration and system mechanics.
 - WhatsApp reliability decision: persist each outage episode on `WhatsAppAccount`, apply a short grace period, and deliver one disconnect/recovery pair asynchronously through the existing worker job queue.
 - AI Decision Layer v2 decision: preserve the legacy rollback path, run bounded multi-signal extraction and all v2 recommendations through a central gate, persist suppression telemetry, and deploy in shadow mode before any customer-visible activation.
+- AI Decision Layer v2 promotion decision: enable `v2` after the provider-backed recommendation gates passed, retain `legacy` for immediate rollback, and treat category and secondary-signal quality as monitored limitations rather than recommendation blockers.
 
 ## Deployment Status
 
-- Railway production health was re-audited on 2026-07-21 after user-reported coordinator errors.
+- AI Decision Layer v2 was promoted to production on 2026-07-21.
+  - Pull request 1 was squash-merged into `main` as commit `6652efa`; all four GitHub Actions checks passed on the reviewed head.
+  - Railway worker deployment `bf8d6520-c99e-4cd6-ac49-35a1039cdac3` completed successfully with `AI_DECISION_ENGINE_MODE=v2`, the `/data` volume mounted, job polling active, and the active WhatsApp line connected.
+  - The post-promotion database audit found zero failed jobs, zero failed coordinator runs, no pending or running jobs, and an `ONLINE` heartbeat reporting version `6652efa`.
+  - Vercel production deployment `dpl_Fztkjsx3AhJssR1JiK7KXqDVqkvp` is Ready and aliased to `https://fieldos-sand.vercel.app`; login and proxied API health return HTTP 200.
+  - No inbound classification arrived during the verification window, so the first persisted customer-traffic `V2` decision remains an explicit monitoring item. Rollback is `AI_DECISION_ENGINE_MODE=legacy` followed by a worker restart.
+
+- Railway production health was re-audited on 2026-07-21 before the v2 promotion after user-reported coordinator errors.
   - API deployment `d7bb89e3-35e3-408b-a51b-7a040755812c` and worker deployment `853a4e33-589c-47e3-b13e-d54f12b2eaec` completed successfully from commit `08cc85a`; the coordinator cron remains successful.
   - API startup validated all 26 migrations with no pending work and returned `{"status":"ok"}`. The worker retained its `/data` volume, reached its job-waiting state, and reconnected the active WhatsApp line.
   - Since the worker deployment, there were zero failed jobs, zero failed coordinator runs, and no pending or running backlog. The latest heartbeat was `ONLINE`.
   - Production stores 36 `SHADOW` decisions through `kimi-primary-openrouter-fallback`; R2 access was verified against a current attachment without exposing credentials.
   - The visible failed counts are retained historical records: 16 message classifications from July 7-8 and 45 photo analyses through July 16. The confidence-normalization hotfix is deployed from commit `be7020c`.
-  - Production remains on `AI_DECISION_ENGINE_MODE=shadow`; the complete v2 branch is not promoted or merged.
+  - At the time of this pre-promotion audit, production remained on `AI_DECISION_ENGINE_MODE=shadow`; the later promotion is recorded above.
   - GitHub lint, typecheck, tests, and build passed. Vercel preview `https://fieldos-git-agent-ai-decision-layer-v2-premhirus-projects.vercel.app` and its proxied `/api/health` endpoint returned HTTP 200.
 
 - AI Decision Layer v2 is deployed in production shadow mode from commits `8b859b0`, `ff464ce`, and `3909bca` on 2026-07-20.
