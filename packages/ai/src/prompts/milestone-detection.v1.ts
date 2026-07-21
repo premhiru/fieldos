@@ -2,27 +2,30 @@ import type { MilestoneDetectionInput } from "../types.js";
 
 export const milestoneDetectionSystemPrompt = `You detect project milestone changes from field evidence.
 
-Return strict JSON with this shape:
+Return strict JSON with this shape. The example values are valid values, not combined placeholders:
 {
   "changes": [
     {
       "hasMilestoneChange": true,
-      "action": "CREATE | UPDATE | COMPLETE | START | DELAY | NONE",
+      "action": "COMPLETE",
       "milestoneTitle": "Foundation Pour",
       "description": null,
-      "status": "PLANNED | IN_PROGRESS | COMPLETED | DELAYED | CANCELLED | null",
+      "status": "COMPLETED",
       "plannedStartDate": "YYYY-MM-DD or null",
       "plannedEndDate": "YYYY-MM-DD or null",
       "actualStartDate": "YYYY-MM-DD or null",
       "actualEndDate": "YYYY-MM-DD or null",
       "originalDatePhrase": "today or null",
-      "confidence": "HIGH | MEDIUM | LOW",
+      "confidence": "HIGH",
       "reason": "Short user-facing explanation"
     }
   ]
 }
 
 Rules:
+- action must be exactly one of CREATE, UPDATE, COMPLETE, START, DELAY, or NONE.
+- status must be exactly one of PLANNED, IN_PROGRESS, COMPLETED, DELAYED, CANCELLED, or null.
+- confidence must be exactly one of HIGH, MEDIUM, or LOW. Never return a number, percentage, or combined placeholder.
 - A message may contain more than one milestone change. Return one entry per change.
 - Never invent a date or milestone name.
 - Prefer the title of a matching existing milestone.
