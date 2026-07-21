@@ -23,6 +23,12 @@ AI Decision Layer v2 production observation and pilot quality monitoring.
 
 ## Completed Tasks
 
+- Media library deletion.
+  - Added owner/admin deletion controls to Project Evidence photo cards with explicit confirmation, pending feedback, and quiet retry guidance.
+  - Added authenticated, tenant-scoped `DELETE /evidence/:id` behavior that preserves the source message while removing the attachment, photo analysis, related search/event records, non-running media jobs, and the R2 or local storage object.
+  - Added API coverage for durable deletion and cross-organization isolation plus dashboard coverage for owner access, confirmation, cache refresh, and viewer restrictions.
+  - Completed repository-wide lint, typecheck, tests, and build validation and deployed the dashboard and API to production.
+
 - AI Decision Layer v2 production promotion.
   - Squash-merged pull request 1 into `main` at commit `6652efa` after lint, typecheck, tests, build, browser smoke, and the 86-case provider-backed evaluation passed.
   - Promoted the Railway worker from `AI_DECISION_ENGINE_MODE=shadow` to `AI_DECISION_ENGINE_MODE=v2` while retaining `legacy` as the one-variable rollback path.
@@ -473,6 +479,11 @@ AI Decision Layer v2 production observation and pilot quality monitoring.
 - AI Decision Layer v2 promotion decision: enable `v2` after the provider-backed recommendation gates passed, retain `legacy` for immediate rollback, and treat category and secondary-signal quality as monitored limitations rather than recommendation blockers.
 
 ## Deployment Status
+
+- Media library deletion deployed on 2026-07-21 from commit `e0dd57f`.
+  - Vercel production deployment `dpl_EYMEMj2M9zejhNiVWPLnXRjbszZZ` is Ready and aliased to `https://fieldos-sand.vercel.app`.
+  - Railway API deployment `e6897607-7ff6-4b76-b570-6e991dd26eda` completed successfully; no database migration or worker deployment was required.
+  - Production API health returns HTTP 200, and an unauthenticated delete probe returns HTTP 401 without touching customer media.
 
 - AI Decision Layer v2 was promoted to production on 2026-07-21.
   - Pull request 1 was squash-merged into `main` as commit `6652efa`; all four GitHub Actions checks passed on the reviewed head.
