@@ -5,11 +5,12 @@
 | Purpose      | Capture demo steps and verification notes for FieldOS changes. |
 | Owner        | Product Engineering                                            |
 | Status       | Active                                                         |
-| Last Updated | 2026-07-16                                                     |
+| Last Updated | 2026-07-18                                                     |
 
 ## Table of Contents
 
 - [Final Pilot Product Editing](#final-pilot-product-editing)
+- [AI Decision Layer v2](#ai-decision-layer-v2)
 - [UX Refactoring Sprint](#ux-refactoring-sprint)
 - [Milestone Intelligence](#milestone-intelligence)
 - [Task 013B: Cloudflare R2 Durable Storage](#task-013b-cloudflare-r2-durable-storage)
@@ -277,3 +278,11 @@ Operational improvements:
 - API search endpoints are read-only.
 - Job failures are visible without inspecting the database directly.
 - Worker heartbeat makes stale or offline worker state visible from the dashboard.
+
+## AI Decision Layer v2
+
+Run the worker in `shadow`, send routine progress, partial completion, explicit inspection-ready, ambiguous, and overdue-commitment examples, then verify that v2 decisions appear only in operations telemetry. Customer-visible recommendations remain on the legacy path until the mode is deliberately changed to `v2`.
+
+The key demo is quiet behavior: ordinary progress and single-photo evidence should not create v2 recommendations.
+
+Before a release review, run `pnpm ai:evaluate` through the Kimi-primary provider chain and compare the result with `packages/ai/src/evaluation-results.v2.json`. The accepted fixture contains 86 labelled synthetic cases and no customer messages.

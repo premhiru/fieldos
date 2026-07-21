@@ -21,11 +21,34 @@ describe("OpenAICompatibleVisionProvider", () => {
             {
               message: {
                 content: JSON.stringify({
-                  confidence: "HIGH",
+                  analysisStatus: "NO_OPERATIONAL_CONCLUSION",
+                  claimedContext: "Installation is complete.",
+                  claimSupport: "UNABLE_TO_DETERMINE",
                   detectedObjects: ["Runway Light", "Cable"],
-                  possibleIssues: ["Possible alignment issue. Needs Review."],
-                  summary: "Runway lighting installation appears substantially complete.",
-                  tags: ["runway light", "installation", "needs review"]
+                  limitations: ["Testing and hidden wiring cannot be determined."],
+                  overallConfidence: "HIGH",
+                  possibleIssues: [
+                    {
+                      basis: "The fitting appears angled relative to the visible cable route.",
+                      confidence: 0.55,
+                      issue: "Possible alignment concern",
+                      requiresHumanReview: true
+                    }
+                  ],
+                  progressEvidence: {
+                    reason: "One image cannot establish installation completion or testing.",
+                    scope: null,
+                    usable: false
+                  },
+                  safetySignal: { present: false, reason: null, severity: null },
+                  summary: "A runway light fitting and cable are visible.",
+                  tags: ["runway light", "cable", "needs review"],
+                  visibleObservations: [
+                    {
+                      confidence: 0.9,
+                      observation: "A runway light fitting and cable are visible."
+                    }
+                  ]
                 })
               }
             }
@@ -54,7 +77,9 @@ describe("OpenAICompatibleVisionProvider", () => {
     });
 
     expect(result.tags).toContain("runway light");
-    expect(result.confidence).toBe(0.9);
+    expect(result.overallConfidence).toBe(0.9);
+    expect(result.analysisStatus).toBe("NO_OPERATIONAL_CONCLUSION");
+    expect(result.progressEvidence.usable).toBe(false);
     expect(fetchMock).toHaveBeenCalledWith(
       "https://vision.example.test/chat/completions",
       expect.objectContaining({
@@ -83,11 +108,24 @@ describe("OpenAICompatibleVisionProvider", () => {
               {
                 message: {
                   content: JSON.stringify({
-                    confidence: 0.8,
+                    analysisStatus: "NO_OPERATIONAL_CONCLUSION",
+                    claimedContext: null,
+                    claimSupport: "UNABLE_TO_DETERMINE",
                     detectedObjects: ["Equipment"],
+                    limitations: ["Asset condition and operation cannot be determined."],
+                    overallConfidence: 0.8,
                     possibleIssues: [],
+                    progressEvidence: {
+                      reason: "No project scope is visibly established.",
+                      scope: null,
+                      usable: false
+                    },
+                    safetySignal: { present: false, reason: null, severity: null },
                     summary: "Equipment is visible.",
-                    tags: ["equipment"]
+                    tags: ["equipment"],
+                    visibleObservations: [
+                      { confidence: 0.8, observation: "A piece of equipment is visible." }
+                    ]
                   })
                 }
               }
@@ -122,5 +160,70 @@ describe("OpenAICompatibleVisionProvider", () => {
       "https://openrouter.ai/api/v1/chat/completions"
     ]);
     expect(onFallback).toHaveBeenCalledOnce();
+  });
+
+  it("makes one bounded repair attempt for structurally invalid output", async () => {
+    let calls = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        calls += 1;
+        return {
+          ok: true,
+          json: async () => ({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify(
+                    calls === 1
+                      ? { summary: "A cabinet is visible." }
+                      : {
+                          analysisStatus: "NO_OPERATIONAL_CONCLUSION",
+                          claimedContext: null,
+                          claimSupport: "UNABLE_TO_DETERMINE",
+                          detectedObjects: ["Electrical Cabinet", "Cable"],
+                          limitations: [
+                            "Testing, hidden wiring, and compliance cannot be assessed."
+                          ],
+                          overallConfidence: 0.72,
+                          possibleIssues: [],
+                          progressEvidence: {
+                            reason:
+                              "The image has no identified work scope or before/after context.",
+                            scope: null,
+                            usable: false
+                          },
+                          safetySignal: { present: false, reason: null, severity: null },
+                          summary: "A cabinet and loose cables are visible.",
+                          tags: ["electrical cabinet", "cable"],
+                          visibleObservations: [
+                            {
+                              confidence: 0.84,
+                              observation: "Loose cables are visible near a cabinet."
+                            }
+                          ]
+                        }
+                  )
+                }
+              }
+            ]
+          })
+        } as Response;
+      })
+    );
+    const provider = new OpenAICompatibleVisionProvider({
+      apiKey: "test-key",
+      baseUrl: "https://vision.example.test",
+      model: "vision-test"
+    });
+
+    const result = await provider.analyze({
+      context: { conversationTitle: null, messageText: null, projectName: null },
+      image: { base64: "aW1hZ2U=", filename: "cabinet.jpg", mimeType: "image/jpeg" }
+    });
+
+    expect(calls).toBe(2);
+    expect(result.analysisStatus).toBe("NO_OPERATIONAL_CONCLUSION");
+    expect(result.progressEvidence.usable).toBe(false);
   });
 });

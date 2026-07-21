@@ -71,6 +71,15 @@ describe("milestone intelligence", () => {
     expect(detectMilestoneChanges("Looks good, thanks.", occurredAt, "Asia/Singapore")).toEqual([]);
   });
 
+  it.each([
+    "Delivery completed.",
+    "Inspection report completed.",
+    "Temporary barrier completed.",
+    "Testing completed with two failures."
+  ])("does not turn incidental or incomplete work into a milestone: %s", (message) => {
+    expect(detectMilestoneChanges(message, occurredAt, "Asia/Singapore")).toEqual([]);
+  });
+
   it("keeps ambiguous relative dates planned and marked for review", () => {
     const [change] = detectMilestoneChanges(
       "Starting walls next week.",

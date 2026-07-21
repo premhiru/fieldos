@@ -2459,11 +2459,17 @@ function createNoopCoordinatorRuntime(): CoordinatorRuntimePort {
     dismissRecommendation: async () => null as never,
     getOperationsMetrics: async () => ({
       approvalRate: 0,
+      candidatesByCoordinator: [],
+      candidatesClarificationToday: 0,
+      candidatesGeneratedToday: 0,
+      candidatesShadowedToday: 0,
+      candidatesSuppressedToday: 0,
       failedRunsToday: 0,
       lastRunPerProject: [],
       pendingRecommendations: 0,
       recommendationsCreatedToday: 0,
-      runsToday: 0
+      runsToday: 0,
+      suppressionsByReason: []
     }),
     getMilestone: async () => null,
     getProjectState: async () => null as never,

@@ -98,6 +98,23 @@ describe("AIClassificationProcessor", () => {
     expect(prisma.classifications[0]?.errorMessage).toBeNull();
     expect(prisma.messages[0]?.processingStatus).toBe("AI_PENDING");
   });
+
+  it("keeps the completed legacy result when v2 shadow classification fails", async () => {
+    prisma.messages[0]!.conversation.projectId = null;
+    prisma.messages[0]!.conversation.project = null;
+    const processor = new AIClassificationProcessor(prisma.client, {
+      classifier: new FakeClassifier(validResult({ actionRequired: false })),
+      classifierV2: new FailingClassifierV2(),
+      decisionEngineMode: "shadow"
+    });
+    await processor.enqueueMessage("message_1");
+
+    await processor.processPending();
+
+    expect(prisma.classifications[0]?.status).toBe("COMPLETED");
+    expect(prisma.messages[0]?.processingStatus).toBe("AI_COMPLETE");
+    expect(prisma.classifications[0]?.errorMessage).toBeNull();
+  });
 });
 
 function validResult(overrides: Partial<ClassifyMessageResult> = {}): ClassifyMessageResult {
@@ -133,6 +150,14 @@ class RateLimitedClassifier implements Pick<MessageClassifier, "classifyMessage"
       retryAfterMs: 60_000,
       status: 429
     });
+  }
+}
+
+class FailingClassifierV2 {
+  readonly model = "test-v2";
+
+  async classifyMessage(): Promise<never> {
+    throw new AIOutputValidationError("Invalid v2 AI JSON.");
   }
 }
 

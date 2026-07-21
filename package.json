@@ -18,6 +18,7 @@
     "dev": "turbo run dev --parallel",
     "api:dev": "pnpm --filter @fieldos/api dev",
     "api:start:railway": "pnpm --filter @fieldos/api start:railway",
+    "ai:evaluate": "pnpm --filter @fieldos/ai exec tsx ../../scripts/run-ai-evaluation.ts",
     "dashboard:dev": "pnpm --filter @fieldos/dashboard dev",
     "deploy:migrate": "pnpm --filter @fieldos/db db:migrate",
     "format": "prettier --write .",

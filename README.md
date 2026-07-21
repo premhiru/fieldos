@@ -5,7 +5,7 @@
 | Purpose      | Introduce the FieldOS engineering foundation, repository layout, and development workflow. |
 | Owner        | Founding Engineering                                                                       |
 | Status       | Active                                                                                     |
-| Last Updated | 2026-07-16                                                                                 |
+| Last Updated | 2026-07-21                                                                                 |
 
 ## Table of Contents
 
@@ -41,6 +41,8 @@ The repository is a pnpm and Turborepo monorepo containing a Next.js dashboard, 
 ## Architecture
 
 FieldOS starts as a modular monolith with clear package boundaries. The current product slice supports JWT-cookie authentication, organization workspaces, organization memberships, projects, a channel-agnostic messaging foundation, a WhatsApp Web connector that feeds messages into the unified inbox, human-reviewed AI classification for active project messages, worker-owned photo intelligence for image attachments, and project intelligence reports grounded in timeline events, Action Items, classifications, transcripts, and evidence metadata.
+
+The AI Decision Layer v2 separates bounded multi-signal extraction from recommendation decisions. Context-aware coordinators emit candidates through one deterministic gate, which records evidence, suppression reasons, semantic deduplication, cooldowns, and shadow telemetry. Production rollout is controlled by `AI_DECISION_ENGINE_MODE=legacy|shadow|v2`.
 
 ```mermaid
 flowchart TD
@@ -134,6 +136,8 @@ pnpm db:seed
 ```
 
 Configure AI classification, search, milestone detection, and photo intelligence by setting `KIMI_API_KEY`. Kimi uses `https://api.moonshot.ai/v1` with `kimi-k2.6` as the primary text and vision model. Set `OPENROUTER_API_KEY` to retain `openrouter/free` as the automatic fallback through `AI_MODEL` and `VISION_MODEL`. `OPENAI_API_KEY` remains dedicated to voice transcription when available.
+
+Run the provider-backed AI Decision Layer evaluation with `pnpm ai:evaluate`. The accepted 86-case result and release thresholds are documented in [docs/AI_EVALUATION_REPORT.md](./docs/AI_EVALUATION_REPORT.md). Production remains in `shadow` until pilot telemetry is reviewed explicitly.
 
 Configure local signed media serving with `MEDIA_SIGNING_SECRET`. Local development defaults to `STORAGE_PROVIDER=local` and stores media under `WHATSAPP_STORAGE_PATH`.
 

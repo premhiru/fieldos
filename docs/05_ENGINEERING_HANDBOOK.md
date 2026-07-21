@@ -5,7 +5,7 @@
 | Purpose      | Establish engineering practices, quality gates, repository operations, and delivery expectations. |
 | Owner        | Engineering                                                                                       |
 | Status       | Draft                                                                                             |
-| Last Updated | 2026-07-13                                                                                        |
+| Last Updated | 2026-07-21                                                                                        |
 
 ## Table of Contents
 
@@ -17,6 +17,7 @@
 - [Release Process](#release-process)
 - [Security](#security)
 - [Operational Readiness](#operational-readiness)
+- [AI Decision Rollout](#ai-decision-rollout)
 - [Pilot Readiness](#pilot-readiness)
 
 ## Engineering Principles
@@ -76,6 +77,17 @@ See [Branch Strategy](./08_BRANCH_STRATEGY.md).
 - Ingestion must be idempotent by external message id.
 - Structured logs should include organization id, project id, request id, job id, and message id where relevant.
 - High-volume list routes should use pagination before large imports.
+
+## AI Decision Rollout
+
+- Keep `AI_DECISION_ENGINE_MODE=legacy` as the immediate rollback path while v2 is under evaluation.
+- Deploy v2 code to production in `shadow` first. Shadow decisions and suppressions are persisted, but customer-visible recommendations continue through the legacy path.
+- Promote to `v2` only after migration verification, labelled evaluation thresholds, production shadow telemetry review, and explicit approval.
+- Run `pnpm ai:evaluate` against the production provider chain before promotion and commit the accepted synthetic-case result fixture. Provider failures count against the evaluation denominator.
+- Every v2 recommendation must pass `RecommendationGate`; coordinators must not write customer-visible recommendations directly.
+- Keep contexts bounded and log only identifiers, aggregate metrics, safe reason codes, and concise non-sensitive summaries.
+- Treat recommendation precision as the primary pilot metric. Routine progress, silence, broad completion language, and photo-only claims must abstain unless documented policy conditions are met.
+- Roll back by changing one Railway variable to `legacy` and redeploying/restarting the worker. The additive v2 tables may remain in place.
 
 ## Pilot Readiness
 

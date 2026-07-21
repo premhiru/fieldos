@@ -7,6 +7,7 @@ import {
   type CoordinatorRun,
   type CoordinatorRunStatus,
   type CoordinatorType,
+  type AIDecisionEngineMode,
   type PrismaClient,
   type Project,
   type ProjectState,
@@ -32,7 +33,18 @@ import type {
   MilestoneWriteInput,
   WhatsAppDraftSender
 } from "./types.js";
-import { MilestoneCoordinator } from "./milestone-coordinator.js";
+import {
+  MilestoneCoordinator,
+  type MilestoneClassificationEvidence
+} from "./milestone-coordinator.js";
+import {
+  assessReportReadiness,
+  isFollowUpEligible,
+  isInspectionEligible,
+  isRoutineProgress,
+  semanticScopeForDecision
+} from "./decision-policy.js";
+import { RecommendationGate, type RecommendationCandidateInput } from "./recommendation-gate.js";
 
 const logger = createLogger("fieldos-coordinators");
 const followUpThresholdMs = 48 * 60 * 60 * 1000;
@@ -58,6 +70,26 @@ function isWithinCoordinatorScanHours(now: Date, timezone: string | null | undef
   } catch {
     return isWithinCoordinatorScanHours(now, "UTC");
   }
+}
+
+function buildCoordinatorOperatingContext(now: Date, timezone: string) {
+  const weekday = localWeekday(now, timezone);
+  return {
+    isOperatingHours: isWithinCoordinatorScanHours(now, timezone),
+    isWeekend: weekday === "Saturday" || weekday === "Sunday",
+    localDate: new Intl.DateTimeFormat("en-CA", {
+      day: "2-digit",
+      month: "2-digit",
+      timeZone: timezone,
+      year: "numeric"
+    }).format(now),
+    timezone,
+    weekday
+  };
+}
+
+function isMeaningfulCoordinatorEvent(eventType: string): boolean {
+  return !/^(MESSAGE_RECEIVED|SEARCH_INDEXED|SYSTEM|REPORT_GENERATED)/i.test(eventType);
 }
 
 interface ProjectCoordinatorContext {
@@ -104,6 +136,118 @@ interface ProjectCoordinatorContext {
   urgentActionItemCount: number;
 }
 
+interface DecisionCoordinatorContext {
+  activeMilestones: Array<{
+    id: string;
+    plannedEndDate: Date | null;
+    plannedStartDate: Date | null;
+    status: string;
+    title: string;
+  }>;
+  classificationDecisions: Array<{
+    completionClaim: "NONE" | "PARTIAL" | "CLAIMED" | "AMBIGUOUS";
+    confidence: number;
+    factualClaims: Prisma.JsonValue;
+    inspectionReadiness: "NONE" | "NOT_READY" | "READY_CLAIMED" | "REQUESTED" | "AMBIGUOUS";
+    locations: Prisma.JsonValue;
+    operationalImpact: string;
+    processedAt: Date;
+    primaryCategory: string;
+    recommendationEligible: boolean;
+    responseExpectation: Prisma.JsonValue;
+    secondarySignals: Prisma.JsonValue;
+    summary: string;
+    uncertainty: string | null;
+    userFacingReason: string;
+    classification: MilestoneClassificationEvidence;
+  }>;
+  expectations: Array<{
+    confidence: number;
+    conversation: {
+      title: string;
+      whatsAppMapping: { status: string; whatsappAccountId: string } | null;
+    };
+    conversationId: string;
+    dueAt: Date | null;
+    expectedResponder: string | null;
+    id: string;
+    requestedItem: string;
+    sourceMessage: { occurredAt: Date };
+    sourceMessageId: string;
+    status: string;
+  }>;
+  milestones: Milestone[];
+  openActionItems: Array<{
+    assignedToUserId: string | null;
+    description: string | null;
+    id: string;
+    priority: string;
+    status: string;
+    title: string;
+    updatedAt: Date;
+  }>;
+  operatingContext: {
+    isOperatingHours: boolean;
+    isWeekend: boolean;
+    localDate: string;
+    timezone: string;
+    weekday: string;
+  };
+  pendingRecommendations: Array<{
+    id: string;
+    proposedActionType: string;
+    sourceEntityId: string | null;
+    status: string;
+    title: string;
+    type: string;
+    approvedAt: Date | null;
+    completedAt: Date | null;
+    dismissedAt: Date | null;
+    updatedAt: Date;
+  }>;
+  project: Project;
+  projectState: ProjectState;
+  recentReports: Array<{ createdAt: Date; generatedAt: Date | null; status: string; type: string }>;
+  recentTimelineEvents: Array<{
+    description: string | null;
+    eventType: string;
+    id: string;
+    occurredAt: Date;
+    title: string;
+  }>;
+  recentMessages: Array<{
+    attachments: Array<{
+      filename: string;
+      id: string;
+      mimeType: string;
+      photoAnalysis: {
+        analysisStatus: string;
+        claimSupport: string;
+        limitations: Prisma.JsonValue;
+        summary: string;
+      } | null;
+      transcript: string | null;
+    }>;
+    body: string | null;
+    conversation: { channel: string; id: string; isGroup: boolean; title: string };
+    direction: string;
+    id: string;
+    occurredAt: Date;
+    senderParticipant: { displayName: string; role: string };
+  }>;
+  relevantEvidence: Array<{
+    analysisStatus: string | null;
+    claimSupport: string | null;
+    evidenceId: string;
+    filename: string;
+    limitations: Prisma.JsonValue | null;
+    messageId: string;
+    mimeType: string;
+    summary: string | null;
+    transcript: string | null;
+  }>;
+}
+
 export class NoopWhatsAppDraftSender implements WhatsAppDraftSender {
   async send(): Promise<{ externalMessageId?: string | null }> {
     throw new Error("WhatsApp draft sending is not configured for this deployment.");
@@ -129,8 +273,11 @@ export class QueuedWhatsAppDraftSender implements WhatsAppDraftSender {
 }
 
 export class ProjectCoordinatorRuntime {
+  private readonly decisionEngineMode: "legacy" | "shadow" | "v2";
   private readonly draftSender: WhatsAppDraftSender;
+  private readonly recommendationGate: RecommendationGate;
   private readonly milestoneCoordinator: MilestoneCoordinator;
+  private readonly milestoneCoordinatorV2: MilestoneCoordinator;
   private readonly now: () => Date;
 
   constructor(
@@ -139,8 +286,43 @@ export class ProjectCoordinatorRuntime {
   ) {
     this.draftSender = options.draftSender ?? new NoopWhatsAppDraftSender();
     this.now = options.now ?? (() => new Date());
+    this.decisionEngineMode = options.decisionEngineMode ?? "legacy";
+    this.recommendationGate = new RecommendationGate(prisma, this.now);
     this.milestoneCoordinator = new MilestoneCoordinator(prisma, {
       detector: options.milestoneDetector,
+      now: this.now
+    });
+    this.milestoneCoordinatorV2 = new MilestoneCoordinator(prisma, {
+      detector: options.milestoneDetector,
+      evaluateCandidate: async ({ action, candidate, project }) =>
+        (
+          await this.recommendationGate.evaluate(
+            project.organizationId,
+            project.status,
+            this.decisionEngineMode.toUpperCase() as Exclude<AIDecisionEngineMode, "LEGACY">,
+            {
+              confidence: candidate.confidence,
+              description: candidate.description,
+              businessKey: candidate.scope,
+              evidenceLimitations: candidate.evidenceLimitations,
+              evidenceIds: candidate.evidenceIds,
+              evidenceSummary: candidate.evidenceSummary,
+              expectedValue: candidate.expectedValue,
+              materiality: candidate.materiality,
+              priority: candidate.priority,
+              projectId: project.id,
+              proposedActionPayload: candidate.payload,
+              proposedActionType: action,
+              reason: candidate.reason,
+              scope: candidate.scope,
+              sourceCoordinator: "MILESTONE",
+              sourceEntityId: candidate.sourceEntityId,
+              sourceEntityType: "MESSAGE",
+              title: candidate.title,
+              type: candidate.type
+            }
+          )
+        ).created,
       now: this.now
     });
   }
@@ -198,17 +380,28 @@ export class ProjectCoordinatorRuntime {
   ): Promise<ProjectCoordinatorRunResult> {
     const project = await this.requireProject(projectId);
     const projectState = await this.rebuildProjectState(projectId);
+    const decisionContext = await this.loadDecisionCoordinatorContext(project, projectState);
     const results = [];
 
     for (const coordinatorType of coordinators) {
       const run = await this.startRun(project, coordinatorType);
 
       try {
-        const recommendationsCreated = await this.runCoordinator({
-          coordinatorType,
-          project,
-          projectState
-        });
+        let recommendationsCreated = 0;
+
+        if (this.decisionEngineMode !== "v2") {
+          recommendationsCreated = await this.runCoordinator({
+            coordinatorType,
+            context: decisionContext
+          });
+        }
+
+        if (decisionContext) {
+          const v2Created = await this.runCoordinatorV2(coordinatorType, decisionContext);
+          if (this.decisionEngineMode === "v2") {
+            recommendationsCreated = v2Created;
+          }
+        }
         await this.finishRun(run.id, "COMPLETED", recommendationsCreated);
         results.push({ coordinatorType, recommendationsCreated });
       } catch (error) {
@@ -234,6 +427,165 @@ export class ProjectCoordinatorRuntime {
     return {
       projectState: await this.rebuildProjectState(projectId),
       results
+    };
+  }
+
+  private async loadDecisionCoordinatorContext(
+    project: Project,
+    projectState: ProjectState
+  ): Promise<DecisionCoordinatorContext> {
+    const [
+      milestones,
+      classificationDecisions,
+      expectations,
+      openActionItems,
+      pendingRecommendations,
+      recentReports,
+      recentTimelineEvents,
+      recentMessages
+    ] = await Promise.all([
+      this.prisma.milestone.findMany({
+        orderBy: { updatedAt: "desc" },
+        take: 50,
+        where: { projectId: project.id }
+      }),
+      this.prisma.aIClassificationDecision.findMany({
+        include: {
+          classification: {
+            include: {
+              message: {
+                include: {
+                  attachments: { select: { transcript: true } },
+                  senderParticipant: { select: { displayName: true } }
+                }
+              }
+            }
+          }
+        },
+        orderBy: { processedAt: "desc" },
+        take: 12,
+        where: { projectId: project.id }
+      }),
+      this.prisma.outstandingExpectation.findMany({
+        include: {
+          conversation: {
+            select: {
+              title: true,
+              whatsAppMapping: { select: { status: true, whatsappAccountId: true } }
+            }
+          },
+          sourceMessage: { select: { occurredAt: true } }
+        },
+        orderBy: [{ dueAt: "asc" }, { createdAt: "asc" }],
+        take: 20,
+        where: { projectId: project.id, status: "OPEN" }
+      }),
+      this.prisma.actionItem.findMany({
+        orderBy: { updatedAt: "desc" },
+        select: {
+          assignedToUserId: true,
+          description: true,
+          id: true,
+          priority: true,
+          status: true,
+          title: true,
+          updatedAt: true
+        },
+        take: 20,
+        where: { projectId: project.id, status: { in: ["PENDING", "ACCEPTED"] } }
+      }),
+      this.prisma.recommendation.findMany({
+        orderBy: { updatedAt: "desc" },
+        select: {
+          id: true,
+          approvedAt: true,
+          completedAt: true,
+          dismissedAt: true,
+          proposedActionType: true,
+          sourceEntityId: true,
+          status: true,
+          title: true,
+          type: true,
+          updatedAt: true
+        },
+        take: 30,
+        where: {
+          projectId: project.id,
+          status: { in: ["PENDING", "APPROVED", "DISMISSED", "COMPLETED"] }
+        }
+      }),
+      this.prisma.projectReport.findMany({
+        orderBy: { createdAt: "desc" },
+        select: { createdAt: true, generatedAt: true, status: true, type: true },
+        take: 10,
+        where: { projectId: project.id }
+      }),
+      this.prisma.event.findMany({
+        orderBy: { occurredAt: "desc" },
+        select: { description: true, eventType: true, id: true, occurredAt: true, title: true },
+        take: 30,
+        where: { projectId: project.id }
+      }),
+      this.prisma.message.findMany({
+        include: {
+          attachments: {
+            select: {
+              filename: true,
+              id: true,
+              mimeType: true,
+              photoAnalysis: {
+                select: {
+                  analysisStatus: true,
+                  claimSupport: true,
+                  limitations: true,
+                  summary: true
+                }
+              },
+              transcript: true
+            }
+          },
+          conversation: { select: { channel: true, id: true, isGroup: true, title: true } },
+          senderParticipant: { select: { displayName: true, role: true } }
+        },
+        orderBy: { occurredAt: "desc" },
+        take: 12,
+        where: { conversation: { projectId: project.id } }
+      })
+    ]);
+
+    const meaningfulTimelineEvents = recentTimelineEvents
+      .filter((event) => isMeaningfulCoordinatorEvent(event.eventType))
+      .slice(0, 20);
+    const relevantEvidence = recentMessages.flatMap((message) =>
+      message.attachments.map((attachment) => ({
+        analysisStatus: attachment.photoAnalysis?.analysisStatus ?? null,
+        claimSupport: attachment.photoAnalysis?.claimSupport ?? null,
+        evidenceId: attachment.id,
+        filename: attachment.filename,
+        limitations: attachment.photoAnalysis?.limitations ?? null,
+        messageId: message.id,
+        mimeType: attachment.mimeType,
+        summary: attachment.photoAnalysis?.summary ?? null,
+        transcript: attachment.transcript
+      }))
+    );
+
+    return {
+      activeMilestones: milestones
+        .filter((milestone) => ["PLANNED", "IN_PROGRESS", "DELAYED"].includes(milestone.status))
+        .slice(0, 10),
+      classificationDecisions,
+      expectations,
+      milestones,
+      openActionItems,
+      operatingContext: buildCoordinatorOperatingContext(this.now(), project.timezone),
+      pendingRecommendations,
+      project,
+      projectState,
+      recentReports,
+      recentMessages,
+      recentTimelineEvents: meaningfulTimelineEvents,
+      relevantEvidence
     };
   }
 
@@ -851,7 +1203,10 @@ export class ProjectCoordinatorRuntime {
       pendingRecommendations,
       approvedCount,
       terminalCount,
-      recentRuns
+      recentRuns,
+      candidateGroups,
+      candidateCoordinatorGroups,
+      suppressionGroups
     ] = await Promise.all([
       this.prisma.coordinatorRun.count({
         where: {
@@ -905,6 +1260,26 @@ export class ProjectCoordinatorRuntime {
         where: {
           organizationId
         }
+      }),
+      this.prisma.recommendationCandidate.groupBy({
+        _count: true,
+        by: ["status"],
+        where: { createdAt: { gte: today }, organizationId }
+      }),
+      this.prisma.recommendationCandidate.groupBy({
+        _count: true,
+        by: ["coordinatorType"],
+        where: { createdAt: { gte: today }, organizationId }
+      }),
+      this.prisma.recommendationCandidate.groupBy({
+        _count: true,
+        by: ["suppressionReason"],
+        where: {
+          createdAt: { gte: today },
+          organizationId,
+          status: "SUPPRESSED",
+          suppressionReason: { not: null }
+        }
       })
     ]);
 
@@ -928,33 +1303,336 @@ export class ProjectCoordinatorRuntime {
 
     return {
       approvalRate: terminalCount > 0 ? Math.round((approvedCount / terminalCount) * 100) : 0,
+      candidatesByCoordinator: candidateCoordinatorGroups.map((group) => ({
+        coordinatorType: group.coordinatorType,
+        count: group._count
+      })),
+      candidatesClarificationToday:
+        candidateGroups.find((group) => group.status === "CLARIFICATION")?._count ?? 0,
+      candidatesGeneratedToday: candidateGroups.reduce((total, group) => total + group._count, 0),
+      candidatesShadowedToday:
+        candidateGroups.find((group) => group.status === "SHADOW")?._count ?? 0,
+      candidatesSuppressedToday:
+        candidateGroups.find((group) => group.status === "SUPPRESSED")?._count ?? 0,
       failedRunsToday,
       lastRunPerProject,
       pendingRecommendations,
       recommendationsCreatedToday,
-      runsToday
+      runsToday,
+      suppressionsByReason: suppressionGroups.map((group) => ({
+        count: group._count,
+        reason: group.suppressionReason ?? "UNKNOWN"
+      }))
     };
   }
 
   private async runCoordinator(input: {
     coordinatorType: CoordinatorType;
-    project: Project;
-    projectState: ProjectState;
+    context: DecisionCoordinatorContext;
   }): Promise<number> {
     switch (input.coordinatorType) {
       case "PROGRESS":
-        return this.runProgressCoordinator(input.project);
+        return this.runProgressCoordinator(input.context.project);
       case "FOLLOW_UP":
-        return this.runFollowUpCoordinator(input.project);
+        return this.runFollowUpCoordinator(input.context.project);
       case "INSPECTION":
-        return this.runInspectionCoordinator(input.project);
+        return this.runInspectionCoordinator(input.context.project);
       case "REPORT":
-        return this.runReportCoordinator(input.project);
+        return this.runReportCoordinator(input.context.project);
       case "MILESTONE":
-        return this.milestoneCoordinator.run(input.project);
+        return this.milestoneCoordinator.run(input.context.project);
       case "RUNTIME":
         return 0;
     }
+  }
+
+  private async runCoordinatorV2(
+    coordinatorType: CoordinatorType,
+    context: DecisionCoordinatorContext
+  ): Promise<number> {
+    switch (coordinatorType) {
+      case "PROGRESS":
+        return this.runProgressCoordinatorV2(context);
+      case "FOLLOW_UP":
+        return this.runFollowUpCoordinatorV2(context);
+      case "INSPECTION":
+        return this.runInspectionCoordinatorV2(context);
+      case "REPORT":
+        return this.runReportCoordinatorV2(context);
+      case "MILESTONE":
+        return this.milestoneCoordinatorV2.run(context.project, {
+          classifications: context.classificationDecisions.map(
+            (decision) => decision.classification
+          ),
+          milestones: context.milestones,
+          projectState: {
+            nextMilestone: context.projectState.nextMilestone,
+            pendingDecisionSummary: context.projectState.pendingDecisionSummary,
+            recentProgressSummary: context.projectState.recentProgressSummary
+          },
+          recentTimelineEvents: context.recentTimelineEvents.map((event) => ({
+            description: event.description,
+            occurredAt: event.occurredAt,
+            title: event.title
+          }))
+        });
+      case "RUNTIME":
+        return 0;
+    }
+  }
+
+  private async runProgressCoordinatorV2(context: DecisionCoordinatorContext): Promise<number> {
+    const decision = context.classificationDecisions.find((candidate) => {
+      const secondarySignals = jsonStringArray(candidate.secondarySignals);
+      const expectation = jsonObject(candidate.responseExpectation);
+      return (
+        candidate.recommendationEligible &&
+        !isRoutineProgress({
+          completionClaim: candidate.completionClaim,
+          operationalImpact: candidate.operationalImpact,
+          primaryCategory: candidate.primaryCategory,
+          recommendationEligible: candidate.recommendationEligible,
+          responseExpectationStatus: jsonString(expectation.status) ?? "NONE",
+          secondarySignals
+        }) &&
+        candidate.inspectionReadiness !== "REQUESTED"
+      );
+    });
+
+    if (!decision) {
+      return 0;
+    }
+
+    const meaningfulSignals = new Set([
+      "CLIENT_APPROVAL",
+      "DEFECT",
+      "DELAY",
+      "MANPOWER_ISSUE",
+      "MATERIAL_ISSUE",
+      "RFI",
+      "SAFETY_ISSUE",
+      "VARIATION_ORDER"
+    ]);
+    const signals = [decision.primaryCategory, ...jsonStringArray(decision.secondarySignals)];
+
+    if (!signals.some((signal) => meaningfulSignals.has(signal))) {
+      return 0;
+    }
+    const decisionScope = semanticScopeForDecision(decision);
+
+    return this.evaluateV2Candidate(context, {
+      confidence: confidenceFromNumber(decision.confidence),
+      description: decision.summary,
+      evidenceLimitations:
+        decision.uncertainty ?? "The classification is based on the cited field message only.",
+      evidenceIds: [decision.classification.messageId],
+      evidenceSummary: `Message ${decision.classification.messageId}: ${decision.summary}`,
+      expectedValue:
+        "Resolving the specific operational signal can reduce project risk or unblock work.",
+      materiality: materialityForCategory(decision.primaryCategory),
+      priority: priorityFromImpact(decision.operationalImpact),
+      projectId: context.project.id,
+      proposedActionPayload: { messageId: decision.classification.messageId },
+      proposedActionType: "CREATE_ACTION_ITEM",
+      reason: decision.userFacingReason,
+      scope: decisionScope,
+      sourceCoordinator: "PROGRESS",
+      sourceEntityId: decision.classification.messageId,
+      sourceEntityType: "MESSAGE",
+      title: actionTitleForDecision(decision.primaryCategory, decision.summary),
+      type: recommendationTypeForCategory(decision.primaryCategory)
+    });
+  }
+
+  private async runFollowUpCoordinatorV2(context: DecisionCoordinatorContext): Promise<number> {
+    let created = 0;
+
+    for (const expectation of context.expectations) {
+      if (
+        !isFollowUpEligible({
+          confidence: expectation.confidence,
+          conversationActive: expectation.conversation.whatsAppMapping?.status === "ACTIVE",
+          dueAt: expectation.dueAt,
+          expectedResponder: expectation.expectedResponder,
+          now: this.now(),
+          projectStatus: context.project.status,
+          requestedItem: expectation.requestedItem,
+          status: expectation.status
+        })
+      ) {
+        continue;
+      }
+
+      const requestedOn = formatDateForDraft(
+        expectation.sourceMessage.occurredAt,
+        context.project.timezone
+      );
+      const recipient = expectation.expectedResponder?.trim() || "team";
+      const result = await this.evaluateV2Candidate(context, {
+        confidence: confidenceFromNumber(expectation.confidence),
+        description: `${expectation.requestedItem} remains outstanding after its expected date.`,
+        businessKey: expectation.conversationId,
+        evidenceLimitations: "No linked later response has resolved this recorded expectation.",
+        evidenceIds: [expectation.sourceMessageId],
+        evidenceSummary: `Message ${expectation.sourceMessageId} requested ${expectation.requestedItem}.`,
+        expectedValue: `Obtaining ${expectation.requestedItem} can close the overdue commitment and unblock the project team.`,
+        materiality: ["OWNERSHIP", "APPROVAL"],
+        priority:
+          expectation.dueAt &&
+          this.now().getTime() - expectation.dueAt.getTime() > 72 * 60 * 60 * 1000
+            ? "HIGH"
+            : "MEDIUM",
+        projectId: context.project.id,
+        proposedActionPayload: {
+          conversationId: expectation.conversationId,
+          draftMessage: `Hi ${recipient}, could you please provide ${expectation.requestedItem}, requested on ${requestedOn}?`,
+          expectationId: expectation.id,
+          whatsappAccountId: expectation.conversation.whatsAppMapping?.whatsappAccountId ?? null
+        },
+        proposedActionType: "SEND_WHATSAPP_MESSAGE_DRAFT",
+        reason: `A specific request for ${expectation.requestedItem} is overdue and remains unresolved.`,
+        scope: expectation.requestedItem,
+        sourceCoordinator: "FOLLOW_UP",
+        sourceEntityId: expectation.id,
+        sourceEntityType: "OUTSTANDING_EXPECTATION",
+        title: `Follow up on ${expectation.requestedItem}`,
+        type: "FOLLOW_UP"
+      });
+      created += result;
+    }
+
+    return created;
+  }
+
+  private async runInspectionCoordinatorV2(context: DecisionCoordinatorContext): Promise<number> {
+    const hasOpenInspection =
+      context.openActionItems.some((item) => /\binspect/i.test(item.title)) ||
+      context.pendingRecommendations.some(
+        (item) => item.status === "PENDING" && item.type === "INSPECTION"
+      );
+    const hasUnresolvedPrerequisite = context.openActionItems.some((item) =>
+      /\b(testing|cabling|defect|blocker|prerequisite|punch.?list)\b/i.test(
+        [item.title, item.description].filter(Boolean).join(" ")
+      )
+    );
+    const decision = context.classificationDecisions.find((candidate) => {
+      const secondarySignals = jsonStringArray(candidate.secondarySignals);
+      const scope = semanticScopeForDecision(candidate);
+      return isInspectionEligible({
+        completionClaim: candidate.completionClaim,
+        confidence: candidate.confidence,
+        explicitInspectionRequired:
+          candidate.primaryCategory === "INSPECTION_REQUEST" ||
+          candidate.inspectionReadiness === "REQUESTED" ||
+          secondarySignals.includes("INSPECTION_REQUEST"),
+        hasOpenInspection,
+        hasUnresolvedPrerequisite,
+        inspectionReadiness: candidate.inspectionReadiness,
+        scope,
+        sourceMessageId: candidate.classification.messageId
+      });
+    });
+
+    if (!decision) {
+      return 0;
+    }
+    const decisionScope = semanticScopeForDecision(decision);
+
+    return this.evaluateV2Candidate(context, {
+      confidence: confidenceFromNumber(decision.confidence),
+      description: decision.summary,
+      businessKey: decisionScope,
+      evidenceLimitations:
+        decision.uncertainty ??
+        "Readiness is asserted by the cited source and is not independently certified.",
+      evidenceIds: [decision.classification.messageId],
+      evidenceSummary: `Message ${decision.classification.messageId} identifies an inspection-ready scope and requests inspection.`,
+      expectedValue: "Arranging the required inspection can unblock acceptance and dependent work.",
+      materiality: ["INSPECTION", "QUALITY", "SCHEDULE"],
+      priority: "HIGH",
+      projectId: context.project.id,
+      proposedActionPayload: { messageId: decision.classification.messageId },
+      proposedActionType: "SCHEDULE_INSPECTION_REMINDER",
+      reason: decision.userFacingReason,
+      scope: decisionScope,
+      sourceCoordinator: "INSPECTION",
+      sourceEntityId: decision.classification.messageId,
+      sourceEntityType: "MESSAGE",
+      title: `Arrange inspection: ${truncateTitle(decision.summary)}`,
+      type: "INSPECTION"
+    });
+  }
+
+  private async runReportCoordinatorV2(context: DecisionCoordinatorContext): Promise<number> {
+    const weekStart = startOfWeek(this.now());
+    const readiness = assessReportReadiness({
+      actionItems: context.openActionItems.map((item) => ({
+        id: item.id,
+        priority: item.priority,
+        updatedAt: item.updatedAt
+      })),
+      classifications: context.classificationDecisions.map((decision) => ({
+        category: decision.primaryCategory,
+        evidenceId: decision.classification.messageId,
+        impact: decision.operationalImpact,
+        processedAt: decision.processedAt
+      })),
+      events: context.recentTimelineEvents,
+      milestones: context.milestones,
+      periodStart: weekStart
+    });
+    const reportAlreadyExists = context.recentReports.some(
+      (report) => report.type === "WEEKLY_PROGRESS" && report.createdAt >= weekStart
+    );
+    const reportDue = localWeekday(this.now(), context.project.timezone) === "Friday";
+    const hasReportableState = Boolean(
+      context.projectState.recentProgressSummary ||
+      context.projectState.recentRiskSummary ||
+      context.projectState.pendingDecisionSummary
+    );
+
+    if (!reportDue || reportAlreadyExists || !readiness.ready || !hasReportableState) {
+      return 0;
+    }
+
+    return this.evaluateV2Candidate(context, {
+      confidence: "HIGH",
+      description:
+        "A weekly report is due and the project has enough substantive activity to produce it.",
+      businessKey: weekStart.toISOString().slice(0, 10),
+      evidenceLimitations:
+        "The report will summarize only the cited project records for this period.",
+      evidenceIds: readiness.evidenceIds,
+      evidenceSummary: `Substantive reporting signals: ${readiness.categories.join(", ")}.`,
+      expectedValue:
+        "The scheduled report consolidates material project changes for stakeholder review.",
+      materiality: ["REPORTING"],
+      priority: "MEDIUM",
+      projectId: context.project.id,
+      proposedActionPayload: { reportType: "WEEKLY_PROGRESS" },
+      proposedActionType: "GENERATE_REPORT",
+      reason: `The reporting period is ending with material signals in ${readiness.categories.join(", ")}.`,
+      scope: `weekly progress ${weekStart.toISOString().slice(0, 10)}`,
+      sourceCoordinator: "REPORT",
+      sourceEntityId: context.project.id,
+      sourceEntityType: "PROJECT",
+      title: "Generate scheduled weekly progress report",
+      type: "REPORT"
+    });
+  }
+
+  private async evaluateV2Candidate(
+    context: DecisionCoordinatorContext,
+    candidate: RecommendationCandidateInput
+  ): Promise<number> {
+    const mode = this.decisionEngineMode.toUpperCase() as Exclude<AIDecisionEngineMode, "LEGACY">;
+    const result = await this.recommendationGate.evaluate(
+      context.project.organizationId,
+      context.project.status,
+      mode,
+      candidate
+    );
+    return result.created ? 1 : 0;
   }
 
   private async runProgressCoordinator(project: Project): Promise<number> {
@@ -1606,6 +2284,93 @@ function confidenceFromNumber(value: number | null): "HIGH" | "MEDIUM" | "LOW" {
   }
 
   return "LOW";
+}
+
+function materialityForCategory(category: string): RecommendationCandidateInput["materiality"] {
+  const materiality: Record<string, RecommendationCandidateInput["materiality"]> = {
+    CLIENT_APPROVAL: ["APPROVAL", "SCHEDULE"],
+    DEFECT: ["QUALITY", "RISK"],
+    DELAY: ["SCHEDULE", "RISK"],
+    MANPOWER_ISSUE: ["OWNERSHIP", "SCHEDULE"],
+    MATERIAL_ISSUE: ["DELIVERY", "SCHEDULE"],
+    RFI: ["SCOPE", "APPROVAL"],
+    SAFETY_ISSUE: ["SAFETY", "RISK"],
+    VARIATION_ORDER: ["COST", "SCOPE", "APPROVAL"]
+  };
+  return materiality[category] ?? [];
+}
+
+function jsonObject(value: Prisma.JsonValue): Record<string, Prisma.JsonValue> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, Prisma.JsonValue>)
+    : {};
+}
+
+function jsonString(value: Prisma.JsonValue | undefined): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+function jsonStringArray(value: Prisma.JsonValue): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+function priorityFromImpact(impact: string): "LOW" | "MEDIUM" | "HIGH" | "URGENT" {
+  if (impact === "CRITICAL") return "URGENT";
+  if (impact === "HIGH") return "HIGH";
+  if (impact === "MEDIUM") return "MEDIUM";
+  return "LOW";
+}
+
+function recommendationTypeForCategory(
+  category: string
+): "APPROVAL_REQUIRED" | "RISK" | "GENERAL" | "SUPPLIER_DELAY" {
+  if (category === "CLIENT_APPROVAL") return "APPROVAL_REQUIRED";
+  if (category === "DELAY") return "SUPPLIER_DELAY";
+  if (["DEFECT", "SAFETY_ISSUE", "MATERIAL_ISSUE", "MANPOWER_ISSUE"].includes(category))
+    return "RISK";
+  return "GENERAL";
+}
+
+function actionTitleForDecision(category: string, summary: string): string {
+  const prefix =
+    category === "CLIENT_APPROVAL"
+      ? "Act on approval"
+      : category === "RFI"
+        ? "Resolve request for information"
+        : category === "SAFETY_ISSUE"
+          ? "Verify safety concern"
+          : category === "DELAY"
+            ? "Address delay"
+            : "Address field issue";
+  return `${prefix}: ${truncateTitle(summary)}`;
+}
+
+function truncateTitle(value: string): string {
+  const normalized = value.trim();
+  return normalized.length > 90 ? `${normalized.slice(0, 87).trimEnd()}...` : normalized;
+}
+
+function formatDateForDraft(value: Date, timezone: string): string {
+  try {
+    return new Intl.DateTimeFormat("en-GB", {
+      day: "numeric",
+      month: "long",
+      timeZone: timezone,
+      year: "numeric"
+    }).format(value);
+  } catch {
+    return value.toISOString().slice(0, 10);
+  }
+}
+
+function localWeekday(value: Date, timezone: string): string {
+  try {
+    return new Intl.DateTimeFormat("en-US", { timeZone: timezone, weekday: "long" }).format(value);
+  } catch {
+    return new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long" }).format(value);
+  }
 }
 
 function confidenceToNumber(value: "HIGH" | "MEDIUM" | "LOW"): number {

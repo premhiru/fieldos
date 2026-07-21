@@ -51,21 +51,39 @@ export class MilestoneDetector {
 
   async detectMilestones(input: MilestoneDetectionInput): Promise<MilestoneDetectionChange[]> {
     const parsed = milestoneDetectionInputSchema.parse(input);
-    const raw = await this.provider.completeJson({
+    const messages = [
+      { content: milestoneDetectionSystemPrompt, role: "system" as const },
+      { content: buildMilestoneDetectionUserPrompt(parsed), role: "user" as const }
+    ];
+    const raw = await this.provider.completeJson({ messages, model: this.model });
+    const result = milestoneDetectionResultSchema.safeParse(raw);
+
+    if (result.success) {
+      return actionableChanges(result.data.changes);
+    }
+
+    const repaired = await this.provider.completeJson({
       messages: [
-        { content: milestoneDetectionSystemPrompt, role: "system" },
-        { content: buildMilestoneDetectionUserPrompt(parsed), role: "user" }
+        ...messages,
+        {
+          content: `Your previous JSON failed validation. Return one corrected complete JSON object only. Preserve the evidence and cautious meaning. action must be exactly CREATE, UPDATE, COMPLETE, START, DELAY, or NONE. status must be exactly PLANNED, IN_PROGRESS, COMPLETED, DELAYED, CANCELLED, or null. confidence must be exactly HIGH, MEDIUM, or LOW. Dates must be YYYY-MM-DD strings or null. Validation errors:\n${z.prettifyError(result.error)}`,
+          role: "user"
+        }
       ],
       model: this.model
     });
-    const result = milestoneDetectionResultSchema.safeParse(raw);
+    const repairedResult = milestoneDetectionResultSchema.safeParse(repaired);
 
-    if (!result.success) {
-      throw new AIOutputValidationError(z.prettifyError(result.error));
+    if (!repairedResult.success) {
+      throw new AIOutputValidationError(z.prettifyError(repairedResult.error));
     }
 
-    return result.data.changes.filter(
-      (change) => change.hasMilestoneChange && change.action !== "NONE"
-    );
+    return actionableChanges(repairedResult.data.changes);
   }
+}
+
+function actionableChanges(changes: MilestoneDetectionChange[]): MilestoneDetectionChange[] {
+  return changes.filter(
+    (change) => change.hasMilestoneChange && change.action !== "NONE" && change.milestoneTitle
+  );
 }

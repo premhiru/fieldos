@@ -7,33 +7,36 @@ datasource db {
 }
 
 model Organization {
-  id                       String                    @id @default(cuid())
-  name                     String
-  slug                     String                    @unique
-  isDemo                   Boolean                   @default(false)
-  createdAt                DateTime                  @default(now())
-  updatedAt                DateTime                  @updatedAt
-  aiMessageClassifications AIMessageClassification[]
-  actionItems              ActionItem[]
-  coordinatorRuns          CoordinatorRun[]
-  conversations            Conversation[]
-  events                   Event[]
-  feedback                 UserFeedback[]
-  analyticsEvents          ProductAnalyticsEvent[]
-  milestones               Milestone[]
-  memberships              Membership[]
-  teamInvitations          TeamInvitation[]
-  notifications            UserNotification[]
-  photoAnalyses            PhotoAnalysis[]
-  processingJobs           ProcessingJob[]
-  projectStates            ProjectState[]
-  projectReports           ProjectReport[]
-  projects                 Project[]
-  recommendations          Recommendation[]
-  searchDocuments          SearchDocument[]
-  whatsAppAccounts         WhatsAppAccount[]
-  whatsAppChatMapping      WhatsAppChatMapping[]
-  whatsAppDrafts           WhatsAppDraft[]
+  id                        String                     @id @default(cuid())
+  name                      String
+  slug                      String                     @unique
+  isDemo                    Boolean                    @default(false)
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+  aiMessageClassifications  AIMessageClassification[]
+  aiClassificationDecisions AIClassificationDecision[]
+  actionItems               ActionItem[]
+  coordinatorRuns           CoordinatorRun[]
+  conversations             Conversation[]
+  events                    Event[]
+  feedback                  UserFeedback[]
+  analyticsEvents           ProductAnalyticsEvent[]
+  milestones                Milestone[]
+  memberships               Membership[]
+  teamInvitations           TeamInvitation[]
+  notifications             UserNotification[]
+  photoAnalyses             PhotoAnalysis[]
+  processingJobs            ProcessingJob[]
+  projectStates             ProjectState[]
+  projectReports            ProjectReport[]
+  projects                  Project[]
+  recommendations           Recommendation[]
+  recommendationCandidates  RecommendationCandidate[]
+  outstandingExpectations   OutstandingExpectation[]
+  searchDocuments           SearchDocument[]
+  whatsAppAccounts          WhatsAppAccount[]
+  whatsAppChatMapping       WhatsAppChatMapping[]
+  whatsAppDrafts            WhatsAppDraft[]
 }
 
 model User {
@@ -137,55 +140,59 @@ model ProjectAccess {
 }
 
 model Project {
-  id                       String                    @id @default(cuid())
-  organizationId           String
-  name                     String
-  code                     String
-  status                   ProjectStatus             @default(ACTIVE)
-  timezone                 String                    @default("UTC")
-  createdAt                DateTime                  @default(now())
-  updatedAt                DateTime                  @updatedAt
-  aiMessageClassifications AIMessageClassification[]
-  actionItems              ActionItem[]
-  coordinatorRuns          CoordinatorRun[]
-  conversations            Conversation[]
-  events                   Event[]
-  milestones               Milestone[]
-  organization             Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  photoAnalyses            PhotoAnalysis[]
-  projectState             ProjectState?
-  projectReports           ProjectReport[]
-  projectAccess            ProjectAccess[]
-  recommendations          Recommendation[]
-  searchDocuments          SearchDocument[]
-  suggestedActionItems     ActionItem[]              @relation("ActionItemSuggestedProject")
-  teamInvitationProjects   TeamInvitationProject[]
-  whatsAppChatMapping      WhatsAppChatMapping[]
-  whatsAppDrafts           WhatsAppDraft[]
+  id                        String                     @id @default(cuid())
+  organizationId            String
+  name                      String
+  code                      String
+  status                    ProjectStatus              @default(ACTIVE)
+  timezone                  String                     @default("UTC")
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+  aiMessageClassifications  AIMessageClassification[]
+  aiClassificationDecisions AIClassificationDecision[]
+  actionItems               ActionItem[]
+  coordinatorRuns           CoordinatorRun[]
+  conversations             Conversation[]
+  events                    Event[]
+  milestones                Milestone[]
+  organization              Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  photoAnalyses             PhotoAnalysis[]
+  projectState              ProjectState?
+  projectReports            ProjectReport[]
+  projectAccess             ProjectAccess[]
+  recommendations           Recommendation[]
+  recommendationCandidates  RecommendationCandidate[]
+  outstandingExpectations   OutstandingExpectation[]
+  searchDocuments           SearchDocument[]
+  suggestedActionItems      ActionItem[]               @relation("ActionItemSuggestedProject")
+  teamInvitationProjects    TeamInvitationProject[]
+  whatsAppChatMapping       WhatsAppChatMapping[]
+  whatsAppDrafts            WhatsAppDraft[]
 
   @@unique([organizationId, code])
   @@index([organizationId])
 }
 
 model Conversation {
-  id              String               @id @default(cuid())
-  organizationId  String
-  projectId       String?
-  externalId      String
-  channel         Channel
-  title           String
-  isGroup         Boolean              @default(false)
-  lastMessageAt   DateTime?
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
-  attachments     Attachment[]
-  messages        Message[]
-  organization    Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  photoAnalyses   PhotoAnalysis[]
-  participants    Participant[]
-  project         Project?             @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  whatsAppMapping WhatsAppChatMapping?
-  whatsAppDrafts  WhatsAppDraft[]
+  id                      String                   @id @default(cuid())
+  organizationId          String
+  projectId               String?
+  externalId              String
+  channel                 Channel
+  title                   String
+  isGroup                 Boolean                  @default(false)
+  lastMessageAt           DateTime?
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  attachments             Attachment[]
+  messages                Message[]
+  organization            Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  photoAnalyses           PhotoAnalysis[]
+  participants            Participant[]
+  outstandingExpectations OutstandingExpectation[]
+  project                 Project?                 @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  whatsAppMapping         WhatsAppChatMapping?
+  whatsAppDrafts          WhatsAppDraft[]
 
   @@unique([organizationId, channel, externalId])
   @@index([organizationId, updatedAt])
@@ -207,23 +214,25 @@ model Participant {
 }
 
 model Message {
-  id                  String                   @id @default(cuid())
-  conversationId      String
-  senderParticipantId String
-  direction           MessageDirection
-  type                MessageType
-  body                String?
-  externalMessageId   String?
-  processingStatus    MessageProcessingStatus  @default(RECEIVED)
-  occurredAt          DateTime
-  createdAt           DateTime                 @default(now())
-  aiClassification    AIMessageClassification?
-  actionItems         ActionItem[]
-  attachments         Attachment[]
-  conversation        Conversation             @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  photoAnalyses       PhotoAnalysis[]
-  sourceMilestones    Milestone[]
-  senderParticipant   Participant              @relation(fields: [senderParticipantId], references: [id], onDelete: Restrict)
+  id                   String                   @id @default(cuid())
+  conversationId       String
+  senderParticipantId  String
+  direction            MessageDirection
+  type                 MessageType
+  body                 String?
+  externalMessageId    String?
+  processingStatus     MessageProcessingStatus  @default(RECEIVED)
+  occurredAt           DateTime
+  createdAt            DateTime                 @default(now())
+  aiClassification     AIMessageClassification?
+  actionItems          ActionItem[]
+  attachments          Attachment[]
+  conversation         Conversation             @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  photoAnalyses        PhotoAnalysis[]
+  sourceMilestones     Milestone[]
+  sourceExpectations   OutstandingExpectation[] @relation("ExpectationSourceMessage")
+  resolvedExpectations OutstandingExpectation[] @relation("ExpectationResolvedMessage")
+  senderParticipant    Participant              @relation(fields: [senderParticipantId], references: [id], onDelete: Restrict)
 
   @@unique([conversationId, externalMessageId])
   @@index([conversationId, occurredAt])
@@ -253,24 +262,39 @@ model Attachment {
 }
 
 model PhotoAnalysis {
-  id              String       @id @default(cuid())
-  evidenceId      String       @unique
-  organizationId  String
-  projectId       String?
-  conversationId  String
-  messageId       String
-  provider        String
-  summary         String
-  detectedObjects Json
-  possibleIssues  Json
-  confidence      Float
-  tags            Json
-  createdAt       DateTime     @default(now())
-  evidence        Attachment   @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
-  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  project         Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  message         Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  id                    String       @id @default(cuid())
+  evidenceId            String       @unique
+  organizationId        String
+  projectId             String?
+  conversationId        String
+  messageId             String
+  provider              String
+  summary               String
+  detectedObjects       Json
+  possibleIssues        Json
+  confidence            Float
+  tags                  Json
+  observations          Json         @default("[]")
+  limitations           Json         @default("[]")
+  senderClaim           String?
+  claimAssessment       String       @default("NOT_ASSESSED")
+  operationalConclusion String       @default("NO_OPERATIONAL_CONCLUSION")
+  analysisStatus        String       @default("NO_OPERATIONAL_CONCLUSION")
+  visibleObservations   Json         @default("[]")
+  claimedContext        String?
+  claimSupport          String       @default("UNABLE_TO_DETERMINE")
+  issueAssessments      Json         @default("[]")
+  progressEvidence      Json         @default("{\"usable\":false,\"scope\":null,\"reason\":\"Not assessed.\"}")
+  safetySignal          Json         @default("{\"present\":false,\"severity\":null,\"reason\":null}")
+  overallConfidence     Float        @default(0.5)
+  analysisVersion       String       @default("1.0")
+  promptVersion         String       @default("photo-analysis.v1")
+  createdAt             DateTime     @default(now())
+  evidence              Attachment   @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project               Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  conversation          Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  message               Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, createdAt])
   @@index([projectId, createdAt])
@@ -279,28 +303,71 @@ model PhotoAnalysis {
 }
 
 model AIMessageClassification {
-  id               String                 @id @default(cuid())
+  id               String                    @id @default(cuid())
   organizationId   String
   projectId        String?
-  messageId        String                 @unique
+  messageId        String                    @unique
   category         AIMessageCategory?
   summary          String?
   location         String?
-  actionRequired   Boolean                @default(false)
+  actionRequired   Boolean                   @default(false)
   confidence       Float?
   reasoningSummary String?
-  status           AIClassificationStatus @default(PENDING)
+  status           AIClassificationStatus    @default(PENDING)
   errorMessage     String?
-  createdAt        DateTime               @default(now())
-  updatedAt        DateTime               @updatedAt
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
   actionItems      ActionItem[]
-  message          Message                @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  organization     Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  project          Project?               @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  message          Message                   @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  organization     Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project          Project?                  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  decisionV2       AIClassificationDecision?
 
   @@index([organizationId, createdAt])
   @@index([projectId, createdAt])
   @@index([status, createdAt])
+}
+
+model AIClassificationDecision {
+  id                              String                  @id @default(cuid())
+  organizationId                  String
+  projectId                       String?
+  classificationId                String                  @unique
+  mode                            AIDecisionEngineMode
+  relevance                       AIMessageRelevance
+  primaryCategory                 AIMessageCategory
+  secondarySignals                Json
+  operationalImpact               AIOperationalImpact
+  responseExpectation             Json
+  factualClaims                   Json                    @default("[]")
+  locations                       Json                    @default("[]")
+  referencedDates                 Json                    @default("[]")
+  ambiguity                       Json                    @default("{\"isAmbiguous\":false,\"missingContext\":[]}")
+  completionClaim                 AICompletionClaim
+  inspectionReadiness             AIInspectionReadiness
+  recommendationEligible          Boolean
+  abstentionReason                String?
+  summary                         String
+  location                        String?
+  confidence                      Float
+  uncertainty                     String?
+  userFacingReason                String
+  recommendationEligibilityReason String                  @default("")
+  schemaVersion                   String
+  promptVersion                   String
+  model                           String
+  provider                        String
+  processedAt                     DateTime                @default(now())
+  createdAt                       DateTime                @default(now())
+  updatedAt                       DateTime                @updatedAt
+  classification                  AIMessageClassification @relation(fields: [classificationId], references: [id], onDelete: Cascade)
+  organization                    Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project                         Project?                @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, processedAt])
+  @@index([projectId, processedAt])
+  @@index([mode, relevance, processedAt])
+  @@index([recommendationEligible, processedAt])
 }
 
 model ActionItem {
@@ -505,12 +572,82 @@ model Recommendation {
   project               Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   whatsAppDrafts        WhatsAppDraft[]
   milestones            Milestone[]
+  decisionCandidate     RecommendationCandidate?
 
   @@index([organizationId, status, priority, createdAt])
   @@index([projectId, status, priority, createdAt])
   @@index([sourceCoordinator, proposedActionType, sourceEntityId])
   @@index([approvedByUserId])
   @@index([dismissedByUserId])
+}
+
+model RecommendationCandidate {
+  id                    String                           @id @default(cuid())
+  organizationId        String
+  projectId             String
+  recommendationId      String?                          @unique
+  mode                  AIDecisionEngineMode
+  coordinatorType       CoordinatorType
+  type                  RecommendationType
+  proposedActionType    RecommendationActionType
+  title                 String
+  description           String
+  reason                String
+  confidence            RecommendationConfidence
+  priority              RecommendationPriority
+  sourceEntityType      String?
+  sourceEntityId        String?
+  evidenceIds           Json
+  evidenceSummary       String                           @default("")
+  evidenceLimitations   String                           @default("")
+  materiality           Json                             @default("[]")
+  expectedValue         String                           @default("")
+  proposedActionPayload Json?
+  fingerprint           String
+  status                RecommendationCandidateStatus
+  suppressionReason     RecommendationSuppressionReason?
+  engineVersion         String
+  evaluatedAt           DateTime                         @default(now())
+  createdAt             DateTime                         @default(now())
+  updatedAt             DateTime                         @updatedAt
+  organization          Organization                     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project               Project                          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  recommendation        Recommendation?                  @relation(fields: [recommendationId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status, createdAt])
+  @@index([projectId, coordinatorType, createdAt])
+  @@index([projectId, fingerprint, createdAt])
+  @@index([suppressionReason, createdAt])
+}
+
+model OutstandingExpectation {
+  id                  String                       @id @default(cuid())
+  organizationId      String
+  projectId           String
+  conversationId      String
+  sourceMessageId     String
+  resolvedByMessageId String?
+  type                OutstandingExpectationType
+  expectedResponder   String?
+  requestedItem       String
+  dueAt               DateTime?
+  status              OutstandingExpectationStatus @default(OPEN)
+  evidence            Json
+  confidence          Float
+  resolutionReason    String?
+  createdAt           DateTime                     @default(now())
+  updatedAt           DateTime                     @updatedAt
+  organization        Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project             Project                      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  conversation        Conversation                 @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sourceMessage       Message                      @relation("ExpectationSourceMessage", fields: [sourceMessageId], references: [id], onDelete: Cascade)
+  resolvedByMessage   Message?                     @relation("ExpectationResolvedMessage", fields: [resolvedByMessageId], references: [id], onDelete: SetNull)
+
+  @@unique([sourceMessageId, type, requestedItem])
+  @@index([organizationId, status, dueAt])
+  @@index([projectId, status, dueAt])
+  @@index([conversationId, status, dueAt])
+  @@index([sourceMessageId])
 }
 
 model CoordinatorRun {
@@ -822,6 +959,10 @@ enum AIMessageCategory {
   RFI
   MATERIAL_ISSUE
   MANPOWER_ISSUE
+  DECISION
+  COMMITMENT
+  QUESTION
+  ACKNOWLEDGEMENT
   GENERAL_NOTE
   UNKNOWN
 }
@@ -831,6 +972,41 @@ enum AIClassificationStatus {
   COMPLETED
   FAILED
   NEEDS_REVIEW
+}
+
+enum AIDecisionEngineMode {
+  LEGACY
+  SHADOW
+  V2
+}
+
+enum AIMessageRelevance {
+  OPERATIONAL
+  NON_OPERATIONAL
+  AMBIGUOUS
+}
+
+enum AIOperationalImpact {
+  NONE
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AICompletionClaim {
+  NONE
+  PARTIAL
+  CLAIMED
+  AMBIGUOUS
+}
+
+enum AIInspectionReadiness {
+  NONE
+  NOT_READY
+  READY_CLAIMED
+  REQUESTED
+  AMBIGUOUS
 }
 
 enum ActionItemStatus {
@@ -945,6 +1121,52 @@ enum RecommendationStatus {
   DISMISSED
   COMPLETED
   FAILED
+}
+
+enum RecommendationCandidateStatus {
+  CREATED
+  SUPPRESSED
+  SHADOW
+  CLARIFICATION
+}
+
+enum RecommendationSuppressionReason {
+  NO_MATERIALITY
+  NON_ACTIONABLE
+  INSUFFICIENT_EVIDENCE
+  NO_EXPECTED_VALUE
+  OWNERSHIP_EXISTS
+  LOW_CONFIDENCE
+  NON_OPERATIONAL
+  AMBIGUOUS
+  ROUTINE_PROGRESS
+  NO_UNRESOLVED_EXPECTATION
+  PREREQUISITE_OPEN
+  DUPLICATE_PENDING
+  RECENTLY_DISMISSED
+  RECENTLY_ACTIONED
+  SUPERSEDED
+  PROJECT_INACTIVE
+  REPORT_NOT_DUE
+  SHADOW_MODE
+}
+
+enum OutstandingExpectationType {
+  QUESTION
+  COMMITMENT
+  DOCUMENT
+  PHOTO
+  APPROVAL
+  DECISION
+  DELIVERY_UPDATE
+  INSPECTION_RESULT
+}
+
+enum OutstandingExpectationStatus {
+  OPEN
+  RESOLVED
+  CANCELLED
+  EXPIRED
 }
 
 enum RecommendationPriority {

@@ -377,6 +377,11 @@ export interface PhotoAnalysisRecord {
   possibleIssues: string[];
   confidence: number;
   tags: string[];
+  observations: string[];
+  limitations: string[];
+  senderClaim: string | null;
+  claimAssessment: string;
+  operationalConclusion: string;
   createdAt: Date;
   evidence: {
     filename: string;
@@ -509,9 +514,12 @@ export interface JobMetricsRecord {
 
 export interface AdminOperationsRecord {
   ai: {
+    ambiguousClassificationsToday: number;
     averageProcessingTimeMs: number | null;
+    classificationsCompletedToday: number;
     failuresToday: number;
     jobsPending: number;
+    nonOperationalClassificationsToday: number;
   };
   jobSummary: JobMetricsRecord[];
   media: {
@@ -1659,57 +1667,74 @@ export function createPrismaRepository(): AppRepository {
       const prisma = await getPrisma();
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const [jobSummary, workers, whatsappCounts, aiPending, aiFailuresToday, aiCompletedToday] =
-        await Promise.all([
-          getJobMetrics(prisma, organizationId),
-          prisma.workerHeartbeat.findMany({
-            orderBy: {
-              workerName: "asc"
-            }
-          }),
-          prisma.whatsAppAccount.groupBy({
-            by: ["status"],
-            _count: true,
-            where: {
-              organizationId
-            }
-          }),
-          prisma.processingJob.count({
-            where: {
-              organizationId,
-              status: "PENDING",
-              type: "AI_CLASSIFICATION"
-            }
-          }),
-          prisma.processingJob.count({
-            where: {
-              failedAt: {
-                gte: today
-              },
-              organizationId,
-              status: "FAILED",
-              type: "AI_CLASSIFICATION"
-            }
-          }),
-          prisma.processingJob.findMany({
-            select: {
-              completedAt: true,
-              startedAt: true
+      const [
+        jobSummary,
+        workers,
+        whatsappCounts,
+        aiPending,
+        aiFailuresToday,
+        aiCompletedToday,
+        classificationGroups
+      ] = await Promise.all([
+        getJobMetrics(prisma, organizationId),
+        prisma.workerHeartbeat.findMany({
+          orderBy: {
+            workerName: "asc"
+          }
+        }),
+        prisma.whatsAppAccount.groupBy({
+          by: ["status"],
+          _count: true,
+          where: {
+            organizationId
+          }
+        }),
+        prisma.processingJob.count({
+          where: {
+            organizationId,
+            status: "PENDING",
+            type: "AI_CLASSIFICATION"
+          }
+        }),
+        prisma.processingJob.count({
+          where: {
+            failedAt: {
+              gte: today
             },
-            where: {
-              completedAt: {
-                gte: today
-              },
-              organizationId,
-              status: "COMPLETED",
-              type: "AI_CLASSIFICATION"
-            }
-          })
-        ]);
+            organizationId,
+            status: "FAILED",
+            type: "AI_CLASSIFICATION"
+          }
+        }),
+        prisma.processingJob.findMany({
+          select: {
+            completedAt: true,
+            startedAt: true
+          },
+          where: {
+            completedAt: {
+              gte: today
+            },
+            organizationId,
+            status: "COMPLETED",
+            type: "AI_CLASSIFICATION"
+          }
+        }),
+        prisma.aIClassificationDecision.groupBy({
+          _count: true,
+          by: ["relevance"],
+          where: {
+            organizationId,
+            processedAt: { gte: today }
+          }
+        })
+      ]);
 
       const byJobType = new Map(jobSummary.map((row) => [row.type, row]));
       const countWhatsApp = (status: WhatsAppAccountRecord["status"]) =>
         whatsappCounts.find((row) => row.status === status)?._count ?? 0;
+      const countClassifications = (relevance: "AMBIGUOUS" | "NON_OPERATIONAL" | "OPERATIONAL") =>
+        classificationGroups.find((row) => row.relevance === relevance)?._count ?? 0;
       const completedAIWithDurations = aiCompletedToday.filter(
         (job) => job.startedAt && job.completedAt
       );
@@ -1726,9 +1751,15 @@ export function createPrismaRepository(): AppRepository {
 
       return {
         ai: {
+          ambiguousClassificationsToday: countClassifications("AMBIGUOUS"),
           averageProcessingTimeMs,
+          classificationsCompletedToday: classificationGroups.reduce(
+            (total, group) => total + group._count,
+            0
+          ),
           failuresToday: aiFailuresToday,
-          jobsPending: aiPending
+          jobsPending: aiPending,
+          nonOperationalClassificationsToday: countClassifications("NON_OPERATIONAL")
         },
         jobSummary,
         media: {
@@ -3577,6 +3608,11 @@ function toAttachmentRecord(
       possibleIssues: Prisma.JsonValue;
       summary: string;
       tags: Prisma.JsonValue;
+      observations?: Prisma.JsonValue;
+      limitations?: Prisma.JsonValue;
+      senderClaim?: string | null;
+      claimAssessment?: string;
+      operationalConclusion?: string;
     } | null;
   }
 ): AttachmentRecord {
@@ -3590,7 +3626,13 @@ function toAttachmentRecord(
           id: attachment.photoAnalysis.id,
           possibleIssues: jsonStringArray(attachment.photoAnalysis.possibleIssues),
           summary: attachment.photoAnalysis.summary,
-          tags: jsonStringArray(attachment.photoAnalysis.tags)
+          tags: jsonStringArray(attachment.photoAnalysis.tags),
+          observations: jsonStringArray(attachment.photoAnalysis.observations ?? []),
+          limitations: jsonStringArray(attachment.photoAnalysis.limitations ?? []),
+          senderClaim: attachment.photoAnalysis.senderClaim ?? null,
+          claimAssessment: attachment.photoAnalysis.claimAssessment ?? "NOT_ASSESSED",
+          operationalConclusion:
+            attachment.photoAnalysis.operationalConclusion ?? "NO_OPERATIONAL_CONCLUSION"
         }
       : null
   };
@@ -3613,6 +3655,11 @@ function toPhotoAnalysisRecord(analysis: {
   provider: string;
   summary: string;
   tags: Prisma.JsonValue;
+  observations: Prisma.JsonValue;
+  limitations: Prisma.JsonValue;
+  senderClaim: string | null;
+  claimAssessment: string;
+  operationalConclusion: string;
 }): PhotoAnalysisRecord {
   return {
     confidence: analysis.confidence,
@@ -3630,7 +3677,12 @@ function toPhotoAnalysisRecord(analysis: {
     projectId: analysis.projectId,
     provider: analysis.provider,
     summary: analysis.summary,
-    tags: jsonStringArray(analysis.tags)
+    tags: jsonStringArray(analysis.tags),
+    observations: jsonStringArray(analysis.observations),
+    limitations: jsonStringArray(analysis.limitations),
+    senderClaim: analysis.senderClaim,
+    claimAssessment: analysis.claimAssessment,
+    operationalConclusion: analysis.operationalConclusion
   };
 }
 

@@ -53,6 +53,7 @@ export interface WhatsAppDraftSender {
 }
 
 export interface ProjectCoordinatorRuntimeOptions {
+  decisionEngineMode?: "legacy" | "shadow" | "v2";
   draftSender?: WhatsAppDraftSender;
   milestoneDetector?: MilestoneDetectorPort;
   now?: () => Date;
@@ -65,7 +66,7 @@ export interface MilestoneDetectionCandidate {
   confidence: "HIGH" | "MEDIUM" | "LOW";
   description: string | null;
   hasMilestoneChange: boolean;
-  milestoneTitle: string;
+  milestoneTitle: string | null;
   originalDatePhrase: string | null;
   plannedEndDate: string | null;
   plannedStartDate: string | null;
@@ -157,6 +158,11 @@ export interface RecommendationWithProject extends Recommendation {
 
 export interface CoordinatorOperationsMetrics {
   approvalRate: number;
+  candidatesByCoordinator: Array<{ coordinatorType: CoordinatorType; count: number }>;
+  candidatesClarificationToday: number;
+  candidatesGeneratedToday: number;
+  candidatesShadowedToday: number;
+  candidatesSuppressedToday: number;
   failedRunsToday: number;
   lastRunPerProject: Array<{
     projectId: string;
@@ -168,6 +174,7 @@ export interface CoordinatorOperationsMetrics {
   pendingRecommendations: number;
   recommendationsCreatedToday: number;
   runsToday: number;
+  suppressionsByReason: Array<{ count: number; reason: string }>;
 }
 
 export type DraftSendResult =

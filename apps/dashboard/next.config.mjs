@@ -1,3 +1,8 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const dashboardDirectory = path.dirname(fileURLToPath(import.meta.url));
+
 /** @type {import("next").NextConfig} */
 const nextConfig = {
   async rewrites() {
@@ -17,6 +22,9 @@ const nextConfig = {
         source: "/media/:path*"
       }
     ];
+  },
+  turbopack: {
+    root: path.resolve(dashboardDirectory, "../..")
   },
   transpilePackages: ["@fieldos/shared", "@fieldos/ui"]
 };

@@ -7,6 +7,7 @@ import {
   isAIProviderRateLimitError,
   MilestoneDetector,
   MessageClassifier,
+  MessageClassifierV2,
   type VisionResult
 } from "@fieldos/ai";
 import { BaileysWhatsAppSessionManager, RedisWhatsAppQrStore } from "@fieldos/baileys-whatsapp";
@@ -113,7 +114,12 @@ const aiClassificationProcessor = new AIClassificationProcessor(prisma, {
   classifier: new MessageClassifier({
     model: textAIProvider.model,
     provider: textAIProvider.provider
-  })
+  }),
+  classifierV2: new MessageClassifierV2({
+    model: textAIProvider.model,
+    provider: textAIProvider.provider
+  }),
+  decisionEngineMode: workerEnv.AI_DECISION_ENGINE_MODE
 });
 const voiceTranscriptionService = new VoiceTranscriptionService({
   apiKey: workerEnv.OPENAI_API_KEY,
@@ -139,6 +145,7 @@ const photoAnalysisService = new PhotoAnalysisService({
 });
 const projectIntelligenceService = new ProjectIntelligenceService();
 const coordinatorRuntime = new ProjectCoordinatorRuntime(prisma, {
+  decisionEngineMode: workerEnv.AI_DECISION_ENGINE_MODE,
   draftSender: {
     send: (input) => whatsappSessionManager.sendDraft(input)
   },
@@ -584,26 +591,56 @@ async function processPhotoJob(job: ProcessingJob): Promise<void> {
   await prisma.$transaction(async (tx) => {
     const analysis = await tx.photoAnalysis.upsert({
       create: {
-        confidence: result.confidence,
+        analysisStatus: result.analysisStatus,
+        analysisVersion: "2.1",
+        claimedContext: result.claimedContext,
+        claimAssessment: legacyClaimAssessment(result),
+        claimSupport: result.claimSupport,
+        confidence: result.overallConfidence,
         conversationId: attachment.conversationId,
         detectedObjects: result.detectedObjects,
         evidenceId: attachment.id,
         messageId: attachment.messageId,
+        issueAssessments: result.possibleIssues,
+        limitations: result.limitations,
+        observations: result.visibleObservations.map((item) => item.observation),
+        operationalConclusion: legacyOperationalConclusion(result),
         organizationId: attachment.message.conversation.organizationId,
-        possibleIssues: result.possibleIssues,
+        overallConfidence: result.overallConfidence,
+        possibleIssues: legacyPossibleIssueLabels(result),
+        progressEvidence: result.progressEvidence,
         projectId: attachment.message.conversation.projectId,
         provider: workerEnv.VISION_MODEL,
+        promptVersion: "photo-analysis.v2.1",
+        safetySignal: result.safetySignal,
+        senderClaim: result.claimedContext,
         summary: result.summary,
-        tags: result.tags
+        tags: result.tags,
+        visibleObservations: result.visibleObservations
       },
       update: {
-        confidence: result.confidence,
+        analysisStatus: result.analysisStatus,
+        analysisVersion: "2.1",
+        claimedContext: result.claimedContext,
+        claimAssessment: legacyClaimAssessment(result),
+        claimSupport: result.claimSupport,
+        confidence: result.overallConfidence,
         detectedObjects: result.detectedObjects,
-        possibleIssues: result.possibleIssues,
+        issueAssessments: result.possibleIssues,
+        limitations: result.limitations,
+        observations: result.visibleObservations.map((item) => item.observation),
+        operationalConclusion: legacyOperationalConclusion(result),
+        overallConfidence: result.overallConfidence,
+        possibleIssues: legacyPossibleIssueLabels(result),
+        progressEvidence: result.progressEvidence,
         projectId: attachment.message.conversation.projectId,
         provider: workerEnv.VISION_MODEL,
+        promptVersion: "photo-analysis.v2.1",
+        safetySignal: result.safetySignal,
+        senderClaim: result.claimedContext,
         summary: result.summary,
-        tags: result.tags
+        tags: result.tags,
+        visibleObservations: result.visibleObservations
       },
       where: {
         evidenceId: attachment.id
@@ -910,14 +947,46 @@ function buildReportArtifact(
 function buildPhotoAnalysisEventDescription(result: VisionResult): string {
   return [
     `Visual Summary: ${result.summary}`,
+    result.visibleObservations.length > 0
+      ? `Visible observations: ${result.visibleObservations.map((item) => item.observation).join(", ")}`
+      : "Visible observations: Unable to determine.",
     result.detectedObjects.length > 0
       ? `Detected: ${result.detectedObjects.join(", ")}`
       : "Detected: Unable to determine.",
     result.possibleIssues.length > 0
-      ? `Possible Issue: ${result.possibleIssues.join(", ")}`
-      : "Possible Issue: None obvious. Needs Review.",
-    `Confidence: ${formatVisionConfidence(result.confidence)}`
-  ].join("\n");
+      ? `Possible issues requiring human review: ${result.possibleIssues.map((item) => item.issue).join(", ")}`
+      : "Possible issues: None identified from the visible frame.",
+    `Analysis status: ${result.analysisStatus.replaceAll("_", " ").toLowerCase()}`,
+    `Progress evidence: ${result.progressEvidence.usable ? result.progressEvidence.scope : "Not usable"}. ${result.progressEvidence.reason}`,
+    result.safetySignal.present
+      ? `Visible safety signal (${result.safetySignal.severity}): ${result.safetySignal.reason}`
+      : "Visible safety signal: None identified.",
+    result.limitations.length > 0 ? `Limitations: ${result.limitations.join(" ")}` : "",
+    `Confidence: ${formatVisionConfidence(result.overallConfidence)}`
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function legacyClaimAssessment(
+  result: VisionResult
+): "NOT_ASSESSED" | "SUPPORTED" | "NOT_SUPPORTED" | "INCONCLUSIVE" {
+  if (!result.claimedContext) return "NOT_ASSESSED";
+  if (result.claimSupport === "SUPPORTED") return "SUPPORTED";
+  if (result.claimSupport === "NOT_SUPPORTED") return "NOT_SUPPORTED";
+  return "INCONCLUSIVE";
+}
+
+function legacyOperationalConclusion(
+  result: VisionResult
+): "NO_OPERATIONAL_CONCLUSION" | "HUMAN_VERIFICATION_RECOMMENDED" {
+  return result.safetySignal.present && result.safetySignal.severity === "HIGH"
+    ? "HUMAN_VERIFICATION_RECOMMENDED"
+    : "NO_OPERATIONAL_CONCLUSION";
+}
+
+function legacyPossibleIssueLabels(result: VisionResult): string[] {
+  return result.possibleIssues.map((item) => `${item.issue}. Needs Review. Basis: ${item.basis}`);
 }
 
 function formatVisionConfidence(confidence: number): string {

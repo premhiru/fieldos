@@ -39,6 +39,7 @@ export interface UnifiedEvidenceContext {
     id: string;
     name: string;
     status: ProjectStatus;
+    timezone: string;
   } | null;
   conversation: {
     channel: Channel;
@@ -50,12 +51,14 @@ export interface UnifiedEvidenceContext {
     displayName: string;
     externalIdentifier: string;
     id: string;
+    role: string;
   };
   timestamp: Date;
   organizationId: string;
   messageId: string;
   messageText: string | null;
   messageType: MessageType;
+  messageDirection: "INBOUND" | "OUTBOUND";
   processingStatus: MessageProcessingStatus;
   externalMessageId: string | null;
   voiceTranscript: string | null;
@@ -90,7 +93,8 @@ export async function buildUnifiedEvidenceContext(
               code: true,
               id: true,
               name: true,
-              status: true
+              status: true,
+              timezone: true
             }
           }
         }
@@ -99,7 +103,8 @@ export async function buildUnifiedEvidenceContext(
         select: {
           displayName: true,
           externalIdentifier: true,
-          id: true
+          id: true,
+          role: true
         }
       }
     },
@@ -157,6 +162,7 @@ export async function buildUnifiedEvidenceContext(
       transcriptionPending
     },
     messageText: message.body,
+    messageDirection: message.direction,
     messageType: message.type,
     organizationId: message.conversation.organizationId,
     processingStatus: message.processingStatus,
@@ -226,6 +232,7 @@ function normalizeSender(sender: {
   displayName: string;
   externalIdentifier: string;
   id: string;
+  role?: string | null;
 }): UnifiedEvidenceContext["sender"] {
   const displayName = sender.displayName.trim();
   const externalIdentifier = sender.externalIdentifier.trim();
@@ -234,7 +241,8 @@ function normalizeSender(sender: {
     displayName: displayName.length > 0 ? displayName : "Unknown sender",
     externalIdentifier:
       externalIdentifier.length > 0 ? externalIdentifier : `unknown-sender:${sender.id}`,
-    id: sender.id
+    id: sender.id,
+    role: sender.role?.trim() || "UNKNOWN"
   };
 }
 

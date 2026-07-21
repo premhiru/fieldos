@@ -5,7 +5,7 @@
 | Purpose      | Document pilot limitations and intentionally deferred work. |
 | Owner        | Principal Engineering                                       |
 | Status       | Active                                                      |
-| Last Updated | 2026-07-08                                                  |
+| Last Updated | 2026-07-21                                                  |
 
 ## Table of Contents
 
@@ -20,6 +20,12 @@
 - Product tour is lightweight and page-based rather than a full overlay walkthrough.
 
 ## Technical Limitations
+
+- AI Decision Layer v2 remains in shadow mode; provider-backed synthetic evaluation does not substitute for live pilot precision monitoring.
+- Per-conversation reporting cadence and holiday calendars are not yet configurable.
+- Primary-category accuracy is 88.37%; multi-signal precision and recall are 53.57% and 46.88%. Recommendation policy is deliberately optimized for precision while these extraction gaps are reviewed.
+- Operations job totals currently retain historical failed records, so an all-time failure count can remain non-zero after the worker has recovered. Current health should use recent jobs, active queue depth, coordinator runs, and worker heartbeat together.
+- One stale WhatsApp account remains in QR-pairing state and can produce recurring QR timeout logs until an administrator retries or removes that account.
 
 - WhatsApp uses Baileys and should remain on a dedicated pilot/test number.
 - Existing pre-R2 media may need re-ingestion before previewing from production storage.

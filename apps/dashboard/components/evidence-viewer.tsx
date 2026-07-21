@@ -106,8 +106,13 @@ function EvidenceViewerBody({ evidence }: Readonly<{ evidence: EvidenceView }>) 
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-slate-700">
             <p>{evidence.photoAnalysis.summary}</p>
+            <InfoList
+              title="Visible observations"
+              values={evidence.photoAnalysis.observations ?? []}
+            />
             <InfoList title="Detected" values={evidence.photoAnalysis.detectedObjects} />
             <InfoList title="Possible Issues" values={evidence.photoAnalysis.possibleIssues} />
+            <InfoList title="Limitations" values={evidence.photoAnalysis.limitations ?? []} />
             <InfoList title="Tags" values={evidence.photoAnalysis.tags} />
           </CardContent>
         </Card>

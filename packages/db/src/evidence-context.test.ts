@@ -11,6 +11,9 @@ describe("UnifiedEvidenceContext", () => {
     const context = await buildUnifiedEvidenceContext(fakePrismaWithMessage(), "msg_1");
 
     expect(context?.messageText).toBe("Terminal 2 runway lighting completed.");
+    expect(context?.messageDirection).toBe("INBOUND");
+    expect(context?.project?.timezone).toBe("Asia/Singapore");
+    expect(context?.sender.role).toBe("SUPERVISOR");
     expect(context?.voiceTranscript).toBeNull();
     expect(context?.evidenceSummary.labels).toEqual([]);
   });
@@ -69,7 +72,8 @@ describe("UnifiedEvidenceContext", () => {
           senderParticipant: {
             displayName: "",
             externalIdentifier: "",
-            id: "participant_blank"
+            id: "participant_blank",
+            role: ""
           }
         })
       ),
@@ -78,6 +82,7 @@ describe("UnifiedEvidenceContext", () => {
 
     expect(context?.sender.displayName).toBe("Unknown sender");
     expect(context?.sender.externalIdentifier).toBe("unknown-sender:participant_blank");
+    expect(context?.sender.role).toBe("UNKNOWN");
   });
 
   it("returns null for missing messages", async () => {
@@ -244,17 +249,20 @@ interface FakeMessage {
       id: string;
       name: string;
       status: "ACTIVE";
+      timezone: string;
     };
     title: string;
   };
   externalMessageId: string;
   id: string;
+  direction: "INBOUND" | "OUTBOUND";
   occurredAt: Date;
   processingStatus: "RECEIVED";
   senderParticipant: {
     displayName: string;
     externalIdentifier: string;
     id: string;
+    role: string;
   };
   type: "TEXT" | "VOICE";
 }
@@ -295,18 +303,21 @@ function messageRecordBase(): FakeMessage {
         code: "T2",
         id: "project_1",
         name: "Terminal 2",
-        status: "ACTIVE"
+        status: "ACTIVE",
+        timezone: "Asia/Singapore"
       },
       title: "Terminal 2 Ops"
     },
     externalMessageId: "external_1",
     id: "msg_1",
+    direction: "INBOUND",
     occurredAt: baseDate,
     processingStatus: "RECEIVED",
     senderParticipant: {
       displayName: "John Tan",
       externalIdentifier: "john@example.com",
-      id: "participant_1"
+      id: "participant_1",
+      role: "SUPERVISOR"
     },
     type: "TEXT"
   };
