@@ -5,7 +5,7 @@
 | Purpose      | Describe the FieldOS system architecture, boundaries, integration points, and evolution plan. |
 | Owner        | Engineering                                                                                   |
 | Status       | Draft                                                                                         |
-| Last Updated | 2026-07-18                                                                                    |
+| Last Updated | 2026-07-21                                                                                    |
 
 ## Table of Contents
 
@@ -236,6 +236,8 @@ Semantic fingerprints combine the project, recommendation and action types, norm
 Relevant processing events queue two independently debounced jobs: `PROJECT_COORDINATOR` for Progress, Follow-up, Inspection, and Report, and `PROJECT_COORDINATOR_MILESTONE` for AI-assisted milestone detection. The milestone job has its own provider throttle, so rate limits do not delay deterministic coordinators.
 
 Baseline scans are scheduler-owned rather than worker-owned. Railway calls `POST /internal/coordinator-scan` every four hours with `CRON_SECRET`; the API acquires a 55-minute Redis lock and queues only active projects whose local time is between 07:00 and 19:00. Event-triggered jobs remain active at all hours. `CoordinatorRun` continues to record each coordinator's status, failure, and recommendation count for `/admin/operations`.
+
+Operations health distinguishes live processing from retained history through queue depth, recent jobs, coordinator runs, and `WorkerHeartbeat`. Historical failed `ProcessingJob` rows remain available for audit and retry and are not evidence of a current outage by themselves.
 
 Project intelligence API endpoints:
 

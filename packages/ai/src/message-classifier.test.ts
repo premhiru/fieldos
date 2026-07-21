@@ -253,6 +253,7 @@ function classificationContext() {
       transcriptionPending: false
     },
     messageText: "Terminal 2 runway lighting completed.",
+    messageDirection: "INBOUND" as const,
     messageType: "TEXT" as const,
     organizationId: "organization_1",
     processingStatus: "RECEIVED",
@@ -260,7 +261,8 @@ function classificationContext() {
     sender: {
       displayName: "Supervisor",
       externalIdentifier: "supervisor@example.com",
-      id: "participant_1"
+      id: "participant_1",
+      role: "FIELD_SUPERVISOR"
     },
     timestamp: occurredAt,
     voiceTranscript: "Voice transcript"

@@ -5,7 +5,7 @@
 | Purpose      | Summarize Sprint 14 readiness work and remaining risk. |
 | Owner        | Principal Product Engineering                          |
 | Status       | Active                                                 |
-| Last Updated | 2026-07-18                                             |
+| Last Updated | 2026-07-21                                             |
 
 ## Table of Contents
 
@@ -24,6 +24,8 @@ FieldOS is ready for a controlled first customer pilot after deployment and prod
 
 AI Decision Layer v2 is suitable for a shadow pilot only. Its additive schema, bounded contexts, suppression telemetry, and one-variable rollback reduce rollout risk, but customer-visible v2 recommendations must wait for live shadow review.
 
+The 86-case provider-backed Kimi evaluation completed with no provider failures, 100% recommendation precision and recall, and zero inspection, follow-up, or duplicate false positives. Lower category and multi-signal extraction metrics remain an explicit shadow-review concern.
+
 ## Strengths
 
 - Core workflows are tenant-scoped.
@@ -38,6 +40,7 @@ AI Decision Layer v2 is suitable for a shadow pilot only. Its additive schema, b
 - Voice transcription still depends on OpenAI audio capability, not OpenRouter chat models.
 - Analytics are internal database events, not yet a full analytics dashboard.
 - Demo screenshots are static references and should be replaced with production captures after deployment.
+- The Operations view includes retained historical failures; it does not yet separate all-time errors from the current health window clearly enough.
 
 ## Security Review
 

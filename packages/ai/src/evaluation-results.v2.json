@@ -1,0 +1,4347 @@
+{
+  "metadata": {
+    "completedAt": "2026-07-21T03:16:03.214Z",
+    "fallbackCount": 0,
+    "model": "kimi-k2.6",
+    "policyVersion": "recommendation-policy.v2.1",
+    "promptVersion": "message-classification.v2.4",
+    "schemaVersion": "2.2"
+  },
+  "predictions": [
+    {
+      "caseId": "routine-1",
+      "classification": {
+        "abstentionReason": "Routine progress update lacking material signal for central recommendation gate.",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "CLAIMED",
+        "confidence": 0.7,
+        "factualClaims": [
+          {
+            "confidence": 0.6,
+            "statement": "six runway edge lights installed today",
+            "status": "ASSERTED",
+            "subject": "runway edge lights",
+            "type": "QUANTITY"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "LOW",
+        "primaryCategory": "PROGRESS_UPDATE",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Routine progress update with no material issue, defect, delay, or downstream action required. Quantity claim is unverified.",
+        "referencedDates": [
+          {
+            "confidence": 0.95,
+            "phrase": "today",
+            "resolvedDate": "2026-07-21"
+          }
+        ],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Site Supervisor reports installing six runway edge lights on July 21, 2026.",
+        "uncertainty": "Installation claim is unverified; no evidence of completion inspection or quality check provided.",
+        "userFacingReason": "Routine daily progress report with no issues flagged."
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NOT_ELIGIBLE"
+    },
+    {
+      "caseId": "routine-2",
+      "classification": {
+        "abstentionReason": "Routine progress update with no material signal requiring central recommendation gate attention.",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.75,
+        "factualClaims": [
+          {
+            "confidence": 0.7,
+            "statement": "Installation progressed this morning",
+            "status": "ASSERTED",
+            "subject": "Level 2 cable tray installation",
+            "type": "PROGRESS"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": "Level 2",
+        "locations": ["Level 2"],
+        "operationalImpact": "LOW",
+        "primaryCategory": "PROGRESS_UPDATE",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Routine progress update without material issue, defect, delay, or downstream action required.",
+        "referencedDates": [
+          {
+            "confidence": 0.9,
+            "phrase": "this morning",
+            "resolvedDate": "2026-07-21"
+          }
+        ],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Level 2 cable tray installation progressed this morning.",
+        "uncertainty": "No quantities, completion percentage, or inspection criteria provided. Progress claim is unverified.",
+        "userFacingReason": "Routine progress update recorded for awareness; no action required."
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NOT_ELIGIBLE"
+    },
+    {
+      "caseId": "routine-3",
+      "classification": {
+        "abstentionReason": "Routine informational progress update without material consequence requiring central recommendation gate attention.",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "CLAIMED",
+        "confidence": 0.75,
+        "factualClaims": [
+          {
+            "confidence": 0.7,
+            "statement": "Three pumps were installed in the plant room",
+            "status": "ASSERTED",
+            "subject": "pumps",
+            "type": "INSTALLATION"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": "plant room",
+        "locations": ["plant room"],
+        "operationalImpact": "LOW",
+        "primaryCategory": "PROGRESS_UPDATE",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Routine progress update with no material issue, defect, delay, or downstream action required. Installation claim is unverified but not contested.",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Site supervisor reports three pumps installed in plant room.",
+        "uncertainty": "No verification evidence provided; quantity and completion quality unconfirmed.",
+        "userFacingReason": "Routine progress report with no action required."
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NOT_ELIGIBLE"
+    },
+    {
+      "caseId": "routine-4",
+      "classification": {
+        "abstentionReason": "Routine start-of-work notification with no evidence of completion, inspection readiness, or material condition requiring follow-up",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.75,
+        "factualClaims": [
+          {
+            "confidence": 0.7,
+            "statement": "Painting of the west corridor has started",
+            "status": "ASSERTED",
+            "subject": "west corridor painting",
+            "type": "WORK_STATUS"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": "west corridor",
+        "locations": ["west corridor"],
+        "operationalImpact": "LOW",
+        "primaryCategory": "PROGRESS_UPDATE",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Routine progress update without material issue, defect, delay, or downstream action requiring coordination",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Site supervisor reports painting has begun on the west corridor",
+        "uncertainty": "Start claim only; no evidence of crew size, area coverage, material batch, or prior surface preparation completion",
+        "userFacingReason": "Routine progress update does not require action"
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NOT_ELIGIBLE"
+    },
+    {
+      "caseId": "routine-5",
+      "classification": {
+        "abstentionReason": "Routine progress update with no material project consequence; housekeeping is standard site maintenance without scope, inspection, or delay implications.",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "CLAIMED",
+        "confidence": 0.75,
+        "factualClaims": [
+          {
+            "confidence": 0.7,
+            "statement": "Planned housekeeping round was completed",
+            "status": "ASSERTED",
+            "subject": "housekeeping round",
+            "type": "ACTIVITY_COMPLETION"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "NONE",
+        "primaryCategory": "PROGRESS_UPDATE",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Routine housekeeping completion with no material defect, delay, safety issue, or downstream action required. Standard operational update without evidence strong enough for central recommendation gate.",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Site supervisor reports completion of planned housekeeping round.",
+        "uncertainty": "No details on scope, areas covered, or standards met; completion claim is unverified.",
+        "userFacingReason": "This is a routine housekeeping update with no material impact on project progress, safety, or deliverables."
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NOT_ELIGIBLE"
+    },
+    {
+      "caseId": "routine-6",
+      "classification": {
+        "abstentionReason": "Routine testing activity with no material signal; no defect reported, no inspection readiness claimed, no approval or variation mentioned",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.75,
+        "factualClaims": [
+          {
+            "confidence": 0.7,
+            "statement": "Tested two lighting circuits today",
+            "status": "ASSERTED",
+            "subject": "lighting circuits",
+            "type": "WORK_ACTIVITY"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "LOW",
+        "primaryCategory": "PROGRESS_UPDATE",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Routine progress update without material issues, defects, delays, or downstream actions requiring coordination",
+        "referencedDates": [
+          {
+            "confidence": 0.95,
+            "phrase": "today",
+            "resolvedDate": "2026-07-21"
+          }
+        ],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Site supervisor reports testing two lighting circuits",
+        "uncertainty": "No details on test results (pass/fail), circuit identifiers, or whether testing is complete or ongoing",
+        "userFacingReason": "Routine update logged for awareness; no action required"
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NOT_ELIGIBLE"
+    },
+    {
+      "caseId": "routine-7",
+      "classification": {
+        "abstentionReason": "Routine delivery update without material issue, inspection request, or unresolved expectation",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "CLAIMED",
+        "confidence": 0.75,
+        "factualClaims": [
+          {
+            "confidence": 0.7,
+            "statement": "Finished unloading the normal material delivery",
+            "status": "ASSERTED",
+            "subject": "material delivery unloading",
+            "type": "ACTION"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "NONE",
+        "primaryCategory": "DELIVERY",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Routine material delivery completion with no defect, delay, or downstream action required",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Site supervisor reports finished unloading a normal material delivery",
+        "uncertainty": "No delivery details (material type, quantity, delivery reference) provided to verify claim",
+        "userFacingReason": "Routine operational update with no action required"
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NOT_ELIGIBLE"
+    },
+    {
+      "caseId": "routine-8",
+      "classification": {
+        "abstentionReason": "Routine informational progress update without material project consequence",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.75,
+        "factualClaims": [
+          {
+            "confidence": 0.6,
+            "statement": "ceiling framing is moving as planned",
+            "status": "ASSERTED",
+            "subject": "ceiling framing",
+            "type": "PROGRESS"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "NONE",
+        "primaryCategory": "PROGRESS_UPDATE",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Routine progress update with no material issue, defect, delay, or downstream action required; no evidence strong enough to create a candidate for central recommendation gate",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Routine progress update stating ceiling framing is proceeding as planned",
+        "uncertainty": "No quantities, pace detail, or verification provided; sender's claim is unverified",
+        "userFacingReason": "This is a routine status update with no action required"
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NOT_ELIGIBLE"
+    },
+    {
+      "caseId": "routine-9",
+      "classification": {
+        "abstentionReason": "Routine operational progress update with no material project consequence or candidate-eligible condition.",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "CLAIMED",
+        "confidence": 0.85,
+        "factualClaims": [
+          {
+            "confidence": 0.85,
+            "statement": "printer was commissioned",
+            "status": "ASSERTED",
+            "subject": "temporary site office printer",
+            "type": "ACTION"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "NONE",
+        "primaryCategory": "PROGRESS_UPDATE",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Routine commissioning of temporary site equipment; no material defect, delay, safety issue, or downstream action requiring central gate review.",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Site supervisor reports commissioning of temporary site office printer.",
+        "uncertainty": null,
+        "userFacingReason": "Routine progress update on temporary equipment setup; no action required."
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NOT_ELIGIBLE"
+    },
+    {
+      "caseId": "routine-10",
+      "classification": {
+        "abstentionReason": "Routine informational progress with no material signal warranting recommendation candidate status.",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "CLAIMED",
+        "confidence": 0.75,
+        "factualClaims": [
+          {
+            "confidence": 0.7,
+            "statement": "Labels were installed on the completed distribution boards",
+            "status": "ASSERTED",
+            "subject": "labels on distribution boards",
+            "type": "WORK_PERFORMED"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "LOW",
+        "primaryCategory": "PROGRESS_UPDATE",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Routine progress update on minor finishing work; no defect, delay, safety issue, or material downstream action requiring central gate attention.",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Site supervisor reports installing labels on completed distribution boards.",
+        "uncertainty": "Claim of completion is unverified; no photo evidence or inspection confirmation provided.",
+        "userFacingReason": "This is a routine progress update without material issues or strong evidence requiring central recommendation attention."
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NOT_ELIGIBLE"
+    },
+    {
+      "caseId": "issue-1",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.92,
+        "factualClaims": [
+          {
+            "confidence": 0.85,
+            "statement": "Live cable is exposed beside the access route",
+            "status": "ASSERTED",
+            "subject": "electrical cable",
+            "type": "CONDITION"
+          },
+          {
+            "confidence": 0.9,
+            "statement": "Condition is unsafe due to exposed live cable",
+            "status": "ASSERTED",
+            "subject": "access route",
+            "type": "SAFETY"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": "beside the access route",
+        "locations": ["beside the access route"],
+        "operationalImpact": "CRITICAL",
+        "primaryCategory": "SAFETY_ISSUE",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Exposed live cable presents imminent electrocution hazard requiring urgent verification and rectification; clear safety issue with material downstream action needed",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": "Exposed live cable reported beside access route",
+          "expectedResponder": null,
+          "requestedItem": "Immediate isolation/barricading and electrical remediation of exposed live cable",
+          "status": "OPEN",
+          "type": "DECISION"
+        },
+        "secondarySignals": ["DEFECT"],
+        "summary": "Site Supervisor reports exposed live cable beside access route creating unsafe condition requiring immediate attention",
+        "uncertainty": "No photo evidence provided; exact voltage, cable ownership, and whether the cable is currently energized rely on sender assertion",
+        "userFacingReason": "Critical safety hazard reported: exposed live cable near access route requires immediate response"
+      },
+      "error": null,
+      "fingerprint": "12d5ee8a1e14e14dd28172f7806481282cbd8602afca821d078d35879708d379",
+      "recommendationType": "ACTION_ITEM",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "issue-2",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.85,
+        "factualClaims": [
+          {
+            "confidence": 0.8,
+            "statement": "fire door closer is broken",
+            "status": "ASSERTED",
+            "subject": "fire door closer",
+            "type": "DEFECT"
+          },
+          {
+            "confidence": 0.9,
+            "statement": "needs rectification",
+            "status": "ASSERTED",
+            "subject": "fire door closer",
+            "type": "ACTION_REQUIRED"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "MEDIUM",
+        "primaryCategory": "DEFECT",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Material defect requiring verification and rectification; fire safety equipment failure creates a candidate for central recommendation gate",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": "broken fire door closer reported",
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Site Supervisor reports broken fire door closer requiring rectification",
+        "uncertainty": "No location specified for the fire door; no photo evidence provided to verify condition",
+        "userFacingReason": "Defect reported by field supervisor with clear rectification need; eligible for tracking pending verification"
+      },
+      "error": null,
+      "fingerprint": "a6d2a9f9037fbbe09fd38dd03912211aee35665f5baf8b5392c328ad08605df0",
+      "recommendationType": "ACTION_ITEM",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "issue-3",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.85,
+        "factualClaims": [
+          {
+            "confidence": 0.85,
+            "statement": "Concrete delivery is delayed by two days",
+            "status": "ASSERTED",
+            "subject": "Concrete delivery",
+            "type": "DELIVERY"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "MEDIUM",
+        "primaryCategory": "DELAY",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Concrete delivery delay of two days is a material schedule and resource issue affecting downstream work, creating a candidate for follow-up coordination.",
+        "referencedDates": [
+          {
+            "confidence": 0,
+            "phrase": "two days",
+            "resolvedDate": null
+          }
+        ],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": ["MATERIAL_ISSUE"],
+        "summary": "Site Supervisor reports concrete delivery delayed by two days.",
+        "uncertainty": "Exact original delivery date and rescheduled date not stated; duration only.",
+        "userFacingReason": "Delivery delay reported with quantified impact, warranting schedule coordination follow-up."
+      },
+      "error": null,
+      "fingerprint": "831ae51ccbbf6ee963dc7cabdb14c10e3a32697c2664af0e0a4b99ac1fa721e3",
+      "recommendationType": "ACTION_ITEM",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "issue-4",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.75,
+        "factualClaims": [
+          {
+            "confidence": 0.7,
+            "statement": "delivered panels are damaged on arrival",
+            "status": "ASSERTED",
+            "subject": "panels",
+            "type": "DELIVERY_CONDITION"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "HIGH",
+        "primaryCategory": "DEFECT",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Material defect (damaged panels on arrival) requiring verification and rectification; affects work continuity and may require replacement delivery",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": "Sender reports panels damaged on arrival; no photo evidence attached",
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": ["DELIVERY", "MATERIAL_ISSUE"],
+        "summary": "Site Supervisor reports delivered panels arrived damaged. No visual evidence attached.",
+        "uncertainty": "No photo evidence attached to verify damage claim; extent of damage and quantity affected unspecified",
+        "userFacingReason": "Damage to delivered materials is a material issue requiring verification and likely replacement, warranting follow-up action."
+      },
+      "error": null,
+      "fingerprint": "0f424f04fc2ea96e49b521ceb282a5fc74e70acf0862b35a3316e5afe15a33a4",
+      "recommendationType": "ACTION_ITEM",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "issue-5",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.8,
+        "factualClaims": [
+          {
+            "confidence": 0.8,
+            "statement": "Material shortage will delay the ceiling works",
+            "status": "ASSERTED",
+            "subject": "ceiling works",
+            "type": "DELAY"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "MEDIUM",
+        "primaryCategory": "DELAY",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Material shortage causing delay to ceiling works is a material issue affecting work progress, creating a candidate for follow-up on procurement and schedule impact.",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": ["MATERIAL_ISSUE"],
+        "summary": "Site Supervisor reports material shortage will delay ceiling works.",
+        "uncertainty": "Duration of delay unspecified; specific material type not identified; no mitigation plan stated.",
+        "userFacingReason": "Material shortage causing delay to ceiling works requires follow-up on procurement and schedule impact."
+      },
+      "error": null,
+      "fingerprint": "e6a87cf21fa2c7c7d320a63227c738f09aa77fd8f1b0297756f168446b895f2a",
+      "recommendationType": "ACTION_ITEM",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "issue-6",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.85,
+        "factualClaims": [
+          {
+            "confidence": 0.85,
+            "statement": "Crew shortage has delayed cable pulling",
+            "status": "ASSERTED",
+            "subject": "cable pulling",
+            "type": "MANPOWER"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "MEDIUM",
+        "primaryCategory": "DELAY",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Manpower shortage causing cable pulling delay is a material work issue affecting schedule",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": ["MANPOWER_ISSUE"],
+        "summary": "Crew shortage has delayed cable pulling work",
+        "uncertainty": "Duration of delay and specific number of crew members short not stated",
+        "userFacingReason": "Manpower shortage causing delay to cable pulling work requires attention"
+      },
+      "error": null,
+      "fingerprint": "6ff4a4d90c19799ab91eb036afec9213592f64603db352bfce5e05a9a2b17709",
+      "recommendationType": "ACTION_ITEM",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "issue-7",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.92,
+        "factualClaims": [
+          {
+            "confidence": 0.95,
+            "statement": "RFI submitted to clarify which drawing applies to the riser",
+            "status": "ASSERTED",
+            "subject": "drawing clarification for riser",
+            "type": "REQUEST"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "MEDIUM",
+        "primaryCategory": "RFI",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Named technical RFI with specific requested clarification; requires resolution and creates downstream coordination need even without explicit delay stated",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": "RFI text: clarify which drawing applies to the riser",
+          "expectedResponder": "Design team / Project engineer",
+          "requestedItem": "Clarification of which drawing applies to the riser",
+          "status": "OPEN",
+          "type": "QUESTION"
+        },
+        "secondarySignals": [],
+        "summary": "Site Supervisor submitted RFI seeking clarification on which drawing applies to the riser.",
+        "uncertainty": "No response deadline specified; no explicit downstream impact stated by sender",
+        "userFacingReason": "Technical RFI requires resolution to proceed with riser work."
+      },
+      "error": null,
+      "fingerprint": "ad51596c795e5910e60bdef9f5909d7ebd959d727a6705ed30996099ad464355",
+      "recommendationType": "ACTION_ITEM",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "issue-8",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.85,
+        "factualClaims": [
+          {
+            "confidence": 0.85,
+            "statement": "Client approved the variation",
+            "status": "ASSERTED",
+            "subject": "variation",
+            "type": "APPROVAL"
+          },
+          {
+            "confidence": 0.9,
+            "statement": "Proceed with the additional scope",
+            "status": "ASSERTED",
+            "subject": "additional work",
+            "type": "SCOPE"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "MEDIUM",
+        "primaryCategory": "CLIENT_APPROVAL",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Client approval of variation with explicit downstream action to proceed with additional scope creates material candidate for scope coordination and execution tracking",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": "Client approved variation for additional scope",
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": ["VARIATION_ORDER"],
+        "summary": "Client approved variation; instructed to proceed with additional scope",
+        "uncertainty": "Specific scope details, quantities, and boundaries of additional work not provided; downstream scheduling and resource implications not stated",
+        "userFacingReason": "Variation approval with proceed instruction is material for scope coordination"
+      },
+      "error": null,
+      "fingerprint": "a522755df5384cd24a6c91bb93da9e86f175ddbbfa76eb752febf3e9f252a189",
+      "recommendationType": "ACTION_ITEM",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "issue-9",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.85,
+        "factualClaims": [
+          {
+            "confidence": 0.85,
+            "statement": "Water is leaking from the newly tested valve",
+            "status": "ASSERTED",
+            "subject": "valve",
+            "type": "DEFECT"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "MEDIUM",
+        "primaryCategory": "DEFECT",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Active water leak from newly tested valve is a material defect requiring verification and rectification",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Water leak reported from newly tested valve",
+        "uncertainty": "Leak severity, valve location, and whether test was pressure test or operational test are unspecified; no photo evidence attached",
+        "userFacingReason": "Active leak from newly installed/tested equipment warrants inspection and repair tracking"
+      },
+      "error": null,
+      "fingerprint": "3b9fe9a9a31472c8c54aeb5848b9682dbdfe571d91cfe399bbfe505443b40761",
+      "recommendationType": "ACTION_ITEM",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "issue-10",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.9,
+        "factualClaims": [
+          {
+            "confidence": 0.9,
+            "statement": "Worker was observed without a harness at the roof edge",
+            "status": "ASSERTED",
+            "subject": "worker",
+            "type": "OBSERVATION"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": "roof edge",
+        "locations": ["roof edge"],
+        "operationalImpact": "CRITICAL",
+        "primaryCategory": "SAFETY_ISSUE",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Active safety violation observed: worker at roof edge without harness presents immediate fall hazard requiring urgent verification and corrective action",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Site supervisor reports worker observed without harness at roof edge, indicating active fall protection violation",
+        "uncertainty": "No information on whether worker was stopped, whether harness was unavailable, or if this is repeat occurrence",
+        "userFacingReason": "Immediate safety violation requiring verification and corrective action"
+      },
+      "error": null,
+      "fingerprint": "f5388bac49bf02461cb44de309f29f7f44eadad0e4e2822919129105a126a0b3",
+      "recommendationType": "ACTION_ITEM",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "partial-1",
+      "classification": {
+        "abstentionReason": "Routine progress update: cable tray installed, cabling pending. No material signal or candidate for central recommendation gate.",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "PARTIAL",
+        "confidence": 0.75,
+        "factualClaims": [
+          {
+            "confidence": 0.7,
+            "statement": "Cable tray has been installed",
+            "status": "ASSERTED",
+            "subject": "cable tray",
+            "type": "WORK_STATUS"
+          },
+          {
+            "confidence": 0.7,
+            "statement": "Cabling work is pending and not yet started",
+            "status": "ASSERTED",
+            "subject": "cabling",
+            "type": "WORK_STATUS"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "LOW",
+        "primaryCategory": "PROGRESS_UPDATE",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Routine partial progress update with no material issue, defect, delay, or downstream action requiring gate attention",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Site supervisor reports cable tray installation complete, with cabling work still pending.",
+        "uncertainty": "Sender claims installation complete but no photo evidence or inspection confirmation provided; quantities and quality unverified.",
+        "userFacingReason": "Routine progress update with no immediate action required."
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NOT_ELIGIBLE"
+    },
+    {
+      "caseId": "partial-2",
+      "classification": {
+        "abstentionReason": "Routine progress update with no material signal requiring central recommendation gate attention",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "PARTIAL",
+        "confidence": 0.75,
+        "factualClaims": [
+          {
+            "confidence": 0.7,
+            "statement": "All fittings installed",
+            "status": "ASSERTED",
+            "subject": "fittings installation",
+            "type": "WORK_STATUS"
+          },
+          {
+            "confidence": 0.8,
+            "statement": "Cabling is pending",
+            "status": "ASSERTED",
+            "subject": "cabling",
+            "type": "WORK_STATUS"
+          },
+          {
+            "confidence": 0.8,
+            "statement": "Testing is pending",
+            "status": "ASSERTED",
+            "subject": "testing",
+            "type": "WORK_STATUS"
+          }
+        ],
+        "inspectionReadiness": "NOT_READY",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "LOW",
+        "primaryCategory": "PROGRESS_UPDATE",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Routine partial progress update; work remains pending with no material defect, delay, or blocking issue identified",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Site supervisor reports fittings installed, cabling and testing still pending",
+        "uncertainty": "Sender's claim of completion for fittings is unverified; no quantities, locations, or inspection evidence provided",
+        "userFacingReason": "Partial progress reported with remaining work clearly identified; no action required"
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NOT_ELIGIBLE"
+    },
+    {
+      "caseId": "partial-3",
+      "classification": {
+        "abstentionReason": "Routine progress update with partial completion only; no material signal for recommendation gate",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "PARTIAL",
+        "confidence": 0.75,
+        "factualClaims": [
+          {
+            "confidence": 0.7,
+            "statement": "Panel installation completed except termination work",
+            "status": "ASSERTED",
+            "subject": "panel installation",
+            "type": "work_status"
+          }
+        ],
+        "inspectionReadiness": "NOT_READY",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "LOW",
+        "primaryCategory": "PROGRESS_UPDATE",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Routine partial progress update; termination work remains incomplete, no material issue, defect, delay, or downstream action requiring gate review",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Panel installation reported partially complete; termination work still pending",
+        "uncertainty": "Sender claims completion of non-termination portion without independent verification; scope and quality of completed work not confirmed",
+        "userFacingReason": "Partial progress update recorded; no action required until termination work complete and full inspection readiness claimed"
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NOT_ELIGIBLE"
+    },
+    {
+      "caseId": "partial-4",
+      "classification": {
+        "abstentionReason": "Routine progress update with partial completion only; no material signal requiring verification or rectification",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "PARTIAL",
+        "confidence": 0.8,
+        "factualClaims": [
+          {
+            "confidence": 0.7,
+            "statement": "Runway lights installed",
+            "status": "ASSERTED",
+            "subject": "runway lights",
+            "type": "INSTALLATION"
+          },
+          {
+            "confidence": 0.9,
+            "statement": "Commissioning not yet complete",
+            "status": "ASSERTED",
+            "subject": "runway lights",
+            "type": "COMMISSIONING"
+          }
+        ],
+        "inspectionReadiness": "NOT_READY",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "LOW",
+        "primaryCategory": "PROGRESS_UPDATE",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Routine partial progress update; installation claimed but commissioning incomplete, no defect, delay, safety issue, or material downstream action identified",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Runway lights installation claimed complete, but commissioning remains pending",
+        "uncertainty": "Installation claim lacks photo or inspection evidence; commissioning scope and timeline undefined",
+        "userFacingReason": "This is a routine partial progress update. The lights are reported installed but not yet commissioned, with no material issue or downstream action identified."
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NOT_ELIGIBLE"
+    },
+    {
+      "caseId": "partial-5",
+      "classification": {
+        "abstentionReason": "Routine progress claim with incomplete scope; no material signal requiring central recommendation gate action",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "PARTIAL",
+        "confidence": 0.75,
+        "factualClaims": [
+          {
+            "confidence": 0.6,
+            "statement": "Pipework is finished",
+            "status": "ASSERTED",
+            "subject": "pipework",
+            "type": "WORK_COMPLETION"
+          },
+          {
+            "confidence": 0.85,
+            "statement": "Pressure testing remains incomplete",
+            "status": "ASSERTED",
+            "subject": "pressure testing",
+            "type": "WORK_STATUS"
+          }
+        ],
+        "inspectionReadiness": "NOT_READY",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "LOW",
+        "primaryCategory": "PROGRESS_UPDATE",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Routine partial progress update: pipework claimed complete but pressure testing pending; no defect, delay, safety issue, or material downstream action identified",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Site supervisor reports pipework finished but pressure testing still remains",
+        "uncertainty": "Completion claim is sender-asserted without evidence; pressure testing scope and prerequisites unclear",
+        "userFacingReason": "Partial progress update with no material issue or actionable signal for recommendation"
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NOT_ELIGIBLE"
+    },
+    {
+      "caseId": "partial-6",
+      "classification": {
+        "abstentionReason": "Routine progress update with no material signal requiring follow-up; partial completion is normal project state",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "PARTIAL",
+        "confidence": 0.8,
+        "factualClaims": [
+          {
+            "confidence": 0.8,
+            "statement": "Doors have been installed",
+            "status": "ASSERTED",
+            "subject": "doors",
+            "type": "WORK_STATUS"
+          },
+          {
+            "confidence": 0.8,
+            "statement": "Ironmongery installation is remaining/incomplete",
+            "status": "ASSERTED",
+            "subject": "ironmongery",
+            "type": "WORK_STATUS"
+          }
+        ],
+        "inspectionReadiness": "NOT_READY",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "LOW",
+        "primaryCategory": "PROGRESS_UPDATE",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Routine partial progress update; remaining work (ironmongery) explicitly noted, no defect, delay, or material issue claimed",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Doors installed but ironmongery fitting remains incomplete",
+        "uncertainty": "No quantities, locations, or timeline for remaining ironmongery work specified",
+        "userFacingReason": "Partial installation status reported; no action required unless ironmongery delay becomes material"
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NOT_ELIGIBLE"
+    },
+    {
+      "caseId": "partial-7",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "PARTIAL",
+        "confidence": 0.8,
+        "factualClaims": [
+          {
+            "confidence": 0.7,
+            "statement": "Delivery completed",
+            "status": "ASSERTED",
+            "subject": "Delivery",
+            "type": "DELIVERY_STATUS"
+          },
+          {
+            "confidence": 0.85,
+            "statement": "Two pallets are missing from the delivery",
+            "status": "ASSERTED",
+            "subject": "Pallets",
+            "type": "QUANTITY_SHORTFALL"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "MEDIUM",
+        "primaryCategory": "DELIVERY",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Missing materials from a delivery constitute a material issue affecting work progress and requiring follow-up for missing pallets",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": "Two pallets missing from completed delivery",
+          "expectedResponder": "Supplier or logistics",
+          "requestedItem": "Missing two pallets",
+          "status": "OPEN",
+          "type": "DELIVERY_UPDATE"
+        },
+        "secondarySignals": ["MATERIAL_ISSUE"],
+        "summary": "Delivery partially complete with two pallets missing, requiring follow-up on outstanding items",
+        "uncertainty": "Sender claims delivery 'completed' but also reports missing pallets; 'completed' appears to mean delivery process finished rather than full receipt verified",
+        "userFacingReason": "Missing materials require tracking and resolution to avoid work impact"
+      },
+      "error": null,
+      "fingerprint": "92f9a770aaea7ea3d828a5a0851d12638e069f0422ba9b8cb4219c6112fe6c18",
+      "recommendationType": "ACTION_ITEM",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "partial-8",
+      "classification": {
+        "abstentionReason": "Routine progress with no material signal requiring verification or rectification; partial completion is informational only.",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "PARTIAL",
+        "confidence": 0.75,
+        "factualClaims": [
+          {
+            "confidence": 0.7,
+            "statement": "concrete pour completed except the final bay",
+            "status": "ASSERTED",
+            "subject": "concrete pour",
+            "type": "WORK_STATUS"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "LOW",
+        "primaryCategory": "PROGRESS_UPDATE",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Routine partial progress update; no defect, delay, safety issue, or material downstream action identified. 'Except the final bay' is scope exclusion, not a claimed impediment.",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Site Supervisor reports concrete pour is completed except for the final bay.",
+        "uncertainty": "No information on why final bay is excluded, expected timing for final bay, or whether exclusion is planned or due to an issue.",
+        "userFacingReason": "Routine progress update; no action required."
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NOT_ELIGIBLE"
+    },
+    {
+      "caseId": "partial-9",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.82,
+        "factualClaims": [
+          {
+            "confidence": 0.85,
+            "statement": "a failed circuit remains unresolved",
+            "status": "ASSERTED",
+            "subject": "electrical circuit",
+            "type": "DEFECT"
+          },
+          {
+            "confidence": 0.9,
+            "statement": "testing started",
+            "status": "ASSERTED",
+            "subject": "testing",
+            "type": "PROGRESS"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "MEDIUM",
+        "primaryCategory": "DEFECT",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Unresolved failed circuit is a material defect requiring verification and rectification; testing has started but the underlying issue persists.",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": ["PROGRESS_UPDATE"],
+        "summary": "Testing has commenced but a failed electrical circuit remains unresolved, indicating an active defect that may affect progress or safety.",
+        "uncertainty": "Specific circuit location, nature of failure, and whether this blocks critical path work are not stated.",
+        "userFacingReason": "Unresolved failed circuit requires follow-up to verify status and coordinate rectification."
+      },
+      "error": null,
+      "fingerprint": "df64d6bf6afc52038ce3c216acfb0dc416d38a4184254a19ad2969c406e97c3b",
+      "recommendationType": "ACTION_ITEM",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "partial-10",
+      "classification": {
+        "abstentionReason": "Routine progress update without material downstream action required; 'pending consultant comments' describes standard next step, not an unresolved expectation with identifiable due date or requested item.",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "CLAIMED",
+        "confidence": 0.7,
+        "factualClaims": [
+          {
+            "confidence": 0.6,
+            "statement": "Ceiling work is complete",
+            "status": "ASSERTED",
+            "subject": "ceiling",
+            "type": "WORK_COMPLETION"
+          },
+          {
+            "confidence": 0.8,
+            "statement": "Pending consultant comments",
+            "status": "ASSERTED",
+            "subject": "ceiling",
+            "type": "PENDING_REVIEW"
+          }
+        ],
+        "inspectionReadiness": "READY_CLAIMED",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "LOW",
+        "primaryCategory": "PROGRESS_UPDATE",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Routine progress claim with no defect, delay, or material issue identified; pending consultant comments is a standard workflow state, not an overdue or blocked expectation.",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Site supervisor reports ceiling work is complete and awaiting consultant feedback.",
+        "uncertainty": "No evidence provided for completion claim; 'pending consultant comments' lacks specificity on whether formal inspection was requested or consultant response is overdue.",
+        "userFacingReason": "This is a routine progress update. The completion claim is unverified and there is no identifiable blocked expectation or material issue requiring recommendation."
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NOT_ELIGIBLE"
+    },
+    {
+      "caseId": "inspection-1",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "CLAIMED",
+        "confidence": 0.8,
+        "factualClaims": [
+          {
+            "confidence": 0.6,
+            "statement": "Taxiway A circuit installation is complete",
+            "status": "ASSERTED",
+            "subject": "Taxiway A circuit installation",
+            "type": "WORK_COMPLETION"
+          },
+          {
+            "confidence": 0.6,
+            "statement": "Taxiway A circuit testing is complete",
+            "status": "ASSERTED",
+            "subject": "Taxiway A circuit testing",
+            "type": "WORK_COMPLETION"
+          }
+        ],
+        "inspectionReadiness": "READY_CLAIMED",
+        "location": "Taxiway A",
+        "locations": ["Taxiway A"],
+        "operationalImpact": "MEDIUM",
+        "primaryCategory": "INSPECTION_REQUEST",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Explicit inspection request with prerequisites claimed complete; candidate for central gate to verify evidence and arrange consultant",
+        "referencedDates": [
+          {
+            "confidence": 0,
+            "phrase": "complete",
+            "resolvedDate": null
+          }
+        ],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": "Circuit installation and testing claimed complete on Taxiway A",
+          "expectedResponder": "Consultant",
+          "requestedItem": "Arrange consultant inspection for Taxiway A circuit installation and testing",
+          "status": "OPEN",
+          "type": "APPROVAL"
+        },
+        "secondarySignals": ["PROGRESS_UPDATE"],
+        "summary": "Site supervisor claims Taxiway A circuit installation and testing are complete and requests consultant inspection arrangement",
+        "uncertainty": "Sender's claim of completion and testing readiness is unverified; no photo or documentary evidence attached; actual inspection readiness depends on consultant verification",
+        "userFacingReason": "Inspection request with completion claim requires central gate review to verify prerequisites and schedule consultant"
+      },
+      "error": null,
+      "fingerprint": "754be42313852d36fd9759c020092bf2476d08fe636716186005a001a6bb5715",
+      "recommendationType": "INSPECTION",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "inspection-2",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "CLAIMED",
+        "confidence": 0.75,
+        "factualClaims": [
+          {
+            "confidence": 0.6,
+            "statement": "Punch-list items are closed",
+            "status": "ASSERTED",
+            "subject": "Punch-list items for Pump Room A",
+            "type": "COMPLETION"
+          },
+          {
+            "confidence": 0.6,
+            "statement": "Ready for final inspection",
+            "status": "ASSERTED",
+            "subject": "Pump Room A",
+            "type": "INSPECTION_READINESS"
+          }
+        ],
+        "inspectionReadiness": "READY_CLAIMED",
+        "location": "Pump Room A",
+        "locations": ["Pump Room A"],
+        "operationalImpact": "MEDIUM",
+        "primaryCategory": "INSPECTION_REQUEST",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Explicit scoped inspection request with prerequisites claimed complete (punch-list items closed). Central gate should verify evidence and prerequisites.",
+        "referencedDates": [
+          {
+            "confidence": 1,
+            "phrase": "July 21, 2026",
+            "resolvedDate": "2026-07-21"
+          }
+        ],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": "Punch-list items are closed; request final inspection for Pump Room A.",
+          "expectedResponder": null,
+          "requestedItem": "Final inspection for Pump Room A",
+          "status": "OPEN",
+          "type": "APPROVAL"
+        },
+        "secondarySignals": [],
+        "summary": "Site Supervisor requests final inspection for Pump Room A, claiming punch-list items are closed.",
+        "uncertainty": "Sender's claim that punch-list items are closed is unverified; no photo or document evidence provided. Inspection readiness not independently confirmed.",
+        "userFacingReason": "Inspection request with claimed completion requires central gate verification before scheduling."
+      },
+      "error": null,
+      "fingerprint": "24becf986ecc4c77c6fb77f7b8b8f047ceb3ce9b4dffcfc543487163aa0bfbfd",
+      "recommendationType": "INSPECTION",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "inspection-3",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "CLAIMED",
+        "confidence": 0.8,
+        "factualClaims": [
+          {
+            "confidence": 0.7,
+            "statement": "fire alarm test passed",
+            "status": "ASSERTED",
+            "subject": "fire alarm",
+            "type": "TEST_RESULT"
+          }
+        ],
+        "inspectionReadiness": "READY_CLAIMED",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "MEDIUM",
+        "primaryCategory": "INSPECTION_REQUEST",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Explicit inspection request with claimed prerequisite (fire alarm test passed) creates a material candidate for scheduling coordination",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": "Fire alarm test passed",
+          "expectedResponder": "Authority / project manager",
+          "requestedItem": "Schedule authority inspection",
+          "status": "OPEN",
+          "type": "APPROVAL"
+        },
+        "secondarySignals": [],
+        "summary": "Site supervisor reports fire alarm test passed and requests scheduling of authority inspection",
+        "uncertainty": "Sender claims test passed but no independent evidence provided; authority inspection readiness not independently verified",
+        "userFacingReason": "Inspection request with claimed prerequisite completion warrants scheduling follow-up"
+      },
+      "error": null,
+      "fingerprint": "1894888b9dadcd067f43c3b4b967c7d43f5adef635baa9ebdb3e1f7f15f63772",
+      "recommendationType": "INSPECTION",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "inspection-4",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "CLAIMED",
+        "confidence": 0.8,
+        "factualClaims": [
+          {
+            "confidence": 0.7,
+            "statement": "CCR panel testing is complete",
+            "status": "ASSERTED",
+            "subject": "CCR panel testing",
+            "type": "WORK_COMPLETION"
+          }
+        ],
+        "inspectionReadiness": "READY_CLAIMED",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "MEDIUM",
+        "primaryCategory": "INSPECTION_REQUEST",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Explicit inspection request with claimed completion of prerequisite testing; creates candidate for central gate to verify readiness and coordinate inspection scheduling",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": "CCR panel testing completion claimed",
+          "expectedResponder": "Consultant",
+          "requestedItem": "Consultant inspection of CCR panel",
+          "status": "OPEN",
+          "type": "INSPECTION_RESULT"
+        },
+        "secondarySignals": ["PROGRESS_UPDATE"],
+        "summary": "Site supervisor claims CCR panel testing is complete and requests consultant inspection",
+        "uncertainty": "Testing completion is claimed but not independently verified; no evidence of test results or sign-off attached",
+        "userFacingReason": "Inspection request with claimed completion requires verification before scheduling"
+      },
+      "error": null,
+      "fingerprint": "291cad2d795d97e97dff1582a2d96d1be5585ff51422490a7be79246e74b5b90",
+      "recommendationType": "INSPECTION",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "inspection-5",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "CLAIMED",
+        "confidence": 0.75,
+        "factualClaims": [
+          {
+            "confidence": 0.6,
+            "statement": "Level 3 chilled water pipework is ready for inspection",
+            "status": "ASSERTED",
+            "subject": "Level 3 chilled water pipework",
+            "type": "WORK_READINESS"
+          }
+        ],
+        "inspectionReadiness": "READY_CLAIMED",
+        "location": "Level 3",
+        "locations": ["Level 3"],
+        "operationalImpact": "MEDIUM",
+        "primaryCategory": "INSPECTION_REQUEST",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Explicit inspection request with scope and readiness claimed; central gate should verify prerequisites and schedule inspection",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": "Level 3 chilled water pipework readiness claimed",
+          "expectedResponder": "Inspector or project manager",
+          "requestedItem": "Inspection of Level 3 chilled water pipework",
+          "status": "OPEN",
+          "type": "INSPECTION_RESULT"
+        },
+        "secondarySignals": [],
+        "summary": "Site Supervisor claims Level 3 chilled water pipework is ready for inspection and requests inspection.",
+        "uncertainty": "Readiness claim is asserted without supporting evidence or prerequisite verification; actual completion and inspection readiness not certified",
+        "userFacingReason": "Inspection request requires central gate verification of prerequisites before scheduling"
+      },
+      "error": null,
+      "fingerprint": "9596d397e7570094174585bdb995319fd49f233bbb0726e4d618f6f81b6e3f7d",
+      "recommendationType": "INSPECTION",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "inspection-6",
+      "classification": {
+        "abstentionReason": "Bare 'Delivery completed' lacks context to determine what was delivered, whether it relates to active project work, or if any downstream action is needed. Cannot distinguish routine notification from material event without additional context.",
+        "ambiguity": {
+          "isAmbiguous": true,
+          "missingContext": [
+            "What item or material was delivered",
+            "Delivery location",
+            "Whether delivery was expected or overdue",
+            "Whether delivery relates to active milestone or work",
+            "Any condition or quantity details"
+          ]
+        },
+        "completionClaim": "AMBIGUOUS",
+        "confidence": 0.3,
+        "factualClaims": [
+          {
+            "confidence": 0.3,
+            "statement": "Delivery completed",
+            "status": "ASSERTED",
+            "subject": "unspecified delivery",
+            "type": "DELIVERY"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "NONE",
+        "primaryCategory": "UNKNOWN",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Message is a context-free short claim with no supporting detail, no delivery identification, no location, no quantities, and no evidence to assess material impact.",
+        "referencedDates": [],
+        "relevance": "AMBIGUOUS",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Bare claim of delivery completion with no identifying details.",
+        "uncertainty": "No context to verify claim or assess materiality.",
+        "userFacingReason": "This message is too brief to understand what was delivered or whether any action is needed."
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "REQUEST_CLARIFICATION",
+      "reasonCode": "AMBIGUOUS"
+    },
+    {
+      "caseId": "inspection-7",
+      "classification": {
+        "abstentionReason": "Routine progress claim with insufficient specificity or evidence to create a material candidate for central recommendation gate.",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "CLAIMED",
+        "confidence": 0.6,
+        "factualClaims": [
+          {
+            "confidence": 0.6,
+            "statement": "Equipment installed",
+            "status": "ASSERTED",
+            "subject": "equipment installation",
+            "type": "COMPLETION"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "LOW",
+        "primaryCategory": "PROGRESS_UPDATE",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Bare completion claim without scope detail, evidence, or downstream action required. No inspection request, no defect, no delay, no material issue identified.",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Site supervisor claims equipment has been installed.",
+        "uncertainty": "No equipment type, location, quantity, or supporting evidence specified. Claim is unverified.",
+        "userFacingReason": "The message states equipment was installed but provides no details on what equipment, where, or with what evidence. This is a routine progress update without sufficient specificity to warrant escalation."
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NOT_ELIGIBLE"
+    },
+    {
+      "caseId": "inspection-8",
+      "classification": {
+        "abstentionReason": "No operational content: vague reference to past discussion without scope, outcome, request, or claim",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.7,
+        "factualClaims": [
+          {
+            "confidence": 0.6,
+            "statement": "Inspection was discussed at a meeting",
+            "status": "ASSERTED",
+            "subject": "inspection",
+            "type": "MEETING_DISCUSSION"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "NONE",
+        "primaryCategory": "GENERAL_NOTE",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Routine mention of inspection topic without specific request, claim, or material issue; no actionable signal for central gate",
+        "referencedDates": [
+          {
+            "confidence": 0,
+            "phrase": "at the meeting",
+            "resolvedDate": null
+          }
+        ],
+        "relevance": "NON_OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Vague mention that inspection was discussed at a meeting, with no specifics",
+        "uncertainty": "No details on which inspection, what was decided, or any follow-up required",
+        "userFacingReason": "This message only notes a topic was discussed without any actionable information"
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NON_OPERATIONAL"
+    },
+    {
+      "caseId": "inspection-9",
+      "classification": {
+        "abstentionReason": "Routine informational progress with no material signal requiring central recommendation gate attention",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "PARTIAL",
+        "confidence": 0.75,
+        "factualClaims": [
+          {
+            "confidence": 0.7,
+            "statement": "cable tray installed",
+            "status": "ASSERTED",
+            "subject": "cable tray",
+            "type": "WORK_STATUS"
+          },
+          {
+            "confidence": 0.8,
+            "statement": "cabling pending",
+            "status": "ASSERTED",
+            "subject": "cabling",
+            "type": "WORK_STATUS"
+          },
+          {
+            "confidence": 0.5,
+            "statement": "inspection planned for later",
+            "status": "TENTATIVE",
+            "subject": "inspection",
+            "type": "INSPECTION_STATUS"
+          }
+        ],
+        "inspectionReadiness": "NOT_READY",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "LOW",
+        "primaryCategory": "PROGRESS_UPDATE",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Routine progress update with partial completion; no defect, delay claim, safety issue, or explicit material downstream action identified",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Cable tray installation partially complete; cabling not yet done; future inspection mentioned but not formally requested",
+        "uncertainty": "No specific date for 'later' inspection; 'installed' is sender's claim without verification",
+        "userFacingReason": "Routine field update noting partial progress with future inspection intent, no immediate action required"
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NOT_ELIGIBLE"
+    },
+    {
+      "caseId": "inspection-10",
+      "classification": {
+        "abstentionReason": "Routine progress update with photo claim; no defect, delay, safety issue, or explicit inspection request present",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "CLAIMED",
+        "confidence": 0.55,
+        "factualClaims": [
+          {
+            "confidence": 0.6,
+            "statement": "cabinet is completed",
+            "status": "ASSERTED",
+            "subject": "cabinet",
+            "type": "COMPLETION"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "LOW",
+        "primaryCategory": "PROGRESS_UPDATE",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Photo-only completion claim without inspection request or material issue; no downstream action triggered",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Site supervisor reports cabinet completion and references a photo attachment, but no photo was actually present in the message",
+        "uncertainty": "No photo was actually attached despite reference; claim is unverified",
+        "userFacingReason": "Claimed completion with missing photo evidence; no material issue or inspection request to act on"
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NOT_ELIGIBLE"
+    },
+    {
+      "caseId": "ack-1",
+      "classification": {
+        "abstentionReason": "Bare 'Okay' without reply context is ambiguous per instructions; cannot determine if acknowledgement, approval, or permission.",
+        "ambiguity": {
+          "isAmbiguous": true,
+          "missingContext": [
+            "Prior message or context that this 'Okay' responds to",
+            "Whether this is acknowledgement, approval, or permission"
+          ]
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.3,
+        "factualClaims": [],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "NONE",
+        "primaryCategory": "UNKNOWN",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Bare 'Okay' without reply context is ambiguous per instructions; cannot determine if acknowledgement, approval, or permission.",
+        "referencedDates": [],
+        "relevance": "AMBIGUOUS",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Bare 'Okay' with no reply context or prior message reference.",
+        "uncertainty": "Bare 'Okay' without reply context is ambiguous; could be acknowledgement, approval, or permission.",
+        "userFacingReason": "This message is too brief and lacks context to classify reliably."
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "REQUEST_CLARIFICATION",
+      "reasonCode": "AMBIGUOUS"
+    },
+    {
+      "caseId": "ack-2",
+      "classification": {
+        "abstentionReason": "Routine acknowledgement without operational substance; no signal requiring recommendation gate attention",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.95,
+        "factualClaims": [],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "NONE",
+        "primaryCategory": "ACKNOWLEDGEMENT",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Bare acknowledgement with no material project content, downstream action, or unresolved expectation",
+        "referencedDates": [],
+        "relevance": "NON_OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Site supervisor acknowledged with 'Okay noted' — no operational content conveyed",
+        "uncertainty": null,
+        "userFacingReason": "This is a routine acknowledgement with no project impact or action required"
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NON_OPERATIONAL"
+    },
+    {
+      "caseId": "ack-3",
+      "classification": {
+        "abstentionReason": "Routine one-word acknowledgement without operational substance; no downstream action or material signal to route",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.95,
+        "factualClaims": [],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "NONE",
+        "primaryCategory": "ACKNOWLEDGEMENT",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Bare acknowledgement with no material project content, no defect, delay, or actionable signal",
+        "referencedDates": [],
+        "relevance": "NON_OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Site supervisor sent a one-word acknowledgement 'Noted' with no operational content",
+        "uncertainty": null,
+        "userFacingReason": "This is a routine acknowledgement with no project information requiring follow-up"
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NON_OPERATIONAL"
+    },
+    {
+      "caseId": "ack-4",
+      "classification": {
+        "abstentionReason": "Routine social/acknowledgement message with no operational substance.",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.95,
+        "factualClaims": [],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "NONE",
+        "primaryCategory": "ACKNOWLEDGEMENT",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Bare acknowledgement with no material project content, no downstream action, and no operational signal.",
+        "referencedDates": [],
+        "relevance": "NON_OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Bare 'Thanks' acknowledgement with no project information.",
+        "uncertainty": null,
+        "userFacingReason": "This is a simple thanks with no project information to act on."
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NON_OPERATIONAL"
+    },
+    {
+      "caseId": "ack-5",
+      "classification": {
+        "abstentionReason": "Single-word acknowledgment lacking any operational substance, request, or issue to act upon.",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.95,
+        "factualClaims": [],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "NONE",
+        "primaryCategory": "ACKNOWLEDGEMENT",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Bare acknowledgment with no material content, downstream action, or project consequence.",
+        "referencedDates": [],
+        "relevance": "NON_OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Site Supervisor sent a one-word acknowledgment 'Received' with no operational content.",
+        "uncertainty": "No context for what was received; no reply context available.",
+        "userFacingReason": "This is a routine acknowledgment with no project impact or action required."
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NON_OPERATIONAL"
+    },
+    {
+      "caseId": "ack-6",
+      "classification": {
+        "abstentionReason": "Routine operational acknowledgement without material signal; no defect, delay, safety issue, or other candidate-eligible condition present",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.7,
+        "factualClaims": [
+          {
+            "confidence": 0.6,
+            "statement": "Sender acknowledges receipt of something unspecified",
+            "status": "ASSERTED",
+            "subject": "unspecified prior message or instruction",
+            "type": "ACKNOWLEDGEMENT"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "NONE",
+        "primaryCategory": "ACKNOWLEDGEMENT",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Bare acknowledgement with no material project content, no unresolved expectation referenced, and no downstream action implied",
+        "referencedDates": [],
+        "relevance": "NON_OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Site supervisor sent a one-word acknowledgement ('Acknowledged') with no referenced topic or implied action",
+        "uncertainty": "Subject of acknowledgement is unknown; no reply context provided to identify what was acknowledged",
+        "userFacingReason": "This is a routine acknowledgement with no actionable project information"
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NON_OPERATIONAL"
+    },
+    {
+      "caseId": "ack-7",
+      "classification": {
+        "abstentionReason": "Routine social courtesy with no project consequence.",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.95,
+        "factualClaims": [],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "NONE",
+        "primaryCategory": "ACKNOWLEDGEMENT",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Bare social expression of thanks with no material project content, no claims, no requests, and no operational signal.",
+        "referencedDates": [],
+        "relevance": "NON_OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Brief thanks with no operational content.",
+        "uncertainty": null,
+        "userFacingReason": "This is a simple thank-you with no project information to act on."
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NON_OPERATIONAL"
+    },
+    {
+      "caseId": "ambiguous-1",
+      "classification": {
+        "abstentionReason": "Missing context prevents reliable classification: no reply context, no referenced task, no location, no scope, and no preceding message thread to disambiguate whether 'Done' indicates completion, acknowledgement, or social sign-off.",
+        "ambiguity": {
+          "isAmbiguous": true,
+          "missingContext": [
+            "subject of 'Done'",
+            "preceding message or task reference",
+            "location or scope",
+            "whether this is completion claim or acknowledgement",
+            "intended recipient action"
+          ]
+        },
+        "completionClaim": "AMBIGUOUS",
+        "confidence": 0.3,
+        "factualClaims": [],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "NONE",
+        "primaryCategory": "UNKNOWN",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Bare 'Done' with no context—no identifiable work item, scope, location, or preceding thread to interpret what was completed or whether it represents genuine progress, delivery, or mere acknowledgement.",
+        "referencedDates": [],
+        "relevance": "AMBIGUOUS",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Bare 'Done' with no identifiable subject or context.",
+        "uncertainty": "Cannot determine what work, delivery, or task 'Done' refers to; no thread context available.",
+        "userFacingReason": "The message 'Done' has no context—we don't know what was completed, where, or whether any action is needed from you."
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "REQUEST_CLARIFICATION",
+      "reasonCode": "AMBIGUOUS"
+    },
+    {
+      "caseId": "ambiguous-2",
+      "classification": {
+        "abstentionReason": "Context-free 'Complete' provides no referent for what is completed; no prior message, milestone, or action item in bounded context to anchor meaning.",
+        "ambiguity": {
+          "isAmbiguous": true,
+          "missingContext": [
+            "Subject of completion claim",
+            "Scope or work item referenced",
+            "Prior context or thread",
+            "Location",
+            "Verification or evidence"
+          ]
+        },
+        "completionClaim": "AMBIGUOUS",
+        "confidence": 0.2,
+        "factualClaims": [
+          {
+            "confidence": 0.3,
+            "statement": "Something is complete",
+            "status": "TENTATIVE",
+            "subject": "unknown",
+            "type": "COMPLETION"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "NONE",
+        "primaryCategory": "UNKNOWN",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Bare 'Complete' with no subject, scope, or context cannot support any material candidate; no identifiable work item, milestone, or deliverable to evaluate.",
+        "referencedDates": [],
+        "relevance": "AMBIGUOUS",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Bare 'Complete' with no identifiable subject or context.",
+        "uncertainty": "No context to determine what is claimed complete; cannot assess materiality or verify.",
+        "userFacingReason": "The message 'Complete' lacks any context about what was completed. We cannot determine if this relates to project work, a task, or something else."
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "REQUEST_CLARIFICATION",
+      "reasonCode": "AMBIGUOUS"
+    },
+    {
+      "caseId": "ambiguous-3",
+      "classification": {
+        "abstentionReason": "Message is a context-free single word 'Completed' with no identifiable work item, location, or preceding context to interpret what was completed",
+        "ambiguity": {
+          "isAmbiguous": true,
+          "missingContext": [
+            "What work item or task was completed",
+            "Location of claimed completion",
+            "Whether completion refers to own work or third-party update",
+            "Preceding message or thread context for reference"
+          ]
+        },
+        "completionClaim": "AMBIGUOUS",
+        "confidence": 0.2,
+        "factualClaims": [
+          {
+            "confidence": 0.3,
+            "statement": "Something was completed",
+            "status": "TENTATIVE",
+            "subject": "unknown",
+            "type": "COMPLETION"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "NONE",
+        "primaryCategory": "UNKNOWN",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Bare 'Completed' with no subject, scope, location, or reply context cannot support any material operational signal",
+        "referencedDates": [],
+        "relevance": "AMBIGUOUS",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Bare 'Completed' with no identifiable subject or context",
+        "uncertainty": "No reply context, no active milestones, no open action items, and no prior messages to anchor the claim",
+        "userFacingReason": "Cannot determine what was completed or whether this is a progress claim, an acknowledgement, or unrelated message"
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "REQUEST_CLARIFICATION",
+      "reasonCode": "AMBIGUOUS"
+    },
+    {
+      "caseId": "ambiguous-4",
+      "classification": {
+        "abstentionReason": "Cannot determine what work is claimed finished, by whom, for what scope, or whether any verification or downstream action is needed.",
+        "ambiguity": {
+          "isAmbiguous": true,
+          "missingContext": [
+            "What work or task is claimed finished",
+            "Which location or scope",
+            "Whether completion is self-certified or verified",
+            "Whether any downstream action is required"
+          ]
+        },
+        "completionClaim": "AMBIGUOUS",
+        "confidence": 0.3,
+        "factualClaims": [
+          {
+            "confidence": 0.3,
+            "statement": "Something is finished",
+            "status": "TENTATIVE",
+            "subject": "unknown work",
+            "type": "COMPLETION"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "NONE",
+        "primaryCategory": "UNKNOWN",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Bare 'Finished' with no subject, scope, or context cannot support any material candidate.",
+        "referencedDates": [],
+        "relevance": "AMBIGUOUS",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Bare 'Finished' with no identifiable subject or context.",
+        "uncertainty": "No context to interpret what 'Finished' refers to.",
+        "userFacingReason": "The message 'Finished' lacks any identifiable subject, location, or scope needed to understand what was completed or whether any action is needed."
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "REQUEST_CLARIFICATION",
+      "reasonCode": "AMBIGUOUS"
+    },
+    {
+      "caseId": "expectation-1",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.92,
+        "factualClaims": [
+          {
+            "confidence": 0.95,
+            "statement": "Signed test sheet was promised by Friday",
+            "status": "ASSERTED",
+            "subject": "Signed test sheet",
+            "type": "COMMITMENT"
+          },
+          {
+            "confidence": 0.95,
+            "statement": "Delivery of signed test sheet is now overdue",
+            "status": "ASSERTED",
+            "subject": "Signed test sheet delivery",
+            "type": "DELAY"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "MEDIUM",
+        "primaryCategory": "COMMITMENT",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Overdue commitment with specific deliverable (signed test sheet) and explicit past-due status; requires follow-up to resolve delivery expectation",
+        "referencedDates": [
+          {
+            "confidence": 0.9,
+            "phrase": "Friday",
+            "resolvedDate": "2026-07-17"
+          }
+        ],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": "2026-07-17",
+          "evidence": "Signed test sheet",
+          "expectedResponder": "Site Supervisor",
+          "requestedItem": "Signed test sheet",
+          "status": "OPEN",
+          "type": "DELIVERY_UPDATE"
+        },
+        "secondarySignals": ["DELAY"],
+        "summary": "Site Supervisor states commitment to send signed test sheet by Friday is now overdue; no delivery made",
+        "uncertainty": "Exact due time on Friday not specified; message timestamp suggests Friday July 17, 2026 based on most recent Friday before Tuesday July 21",
+        "userFacingReason": "Overdue delivery commitment requires follow-up to obtain signed test sheet"
+      },
+      "error": null,
+      "fingerprint": "8fac515400149dbf86bddf4d28684c5fb12e65be4467b85b105c7300673524b4",
+      "recommendationType": "FOLLOW_UP",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "expectation-2",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.85,
+        "factualClaims": [
+          {
+            "confidence": 0.85,
+            "statement": "quotation was due yesterday and has not been received",
+            "status": "ASSERTED",
+            "subject": "quotation",
+            "type": "COMMITMENT_STATUS"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "MEDIUM",
+        "primaryCategory": "DELAY",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Overdue quotation is a material commitment failure affecting procurement and downstream work scheduling. Specific item identified with explicit past-due date.",
+        "referencedDates": [
+          {
+            "confidence": 0.9,
+            "phrase": "yesterday",
+            "resolvedDate": "2026-07-20"
+          }
+        ],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": "2026-07-20",
+          "evidence": "quotation not received by due date",
+          "expectedResponder": "recipient of message (likely contractor/supplier)",
+          "requestedItem": "quotation",
+          "status": "OPEN",
+          "type": "COMMITMENT"
+        },
+        "secondarySignals": ["COMMITMENT"],
+        "summary": "Site Supervisor follows up on quotation that was due yesterday (July 20) and has not been received.",
+        "uncertainty": "Sender does not specify which supplier or work package the quotation covers; recipient of the request is implied but not named.",
+        "userFacingReason": "Overdue quotation creates procurement delay risk requiring follow-up action."
+      },
+      "error": null,
+      "fingerprint": "7291ef6e9c8b1635cc42262f63636162a2319da444349ea302c3006eba54162b",
+      "recommendationType": "FOLLOW_UP",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "expectation-3",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.8,
+        "factualClaims": [
+          {
+            "confidence": 0.7,
+            "statement": "approval request is overdue",
+            "status": "ASSERTED",
+            "subject": "approval request",
+            "type": "STATUS"
+          },
+          {
+            "confidence": 0.9,
+            "statement": "sender requests confirmation of approval status today",
+            "status": "ASSERTED",
+            "subject": "approval confirmation",
+            "type": "REQUEST"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "MEDIUM",
+        "primaryCategory": "QUESTION",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Overdue unresolved expectation with specific requested item (approval confirmation) and explicit due date (today, resolved to 2026-07-21)",
+        "referencedDates": [
+          {
+            "confidence": 0.95,
+            "phrase": "today",
+            "resolvedDate": "2026-07-21"
+          }
+        ],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": "2026-07-21",
+          "evidence": "prior approval request referenced as overdue",
+          "expectedResponder": "recipient (approval authority)",
+          "requestedItem": "confirmation of approval status",
+          "status": "OPEN",
+          "type": "APPROVAL"
+        },
+        "secondarySignals": [],
+        "summary": "Site Supervisor follows up on overdue approval request, asking for confirmation today.",
+        "uncertainty": "Specific approval originally requested is not detailed; nature of approval and original request date unknown.",
+        "userFacingReason": "Overdue approval follow-up requires timely response to unblock potential downstream work."
+      },
+      "error": null,
+      "fingerprint": "6ccee9f4bb9ea9a3d4be4f4a9546d50c18973509a3cad75bf25c750aa7c8514a",
+      "recommendationType": "FOLLOW_UP",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "expectation-4",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.92,
+        "factualClaims": [
+          {
+            "confidence": 0.95,
+            "statement": "Delivery update was due by 18 July 2026",
+            "status": "ASSERTED",
+            "subject": "Delivery update",
+            "type": "COMMITMENT"
+          },
+          {
+            "confidence": 0.95,
+            "statement": "Delivery update has not been received as of 21 July 2026",
+            "status": "ASSERTED",
+            "subject": "Delivery update",
+            "type": "COMMITMENT"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "MEDIUM",
+        "primaryCategory": "DELAY",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Overdue delivery commitment with explicit due date and unresolved status; requires follow-up to obtain status",
+        "referencedDates": [
+          {
+            "confidence": 0.95,
+            "phrase": "18 July",
+            "resolvedDate": "2026-07-18"
+          },
+          {
+            "confidence": 0.9,
+            "phrase": "not received",
+            "resolvedDate": "2026-07-21"
+          }
+        ],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": "2026-07-18",
+          "evidence": "Delivery update not received by committed date",
+          "expectedResponder": "Delivery party or contractor",
+          "requestedItem": "Delivery update",
+          "status": "OPEN",
+          "type": "DELIVERY_UPDATE"
+        },
+        "secondarySignals": ["COMMITMENT"],
+        "summary": "Site Supervisor follows up on overdue delivery update committed for 18 July 2026, now four days past due with no response received.",
+        "uncertainty": "Identity of party responsible for delivery update; specific content expected in update",
+        "userFacingReason": "Overdue delivery commitment requires follow-up action to obtain status and mitigate potential downstream delay."
+      },
+      "error": null,
+      "fingerprint": "f4d050a380c7f108e5305055294f60ebe66182ffba9c37d03f35ab81bac55e27",
+      "recommendationType": "FOLLOW_UP",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "expectation-5",
+      "classification": {
+        "abstentionReason": "Routine photo request with no material project consequence, specific defect to verify, or inspection context",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.85,
+        "factualClaims": [
+          {
+            "confidence": 0.95,
+            "statement": "Sender is requesting current site photos",
+            "status": "ASSERTED",
+            "subject": "site photos",
+            "type": "REQUEST"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "LOW",
+        "primaryCategory": "QUESTION",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Generic request for site photos with no stated material consequence, downstream action, or specific inspection purpose; routine informational ask without project impact",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": "Project team / recipient",
+          "requestedItem": "Current site photos",
+          "status": "OPEN",
+          "type": "PHOTO"
+        },
+        "secondarySignals": [],
+        "summary": "Site Supervisor requests current site photos via WhatsApp group",
+        "uncertainty": "No context on purpose of photos (progress, issue verification, or general update)",
+        "userFacingReason": "Routine request for photos without material project impact or specific downstream need"
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NOT_ELIGIBLE"
+    },
+    {
+      "caseId": "expectation-6",
+      "classification": {
+        "abstentionReason": "Commitment is forward-looking with due date in future (Friday July 24, 2026); no defect, delay, safety issue, or overdue expectation present",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.85,
+        "factualClaims": [
+          {
+            "confidence": 0.85,
+            "statement": "Site Supervisor will provide method statement by Friday",
+            "status": "ASSERTED",
+            "subject": "method statement",
+            "type": "COMMITMENT"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "LOW",
+        "primaryCategory": "COMMITMENT",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Future commitment not yet due; standard workflow item with no material downstream action or delay indicated",
+        "referencedDates": [
+          {
+            "confidence": 0.9,
+            "phrase": "Friday",
+            "resolvedDate": "2026-07-24"
+          }
+        ],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": "2026-07-24",
+          "evidence": "Verbal commitment to provide method statement",
+          "expectedResponder": "Site Supervisor",
+          "requestedItem": "Method statement",
+          "status": "OPEN",
+          "type": "COMMITMENT"
+        },
+        "secondarySignals": [],
+        "summary": "Site Supervisor commits to providing method statement by Friday (July 24, 2026)",
+        "uncertainty": "Exact time of day on Friday not specified; no confirmation of which party requested the method statement",
+        "userFacingReason": "Standard future commitment with no immediate material impact or eligibility for recommendation gate"
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NOT_ELIGIBLE"
+    },
+    {
+      "caseId": "expectation-7",
+      "classification": {
+        "abstentionReason": "Routine document delivery without material project consequence; no candidate for central recommendation gate.",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.85,
+        "factualClaims": [
+          {
+            "confidence": 0.85,
+            "statement": "Signed test sheet was attached to this message",
+            "status": "ASSERTED",
+            "subject": "signed test sheet",
+            "type": "DOCUMENT_DELIVERY"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "NONE",
+        "primaryCategory": "GENERAL_NOTE",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Delivery of a requested document (signed test sheet) is routine operational fulfillment; no material downstream action, defect, delay, or unresolved expectation is created or resolved.",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": ["ACKNOWLEDGEMENT"],
+        "summary": "Site supervisor confirms delivery of signed test sheet that was requested.",
+        "uncertainty": "Cannot verify attachment was actually present (attachmentCount=0 in metadata vs. claim of attachment); possible system lag or metadata inconsistency.",
+        "userFacingReason": "Document delivery acknowledged, but no material action required."
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NOT_ELIGIBLE"
+    },
+    {
+      "caseId": "expectation-8",
+      "classification": {
+        "abstentionReason": "Message is a routine acknowledgement that a quotation was uploaded and confirmed; no operational consequence, defect, delay, approval, or actionable item requiring follow-up",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.75,
+        "factualClaims": [
+          {
+            "confidence": 0.7,
+            "statement": "Quotation was uploaded and confirmed",
+            "status": "ASSERTED",
+            "subject": "quotation",
+            "type": "ADMINISTRATIVE"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "NONE",
+        "primaryCategory": "ACKNOWLEDGEMENT",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Routine confirmation of a completed administrative action with no material downstream work impact or pending requirement",
+        "referencedDates": [],
+        "relevance": "NON_OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Site supervisor confirms quotation was uploaded and confirmed as requested",
+        "uncertainty": "No details on quotation purpose, value, or whether any downstream action is now required",
+        "userFacingReason": "This is a routine administrative confirmation with no material project impact requiring attention"
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NON_OPERATIONAL"
+    },
+    {
+      "caseId": "expectation-9",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.9,
+        "factualClaims": [
+          {
+            "confidence": 0.95,
+            "statement": "Sender does not know which drawing applies and seeks confirmation",
+            "status": "ASSERTED",
+            "subject": "drawing applicability",
+            "type": "REQUEST"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "MEDIUM",
+        "primaryCategory": "RFI",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Named technical RFI with specific requested clarification about which drawing applies; requires resolution to proceed with correct design interpretation",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": "Design team / document controller",
+          "requestedItem": "Drawing identification confirmation",
+          "status": "OPEN",
+          "type": "DECISION"
+        },
+        "secondarySignals": [],
+        "summary": "Site Supervisor requests confirmation of which drawing applies to current work scope.",
+        "uncertainty": "Specific drawing number, trade, or work area not stated; may require follow-up to narrow scope",
+        "userFacingReason": "Technical clarification needed to prevent work based on incorrect design document."
+      },
+      "error": null,
+      "fingerprint": "73829c3f41e7115fb9cb39f3bcab95ba86260207263d1c2d7a19372b5b7865d9",
+      "recommendationType": "ACTION_ITEM",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "expectation-10",
+      "classification": {
+        "abstentionReason": "Approval request is operational but routine; lacks specific material impact or scoped downstream work to make candidate-eligible",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.75,
+        "factualClaims": [
+          {
+            "confidence": 0.8,
+            "statement": "sample is submitted for approval",
+            "status": "ASSERTED",
+            "subject": "sample approval",
+            "type": "REQUEST"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "LOW",
+        "primaryCategory": "QUESTION",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Generic approval request without material downstream action, scope detail, or project consequence specified",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": "sample approval requested",
+          "expectedResponder": null,
+          "requestedItem": "approval of sample",
+          "status": "OPEN",
+          "type": "APPROVAL"
+        },
+        "secondarySignals": [],
+        "summary": "Site Supervisor requests sample approval at convenience",
+        "uncertainty": "No details on what sample, for which work scope, or consequences of delay",
+        "userFacingReason": "Routine approval request without material project impact identified"
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NOT_ELIGIBLE"
+    },
+    {
+      "caseId": "mixed-1",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.82,
+        "factualClaims": [
+          {
+            "confidence": 0.85,
+            "statement": "material shortage exists that will delay installation",
+            "status": "ASSERTED",
+            "subject": "installation materials",
+            "type": "MATERIAL_SHORTAGE"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "MEDIUM",
+        "primaryCategory": "DELAY",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Material shortage causing installation delay is a material issue affecting work progress, creating a candidate for follow-up on procurement and schedule impact.",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": ["MATERIAL_ISSUE"],
+        "summary": "Site Supervisor reports material shortage will delay installation work.",
+        "uncertainty": "Specific material type, quantity shortage, and revised timeline not stated; no downstream action requested.",
+        "userFacingReason": "Material shortage with delay impact reported; sufficient for candidate routing despite missing specifics."
+      },
+      "error": null,
+      "fingerprint": "50fa94b2e4aaf8f46563ec350b760ffb0f940b3e8f4478341f345a35b1ed1aa1",
+      "recommendationType": "ACTION_ITEM",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "mixed-2",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.75,
+        "factualClaims": [
+          {
+            "confidence": 0.8,
+            "statement": "Outer packaging appears visibly crushed or torn",
+            "status": "ASSERTED",
+            "subject": "pallet packaging",
+            "type": "PHOTO_EVIDENCE"
+          },
+          {
+            "confidence": 0.9,
+            "statement": "Pallet was delivered today (21 July 2026)",
+            "status": "ASSERTED",
+            "subject": "pallet",
+            "type": "DELIVERY"
+          },
+          {
+            "confidence": 0.3,
+            "statement": "Contents are damaged",
+            "status": "TENTATIVE",
+            "subject": "pallet contents",
+            "type": "CONDITION"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "MEDIUM",
+        "primaryCategory": "DEFECT",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Visible packaging damage on delivered material warrants verification of contents condition and potential replacement or claim",
+        "referencedDates": [
+          {
+            "confidence": 0.95,
+            "phrase": "today's delivery",
+            "resolvedDate": "2026-07-21"
+          }
+        ],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": "Photo shows outer packaging damage; contents unverified",
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": ["DELIVERY", "MATERIAL_ISSUE"],
+        "summary": "Site supervisor reports damaged pallet from today's delivery, supported by photo showing crushed/torn outer packaging. Contents condition cannot be assessed from image.",
+        "uncertainty": "Photo shows packaging damage only; contents condition unknown. Single image cannot establish hidden damage, function, or quantity.",
+        "userFacingReason": "Delivery damage reported with visual evidence requires content verification to determine if material is usable or needs replacement."
+      },
+      "error": null,
+      "fingerprint": "6a376a4c35bf6deadaad9c86aab6ef46af4175e4d77ffedd2a13f893b1f0ccde",
+      "recommendationType": "ACTION_ITEM",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "mixed-3",
+      "classification": {
+        "abstentionReason": "Routine site observation without claim of progress, completion, or issue; not candidate-eligible.",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.85,
+        "factualClaims": [
+          {
+            "confidence": 0.7,
+            "statement": "Equipment cabinet is visible on site",
+            "status": "ASSERTED",
+            "subject": "equipment cabinet",
+            "type": "VISUAL_OBSERVATION"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "NONE",
+        "primaryCategory": "GENERAL_NOTE",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Photo-only observation with no operational claim, defect, delay, or request; no material signal requiring follow-up.",
+        "referencedDates": [],
+        "relevance": "NON_OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Site supervisor shared a photo showing an equipment cabinet on site with no accompanying operational claim or request.",
+        "uncertainty": "Photo alone cannot verify condition, function, installation status, or compliance of the cabinet.",
+        "userFacingReason": "This is a routine photo share with no operational update, issue, or request that requires action."
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NON_OPERATIONAL"
+    },
+    {
+      "caseId": "mixed-4",
+      "classification": {
+        "abstentionReason": "Message is purely social/routine chatter about lunch timing with no operational project content.",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.95,
+        "factualClaims": [],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "NONE",
+        "primaryCategory": "GENERAL_NOTE",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Routine social/chatter message with no project material consequence.",
+        "referencedDates": [
+          {
+            "confidence": 1,
+            "phrase": "today",
+            "resolvedDate": "2026-07-21"
+          }
+        ],
+        "relevance": "NON_OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Site supervisor mentions lunch time.",
+        "uncertainty": null,
+        "userFacingReason": "This is a non-operational social message with no project impact."
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NON_OPERATIONAL"
+    },
+    {
+      "caseId": "mixed-5",
+      "classification": {
+        "abstentionReason": "Routine social chatter with no material project signal",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.95,
+        "factualClaims": [],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "NONE",
+        "primaryCategory": "GENERAL_NOTE",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Social greeting with no project operational content",
+        "referencedDates": [],
+        "relevance": "NON_OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Birthday greeting to team with no operational content",
+        "uncertainty": null,
+        "userFacingReason": "This is a social message with no project impact requiring action"
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NON_OPERATIONAL"
+    },
+    {
+      "caseId": "mixed-6",
+      "classification": {
+        "abstentionReason": "Routine social/chatter message lacking operational content.",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.95,
+        "factualClaims": [
+          {
+            "confidence": 0.9,
+            "statement": "Weather looks good this morning",
+            "status": "ASSERTED",
+            "subject": "weather",
+            "type": "WEATHER"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "NONE",
+        "primaryCategory": "GENERAL_NOTE",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Routine weather observation with no material project consequence, no work progress reported, no issue identified, and no downstream action required.",
+        "referencedDates": [],
+        "relevance": "NON_OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Site Supervisor notes favorable weather conditions with no project work or issues mentioned.",
+        "uncertainty": null,
+        "userFacingReason": "This is a casual observation with no project impact to track."
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NON_OPERATIONAL"
+    },
+    {
+      "caseId": "mixed-7",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.85,
+        "factualClaims": [
+          {
+            "confidence": 0.85,
+            "statement": "Client approved the drawing",
+            "status": "ASSERTED",
+            "subject": "drawing",
+            "type": "APPROVAL"
+          },
+          {
+            "confidence": 0.9,
+            "statement": "Release the material order",
+            "status": "ASSERTED",
+            "subject": "material order",
+            "type": "INSTRUCTION"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "MEDIUM",
+        "primaryCategory": "CLIENT_APPROVAL",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Client approval with explicit downstream action to release material order creates a material candidate requiring coordination/execution",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": "Client approved the drawing; release the material order",
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Client has approved the drawing and instructed material order release",
+        "uncertainty": "No drawing reference number or material order details provided; approval source not independently verified",
+        "userFacingReason": "Client approval received with clear downstream procurement action required"
+      },
+      "error": null,
+      "fingerprint": "74feffc268443ee51c72b43ebe35985f3ede1456d80353a714bf26e8e4a8cb3e",
+      "recommendationType": "ACTION_ITEM",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "mixed-8",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.8,
+        "factualClaims": [
+          {
+            "confidence": 0.8,
+            "statement": "Wrong material was delivered",
+            "status": "ASSERTED",
+            "subject": "material",
+            "type": "DELIVERY"
+          },
+          {
+            "confidence": 0.8,
+            "statement": "Installation is delayed due to wrong material",
+            "status": "ASSERTED",
+            "subject": "installation work",
+            "type": "INSTALLATION"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "MEDIUM",
+        "primaryCategory": "MATERIAL_ISSUE",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Wrong material delivery with downstream installation delay is a material issue affecting work progress requiring verification and rectification",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": "Sender reports wrong material delivered and installation delayed",
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": ["DELAY"],
+        "summary": "Site supervisor reports wrong material was delivered, causing installation delay",
+        "uncertainty": "Specific material type, expected replacement timeline, and exact delay duration not stated",
+        "userFacingReason": "Material delivery error with confirmed work delay requires follow-up for replacement and schedule recovery"
+      },
+      "error": null,
+      "fingerprint": "7f9ca97e9ee5c65b7fd5463148209201dcf57f162ab5856012ef204b837283e3",
+      "recommendationType": "ACTION_ITEM",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "mixed-9",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.9,
+        "factualClaims": [
+          {
+            "confidence": 0.9,
+            "statement": "No electrician available",
+            "status": "ASSERTED",
+            "subject": "electrician",
+            "type": "MANPOWER_SHORTAGE"
+          },
+          {
+            "confidence": 0.9,
+            "statement": "Testing is delayed due to no electrician available",
+            "status": "ASSERTED",
+            "subject": "testing",
+            "type": "WORK_DELAY"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "MEDIUM",
+        "primaryCategory": "DELAY",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Manpower shortage causing testing delay affects work progress and may require follow-up to resolve electrician availability",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": ["MANPOWER_ISSUE"],
+        "summary": "Testing delayed due to unavailability of electrician.",
+        "uncertainty": "Duration of delay and specific testing scope not stated; no information on when electrician will be available or if alternative arrangements are being pursued.",
+        "userFacingReason": "Manpower shortage causing work delay requires attention to restore schedule."
+      },
+      "error": null,
+      "fingerprint": "d94f6d9a25f36e7551d16c92d72869559ad47f957f8c1cd00b76aeefbf6af70a",
+      "recommendationType": "ACTION_ITEM",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "mixed-10",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.85,
+        "factualClaims": [
+          {
+            "confidence": 0.85,
+            "statement": "Smoke seen near the faulty distribution board",
+            "status": "ASSERTED",
+            "subject": "distribution board",
+            "type": "OBSERVATION"
+          }
+        ],
+        "inspectionReadiness": "NOT_READY",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "CRITICAL",
+        "primaryCategory": "SAFETY_ISSUE",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Active smoke from faulty electrical equipment presents imminent safety hazard requiring urgent verification and rectification; no completion or remediation claimed by sender",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": "Smoke observed near faulty distribution board",
+          "expectedResponder": null,
+          "requestedItem": "Immediate safety assessment and electrical isolation",
+          "status": "OPEN",
+          "type": "DECISION"
+        },
+        "secondarySignals": ["DEFECT"],
+        "summary": "Smoke reported near faulty distribution board indicating active electrical safety hazard",
+        "uncertainty": "Extent of fault, whether power is isolated, and whether fire services have been notified are unknown",
+        "userFacingReason": "Active smoke from electrical equipment requires immediate safety response"
+      },
+      "error": null,
+      "fingerprint": "5fb7b1a5fa1e5bde8e0708ff8ab081c01e6e5a944c8317c0f7dc7c3e7dd4b609",
+      "recommendationType": "ACTION_ITEM",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "mixed-11",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.8,
+        "factualClaims": [
+          {
+            "confidence": 0.85,
+            "statement": "Additional scope requested under a variation order",
+            "status": "ASSERTED",
+            "subject": "variation order",
+            "type": "SCOPE"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "MEDIUM",
+        "primaryCategory": "VARIATION_ORDER",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Variation adds concrete work scope requiring scope coordination or confirmation",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": "Additional scope requested under variation order",
+          "expectedResponder": null,
+          "requestedItem": "Variation order confirmation and scope coordination",
+          "status": "OPEN",
+          "type": "DECISION"
+        },
+        "secondarySignals": [],
+        "summary": "Site supervisor reports additional scope requested under a variation order, requiring confirmation and coordination.",
+        "uncertainty": "Specific scope details, cost implications, and approval status not provided",
+        "userFacingReason": "Variation order requires downstream scope coordination and confirmation"
+      },
+      "error": null,
+      "fingerprint": "1f62a6db509df6ddf90de623dc91fefaac890d3c6fc0bf8ed8c8dd3304672f16",
+      "recommendationType": "ACTION_ITEM",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "mixed-12",
+      "classification": {
+        "abstentionReason": "RFI resolution is recorded but does not itself require follow-up action",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.85,
+        "factualClaims": [
+          {
+            "confidence": 0.85,
+            "statement": "RFI response was received",
+            "status": "ASSERTED",
+            "subject": "RFI clarification",
+            "type": "RFI"
+          },
+          {
+            "confidence": 0.85,
+            "statement": "Clarification is resolved",
+            "status": "ASSERTED",
+            "subject": "RFI clarification",
+            "type": "RFI"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "LOW",
+        "primaryCategory": "RFI",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "RFI closure is operational evidence but creates no separate material downstream action",
+        "referencedDates": [
+          {
+            "confidence": 0,
+            "phrase": "resolved",
+            "resolvedDate": null
+          }
+        ],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": "RFI response received and clarification resolved",
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "RFI response received and clarification resolved",
+        "uncertainty": "Specific RFI reference not provided; assumes sender's claim of resolution is accurate",
+        "userFacingReason": "RFI resolved, no further action needed"
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NOT_ELIGIBLE"
+    },
+    {
+      "caseId": "general-1",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.85,
+        "factualClaims": [
+          {
+            "confidence": 0.8,
+            "statement": "pump is faulty",
+            "status": "ASSERTED",
+            "subject": "pump",
+            "type": "EQUIPMENT_CONDITION"
+          },
+          {
+            "confidence": 0.8,
+            "statement": "replacement delivery is late",
+            "status": "ASSERTED",
+            "subject": "replacement pump",
+            "type": "DELIVERY_STATUS"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "HIGH",
+        "primaryCategory": "DEFECT",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Faulty pump is a material defect requiring verification/rectification; late replacement delivery is a material issue affecting work progress",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": "Replacement pump delivery overdue",
+          "expectedResponder": null,
+          "requestedItem": "Replacement pump delivery status and ETA",
+          "status": "OPEN",
+          "type": "DELIVERY_UPDATE"
+        },
+        "secondarySignals": ["DELAY", "MATERIAL_ISSUE"],
+        "summary": "Site supervisor reports faulty pump and late replacement delivery, indicating active equipment failure and supply chain delay affecting operations.",
+        "uncertainty": "No details on pump type, location, impact scope, original delivery date, or expected arrival of replacement",
+        "userFacingReason": "Equipment defect and delivery delay require follow-up to verify fault and expedite replacement"
+      },
+      "error": null,
+      "fingerprint": "31352ef55345656699e2346c51854ab92805e1d9260d93413e29826990c85756",
+      "recommendationType": "ACTION_ITEM",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "general-2",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.9,
+        "factualClaims": [
+          {
+            "confidence": 0.9,
+            "statement": "handrail is broken",
+            "status": "ASSERTED",
+            "subject": "handrail",
+            "type": "CONDITION"
+          },
+          {
+            "confidence": 0.9,
+            "statement": "broken handrail was not repaired",
+            "status": "ASSERTED",
+            "subject": "handrail repair",
+            "type": "CONDITION"
+          },
+          {
+            "confidence": 0.9,
+            "statement": "unsafe access remains due to unrepaired broken handrail",
+            "status": "ASSERTED",
+            "subject": "site access",
+            "type": "HAZARD"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "HIGH",
+        "primaryCategory": "SAFETY_ISSUE",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Active safety hazard with broken handrail creating unsafe access; requires verification and rectification regardless of whether sender prescribed remediation or assignee",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": ["DEFECT"],
+        "summary": "Broken handrail not repaired, creating ongoing unsafe access condition",
+        "uncertainty": "Specific location of broken handrail not stated; duration of hazard unknown; no repair commitment or timeline mentioned",
+        "userFacingReason": "Active safety hazard requiring urgent verification and rectification"
+      },
+      "error": null,
+      "fingerprint": "1e35828b1b547665255977629f50eb602434f4d374fcb30575898034eae0aa3f",
+      "recommendationType": "ACTION_ITEM",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "general-3",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.8,
+        "factualClaims": [
+          {
+            "confidence": 0.8,
+            "statement": "adds lighting to the new service road",
+            "status": "ASSERTED",
+            "subject": "change order",
+            "type": "SCOPE_CHANGE"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "MEDIUM",
+        "primaryCategory": "VARIATION_ORDER",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Concrete scope addition (lighting to new service road) requires scope coordination and confirmation",
+        "referencedDates": [
+          {
+            "confidence": 0,
+            "phrase": "change order",
+            "resolvedDate": null
+          }
+        ],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Change order adds lighting scope to new service road",
+        "uncertainty": "No change order number, value, or approval status provided; downstream action not explicitly stated",
+        "userFacingReason": "Variation adds concrete work scope requiring coordination"
+      },
+      "error": null,
+      "fingerprint": "820c4d8f723080e74c2d9762af89360646eac804e0b622891543370a107635ee",
+      "recommendationType": "ACTION_ITEM",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "general-4",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.85,
+        "factualClaims": [
+          {
+            "confidence": 0.85,
+            "statement": "The specified cable is out of stock",
+            "status": "ASSERTED",
+            "subject": "specified cable",
+            "type": "MATERIAL_AVAILABILITY"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "HIGH",
+        "primaryCategory": "MATERIAL_ISSUE",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Material shortage of specified cable directly affects work progress and requires procurement action or substitution decision",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": ["DELAY"],
+        "summary": "Site supervisor reports specified cable is out of stock, creating a material shortage that will block or delay electrical installation work",
+        "uncertainty": "Cable type/specification not stated; quantity needed and impact duration unknown; no mention of whether substitute cable is acceptable or if procurement is already underway",
+        "userFacingReason": "Material shortage reported for specified cable requires follow-up to resolve procurement or approve substitution to prevent downstream delay"
+      },
+      "error": null,
+      "fingerprint": "daa2c5693cee196af6736a4ca40e0df055fa7d6277b5dfab8f0a2c0f214c0f14",
+      "recommendationType": "ACTION_ITEM",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "general-5",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.82,
+        "factualClaims": [
+          {
+            "confidence": 0.85,
+            "statement": "No electrician is available for tonight's testing",
+            "status": "ASSERTED",
+            "subject": "electrician",
+            "type": "MANPOWER_AVAILABILITY"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "MEDIUM",
+        "primaryCategory": "MANPOWER_ISSUE",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Manpower shortage for scheduled testing creates material delay risk requiring follow-up for rescheduling or replacement resource",
+        "referencedDates": [
+          {
+            "confidence": 0.9,
+            "phrase": "tonight",
+            "resolvedDate": "2026-07-21"
+          }
+        ],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": ["DELAY"],
+        "summary": "Electrician unavailable for tonight's testing; manpower gap affecting scheduled work",
+        "uncertainty": "Specific reason for unavailability not stated; whether alternative arrangements were attempted unclear",
+        "userFacingReason": "Manpower shortage for scheduled testing is a material operational issue requiring attention"
+      },
+      "error": null,
+      "fingerprint": "1682326dfe8968fdced633aa34951612addc78c5ead219319d243fba5efb4074",
+      "recommendationType": "ACTION_ITEM",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "general-6",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.85,
+        "factualClaims": [
+          {
+            "confidence": 0.9,
+            "statement": "RFI-42 exists and contains a containment detail requiring clarification",
+            "status": "ASSERTED",
+            "subject": "RFI-42",
+            "type": "RFI_REFERENCE"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "MEDIUM",
+        "primaryCategory": "RFI",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Named technical RFI with specific requested clarification is material even without stated downstream delay; requires resolution before work can proceed",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": "RFI-42 containment detail clarification requested",
+          "expectedResponder": null,
+          "requestedItem": "Clarification of containment detail in RFI-42",
+          "status": "OPEN",
+          "type": "QUESTION"
+        },
+        "secondarySignals": [],
+        "summary": "Site Supervisor requests clarification of containment detail in RFI-42",
+        "uncertainty": "Specific containment detail and scope of RFI-42 not provided in message; nature of clarification needed is unspecified",
+        "userFacingReason": "Named RFI clarification request creates material coordination need"
+      },
+      "error": null,
+      "fingerprint": "5ff068863a099fd796d590e4ab820f4977eea5e3778d2e00591c92387d24fa5a",
+      "recommendationType": "ACTION_ITEM",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "general-7",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.85,
+        "factualClaims": [
+          {
+            "confidence": 0.9,
+            "statement": "valve failed during testing",
+            "status": "ASSERTED",
+            "subject": "valve",
+            "type": "DEFECT"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "HIGH",
+        "primaryCategory": "DEFECT",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Valve failure during testing is a material defect requiring verification, root cause analysis, and rectification",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Valve failed during testing; requires follow-up investigation and remediation",
+        "uncertainty": "Specific valve location, test phase, and failure mode not stated; no photo or technical detail provided",
+        "userFacingReason": "Material defect reported during testing with clear operational impact"
+      },
+      "error": null,
+      "fingerprint": "57199f460a781dd8b07bf950806dcb57a4f86302a1333b96afb36d890d510c26",
+      "recommendationType": "ACTION_ITEM",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "general-8",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.82,
+        "factualClaims": [
+          {
+            "confidence": 0.85,
+            "statement": "Shipment is delayed at customs",
+            "status": "ASSERTED",
+            "subject": "Shipment",
+            "type": "DELIVERY"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "MEDIUM",
+        "primaryCategory": "DELAY",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Material delay affecting project delivery with downstream work impact; requires follow-up for resolution timeline",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": "Shipment held at customs; no ETA or resolution details provided",
+          "expectedResponder": null,
+          "requestedItem": "Updated delivery timeline or customs clearance status",
+          "status": "OPEN",
+          "type": "DELIVERY_UPDATE"
+        },
+        "secondarySignals": ["MATERIAL_ISSUE"],
+        "summary": "Inbound shipment delayed at customs; no estimated resolution or alternative plan stated.",
+        "uncertainty": "Customs hold reason, expected duration, and affected work packages are unknown; no documentation or tracking evidence provided.",
+        "userFacingReason": "Customs delay creates material delivery uncertainty that may affect scheduled work; eligible for tracking pending update."
+      },
+      "error": null,
+      "fingerprint": "13019cfddea17eb3478b9b38c8f1dc58856bfa3b2b39d2a03e9c63ec3e02c76f",
+      "recommendationType": "ACTION_ITEM",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "repeat-defect-1",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.85,
+        "factualClaims": [
+          {
+            "confidence": 0.85,
+            "statement": "fire door closer is broken",
+            "status": "ASSERTED",
+            "subject": "fire door closer",
+            "type": "DEFECT"
+          },
+          {
+            "confidence": 0.9,
+            "statement": "needs rectification",
+            "status": "ASSERTED",
+            "subject": "fire door closer",
+            "type": "ACTION_REQUIRED"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "MEDIUM",
+        "primaryCategory": "DEFECT",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Clear material defect requiring verification and rectification; fire safety equipment failure creates actionable candidate for central gate",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": "fire door closer broken, needs rectification",
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Site Supervisor reports fire door closer is broken and requires rectification.",
+        "uncertainty": "No location specified for the fire door; no photo evidence provided to verify the defect; severity and safety implications not quantified",
+        "userFacingReason": "Defect reported by field supervisor with clear rectification need; candidate for verification and scheduling repair action."
+      },
+      "error": null,
+      "fingerprint": "d4351e0082bb6eac3cf05f0c8544699071263b4e838527891d873ed3db13fa0c",
+      "recommendationType": "ACTION_ITEM",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "repeat-defect-2",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.85,
+        "factualClaims": [
+          {
+            "confidence": 0.85,
+            "statement": "fire door closer is broken",
+            "status": "ASSERTED",
+            "subject": "fire door closer",
+            "type": "DEFECT"
+          },
+          {
+            "confidence": 0.9,
+            "statement": "needs rectification",
+            "status": "ASSERTED",
+            "subject": "fire door closer",
+            "type": "ACTION"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "MEDIUM",
+        "primaryCategory": "DEFECT",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Clear material defect requiring verification and rectification; fire door closer is a safety-critical element",
+        "referencedDates": [],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": null,
+          "status": "NONE",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Site Supervisor reports broken fire door closer requiring rectification",
+        "uncertainty": "No location specified for the fire door; no photo evidence attached; extent of damage not described",
+        "userFacingReason": "Defect report on safety equipment requires follow-up for verification and scheduling of rectification work"
+      },
+      "error": null,
+      "fingerprint": "d4351e0082bb6eac3cf05f0c8544699071263b4e838527891d873ed3db13fa0c",
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "DUPLICATE_PENDING"
+    },
+    {
+      "caseId": "expectation-overdue-context",
+      "classification": {
+        "abstentionReason": null,
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.9,
+        "factualClaims": [
+          {
+            "confidence": 0.9,
+            "statement": "signed test sheet promised for 18 July has not arrived",
+            "status": "ASSERTED",
+            "subject": "signed test sheet",
+            "type": "DELIVERY_STATUS"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "MEDIUM",
+        "primaryCategory": "DELAY",
+        "recommendationEligible": true,
+        "recommendationEligibilityReason": "Overdue unresolved expectation with specific requested item, evidence, and due date; requires follow-up",
+        "referencedDates": [
+          {
+            "confidence": 0.95,
+            "phrase": "18 July",
+            "resolvedDate": "2026-07-18"
+          },
+          {
+            "confidence": 1,
+            "phrase": "20 July",
+            "resolvedDate": "2026-07-20"
+          }
+        ],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": "2026-07-18",
+          "evidence": "prior request for signed test sheet",
+          "expectedResponder": "Alex",
+          "requestedItem": "signed test sheet",
+          "status": "OPEN",
+          "type": "DOCUMENT"
+        },
+        "secondarySignals": ["GENERAL_NOTE"],
+        "summary": "Signed test sheet promised for 18 July has not arrived by 20 July; overdue expectation from Alex remains open",
+        "uncertainty": "Exact nature of 'test sheet' not specified; no confirmation whether this is blocking critical path",
+        "userFacingReason": "Overdue document delivery requires follow-up with Alex"
+      },
+      "error": null,
+      "fingerprint": "3de86fbcd844380da74ce7a9ef6f01285ff949504c4f555964691b3a591b5401",
+      "recommendationType": "FOLLOW_UP",
+      "decision": "CREATE",
+      "reasonCode": "ELIGIBLE"
+    },
+    {
+      "caseId": "expectation-resolved-context",
+      "classification": {
+        "abstentionReason": "Resolved document delivery with no new material signal or downstream action required.",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.85,
+        "factualClaims": [
+          {
+            "confidence": 0.85,
+            "statement": "signed test sheet is attached as requested",
+            "status": "ASSERTED",
+            "subject": "signed test sheet",
+            "type": "DOCUMENT_DELIVERY"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "NONE",
+        "primaryCategory": "GENERAL_NOTE",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Closure of a document request does not create a separate material downstream action; it resolves an existing expectation without new operational consequence.",
+        "referencedDates": [
+          {
+            "confidence": 1,
+            "phrase": "2026-07-18T09:00:00.000Z",
+            "resolvedDate": "2026-07-18"
+          }
+        ],
+        "relevance": "OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": "2026-07-18T09:00:00.000Z",
+          "evidence": "signed test sheet attached",
+          "expectedResponder": "Alex",
+          "requestedItem": "signed test sheet",
+          "status": "RESOLVED",
+          "type": "NONE"
+        },
+        "secondarySignals": [],
+        "summary": "Site Supervisor delivered the previously requested signed test sheet, resolving an overdue document expectation.",
+        "uncertainty": "Cannot verify attachment presence or document validity from message text alone; no photo or document analysis available.",
+        "userFacingReason": "The signed test sheet has been provided, resolving the prior request. No further action is indicated."
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NOT_ELIGIBLE"
+    },
+    {
+      "caseId": "expectation-superseded-context",
+      "classification": {
+        "abstentionReason": "Routine follow-up question after document already delivered; no operational gap or downstream action identified",
+        "ambiguity": {
+          "isAmbiguous": false,
+          "missingContext": []
+        },
+        "completionClaim": "NONE",
+        "confidence": 0.85,
+        "factualClaims": [
+          {
+            "confidence": 0.9,
+            "statement": "sender is requesting an update on signed test sheet",
+            "status": "ASSERTED",
+            "subject": "signed test sheet",
+            "type": "DOCUMENT_STATUS"
+          }
+        ],
+        "inspectionReadiness": "NONE",
+        "location": null,
+        "locations": [],
+        "operationalImpact": "NONE",
+        "primaryCategory": "QUESTION",
+        "recommendationEligible": false,
+        "recommendationEligibilityReason": "Follow-up question on a document that was already provided one hour prior; no material project consequence or unresolved expectation remains",
+        "referencedDates": [],
+        "relevance": "NON_OPERATIONAL",
+        "responseExpectation": {
+          "dueAt": null,
+          "evidence": null,
+          "expectedResponder": null,
+          "requestedItem": "update on signed test sheet",
+          "status": "OPEN",
+          "type": "QUESTION"
+        },
+        "secondarySignals": [],
+        "summary": "Site Supervisor asks for an update on a signed test sheet that was already submitted an hour earlier by Alex",
+        "uncertainty": "Unsure whether sender is unaware of Alex's prior submission or seeking additional confirmation",
+        "userFacingReason": "This appears to be a routine follow-up after the document was already provided"
+      },
+      "error": null,
+      "fingerprint": null,
+      "recommendationType": null,
+      "decision": "SUPPRESS",
+      "reasonCode": "NON_OPERATIONAL"
+    }
+  ]
+}

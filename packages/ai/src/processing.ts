@@ -7,6 +7,7 @@ import {
 } from "@fieldos/db";
 import { createLogger } from "@fieldos/shared";
 
+import { buildClassificationDecisionContext } from "./classification-context.js";
 import { AIConfigurationError, MessageClassifier } from "./message-classifier.js";
 import { MessageClassifierV2 } from "./message-classifier-v2.js";
 import { messageClassificationPromptVersionV2 } from "./prompts/message-classification.v2.js";
@@ -155,7 +156,7 @@ export class AIClassificationProcessor {
 
       if (this.decisionEngineMode !== "legacy") {
         try {
-          const decisionContext = await this.buildDecisionContext(input);
+          const decisionContext = await buildClassificationDecisionContext(this.prisma, input);
           const resultV2 = await this.classifierV2.classifyMessage(decisionContext);
           await this.saveV2Decision(classification.id, decisionContext, resultV2);
 
@@ -204,93 +205,6 @@ export class AIClassificationProcessor {
     }
   }
 
-  private async buildDecisionContext(
-    input: UnifiedEvidenceContext
-  ): Promise<ClassifyMessageV2Input> {
-    if (!input.project) {
-      return {
-        ...input,
-        activeMilestones: [],
-        openActionItems: [],
-        projectState: null,
-        recentMessages: [],
-        recentTimelineEvents: []
-      };
-    }
-
-    const [activeMilestones, openActionItems, projectState, recentMessages, recentTimelineEvents] =
-      await Promise.all([
-        this.prisma.milestone.findMany({
-          orderBy: { updatedAt: "desc" },
-          select: { id: true, plannedEndDate: true, status: true, title: true },
-          take: 10,
-          where: {
-            projectId: input.project.id,
-            status: { in: ["PLANNED", "IN_PROGRESS", "DELAYED"] }
-          }
-        }),
-        this.prisma.actionItem.findMany({
-          orderBy: { updatedAt: "desc" },
-          select: { id: true, status: true, title: true },
-          take: 10,
-          where: {
-            projectId: input.project.id,
-            status: { in: ["PENDING", "ACCEPTED"] }
-          }
-        }),
-        this.prisma.projectState.findUnique({
-          select: {
-            health: true,
-            nextMilestone: true,
-            pendingDecisionSummary: true,
-            recentBlockerSummary: true,
-            recentProgressSummary: true
-          },
-          where: { projectId: input.project.id }
-        }),
-        this.prisma.message.findMany({
-          orderBy: { occurredAt: "desc" },
-          select: {
-            body: true,
-            direction: true,
-            id: true,
-            occurredAt: true,
-            senderParticipant: { select: { displayName: true } }
-          },
-          take: 8,
-          where: {
-            conversationId: input.conversation.id,
-            id: { not: input.messageId },
-            occurredAt: { lte: input.timestamp }
-          }
-        }),
-        this.prisma.event.findMany({
-          orderBy: { occurredAt: "desc" },
-          select: { description: true, eventType: true, id: true, occurredAt: true, title: true },
-          take: 10,
-          where: { projectId: input.project.id }
-        })
-      ]);
-
-    return {
-      ...input,
-      activeMilestones: activeMilestones.map((milestone) => ({
-        ...milestone,
-        plannedEndDate: milestone.plannedEndDate?.toISOString() ?? null
-      })),
-      openActionItems,
-      projectState,
-      recentMessages: recentMessages.reverse().map((message) => ({
-        body: message.body,
-        direction: message.direction,
-        id: message.id,
-        occurredAt: message.occurredAt,
-        senderName: message.senderParticipant.displayName
-      })),
-      recentTimelineEvents: recentTimelineEvents.reverse()
-    };
-  }
-
   private async saveV2Decision(
     classificationId: string,
     input: ClassifyMessageV2Input,
@@ -305,8 +219,11 @@ export class AIClassificationProcessor {
           classificationId,
           completionClaim: result.completionClaim,
           confidence: result.confidence,
+          factualClaims: result.factualClaims,
           inspectionReadiness: result.inspectionReadiness,
+          ambiguity: result.ambiguity,
           location: result.location,
+          locations: result.locations,
           mode,
           model: this.classifierV2.model,
           operationalImpact: result.operationalImpact,
@@ -317,9 +234,11 @@ export class AIClassificationProcessor {
           promptVersion: messageClassificationPromptVersionV2,
           provider: "kimi-primary-openrouter-fallback",
           recommendationEligible: result.recommendationEligible,
+          recommendationEligibilityReason: result.recommendationEligibilityReason,
+          referencedDates: result.referencedDates,
           relevance: result.relevance,
           responseExpectation: result.responseExpectation,
-          schemaVersion: "2.0",
+          schemaVersion: "2.2",
           secondarySignals: result.secondarySignals,
           summary: result.summary,
           uncertainty: result.uncertainty,
@@ -329,8 +248,11 @@ export class AIClassificationProcessor {
           abstentionReason: result.abstentionReason,
           completionClaim: result.completionClaim,
           confidence: result.confidence,
+          factualClaims: result.factualClaims,
           inspectionReadiness: result.inspectionReadiness,
+          ambiguity: result.ambiguity,
           location: result.location,
+          locations: result.locations,
           mode,
           model: this.classifierV2.model,
           operationalImpact: result.operationalImpact,
@@ -339,9 +261,11 @@ export class AIClassificationProcessor {
           promptVersion: messageClassificationPromptVersionV2,
           provider: "kimi-primary-openrouter-fallback",
           recommendationEligible: result.recommendationEligible,
+          recommendationEligibilityReason: result.recommendationEligibilityReason,
+          referencedDates: result.referencedDates,
           relevance: result.relevance,
           responseExpectation: result.responseExpectation,
-          schemaVersion: "2.0",
+          schemaVersion: "2.2",
           secondarySignals: result.secondarySignals,
           summary: result.summary,
           uncertainty: result.uncertainty,

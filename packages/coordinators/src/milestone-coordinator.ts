@@ -16,7 +16,7 @@ import type {
 const datePhrasePattern =
   "today|tomorrow|yesterday|next week|next monday|next tuesday|next wednesday|next thursday|next friday|next saturday|next sunday|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\\d{4}-\\d{2}-\\d{2}";
 
-type ClassificationEvidence = AIMessageClassification & {
+export type MilestoneClassificationEvidence = AIMessageClassification & {
   message: {
     attachments: Array<{ transcript: string | null }>;
     body: string | null;
@@ -24,6 +24,21 @@ type ClassificationEvidence = AIMessageClassification & {
     senderParticipant: { displayName: string };
   };
 };
+
+export interface MilestoneCoordinatorContext {
+  classifications: MilestoneClassificationEvidence[];
+  milestones: Milestone[];
+  projectState: {
+    nextMilestone: string | null;
+    pendingDecisionSummary: string | null;
+    recentProgressSummary: string | null;
+  } | null;
+  recentTimelineEvents: Array<{
+    description: string | null;
+    occurredAt: Date;
+    title: string;
+  }>;
+}
 
 export class MilestoneCoordinator {
   constructor(
@@ -35,7 +50,11 @@ export class MilestoneCoordinator {
         candidate: {
           confidence: "HIGH" | "MEDIUM" | "LOW";
           description: string;
+          evidenceLimitations: string;
           evidenceIds: string[];
+          evidenceSummary: string;
+          expectedValue: string;
+          materiality: Array<"MILESTONE" | "SCHEDULE">;
           payload: Prisma.InputJsonValue;
           priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
           reason: string;
@@ -50,10 +69,28 @@ export class MilestoneCoordinator {
     } = {}
   ) {}
 
-  async run(project: Project): Promise<number> {
+  async run(project: Project, suppliedContext?: MilestoneCoordinatorContext): Promise<number> {
+    const context = suppliedContext ?? (await this.loadContext(project));
+    let created = 0;
+
+    for (const classification of context.classifications) {
+      created += await this.reviewEvidence(
+        project,
+        context.milestones,
+        classification,
+        context.recentTimelineEvents,
+        context.projectState
+      );
+    }
+
+    return created;
+  }
+
+  private async loadContext(project: Project): Promise<MilestoneCoordinatorContext> {
     const [milestones, classifications, recentTimelineEvents, projectState] = await Promise.all([
       this.prisma.milestone.findMany({
         orderBy: [{ updatedAt: "desc" }],
+        take: 50,
         where: { projectId: project.id }
       }),
       this.prisma.aIMessageClassification.findMany({
@@ -87,25 +124,19 @@ export class MilestoneCoordinator {
         where: { projectId: project.id }
       })
     ]);
-    let created = 0;
 
-    for (const classification of classifications as ClassificationEvidence[]) {
-      created += await this.reviewEvidence(
-        project,
-        milestones,
-        classification,
-        recentTimelineEvents,
-        projectState
-      );
-    }
-
-    return created;
+    return {
+      classifications: classifications as MilestoneClassificationEvidence[],
+      milestones,
+      projectState,
+      recentTimelineEvents
+    };
   }
 
   private async reviewEvidence(
     project: Project,
     milestones: Milestone[],
-    classification: ClassificationEvidence,
+    classification: MilestoneClassificationEvidence,
     recentTimelineEvents: Array<{
       description: string | null;
       occurredAt: Date;
@@ -185,7 +216,7 @@ export class MilestoneCoordinator {
 
   private async upsertRecommendation(input: {
     change: MilestoneDetectionCandidate & { milestoneTitle: string };
-    classification: ClassificationEvidence;
+    classification: MilestoneClassificationEvidence;
     evidenceText: string;
     milestones: Milestone[];
     project: Project;
@@ -235,7 +266,13 @@ export class MilestoneCoordinator {
         candidate: {
           confidence: data.confidence,
           description: data.description,
+          evidenceLimitations:
+            "The source is a field update; the milestone change still requires human approval.",
           evidenceIds: [input.classification.messageId],
+          evidenceSummary: input.change.reason,
+          expectedValue:
+            "Keeping milestone state current improves schedule decisions and reporting.",
+          materiality: ["MILESTONE", "SCHEDULE"],
           payload,
           priority: data.priority,
           reason: data.reason,
@@ -290,13 +327,15 @@ export function detectMilestoneChanges(
     );
     if (delayed?.[1]) {
       const phrase = cleanDatePhrase(delayed[2]);
+      const milestoneTitle = cleanMilestoneTitle(delayed[1]);
+      if (!isMeaningfulMilestoneScope(milestoneTitle)) continue;
       changes.push(
         change({
           action: "DELAY",
-          milestoneTitle: cleanMilestoneTitle(delayed[1]),
+          milestoneTitle,
           originalDatePhrase: phrase,
           plannedEndDate: toDateOnly(resolveDatePhrase(phrase, occurredAt, timezone)),
-          reason: `The field update reports that ${cleanMilestoneTitle(delayed[1])} is delayed.`,
+          reason: `The field update reports that ${milestoneTitle} is delayed.`,
           status: "DELAYED"
         })
       );
@@ -308,13 +347,15 @@ export function detectMilestoneChanges(
     );
     if (moved?.[1]) {
       const phrase = cleanDatePhrase(moved[2]);
+      const milestoneTitle = cleanMilestoneTitle(moved[1]);
+      if (!isMeaningfulMilestoneScope(milestoneTitle)) continue;
       changes.push(
         change({
           action: "UPDATE",
-          milestoneTitle: cleanMilestoneTitle(moved[1]),
+          milestoneTitle,
           originalDatePhrase: phrase,
           plannedEndDate: toDateOnly(resolveDatePhrase(phrase, occurredAt, timezone)),
-          reason: `The field update reschedules ${cleanMilestoneTitle(moved[1])}.`,
+          reason: `The field update reschedules ${milestoneTitle}.`,
           status: "PLANNED"
         })
       );
@@ -337,6 +378,7 @@ export function detectMilestoneChanges(
     if (completed?.[1]) {
       const phrase = cleanDatePhrase(completed[2]) ?? "today";
       const milestoneTitle = cleanMilestoneTitle(completed[1]);
+      if (hasIncompleteQualifier(clause) || !isMeaningfulMilestoneScope(milestoneTitle)) continue;
       changes.push(
         change({
           action: "COMPLETE",
@@ -364,6 +406,7 @@ export function detectMilestoneChanges(
         resolved && resolved.getTime() > dateOnly(occurredAt, timezone).getTime()
       );
       const milestoneTitle = cleanMilestoneTitle(starting[1]);
+      if (!isMeaningfulMilestoneScope(milestoneTitle)) continue;
       changes.push(
         change({
           action: future || needsDateReview ? "CREATE" : "START",
@@ -393,6 +436,7 @@ export function detectMilestoneChanges(
     if (started?.[1]) {
       const phrase = cleanDatePhrase(started[2]) ?? "today";
       const milestoneTitle = cleanMilestoneTitle(started[1]);
+      if (!isMeaningfulMilestoneScope(milestoneTitle)) continue;
       changes.push(
         change({
           action: "START",
@@ -587,6 +631,35 @@ function cleanMilestoneTitle(value: string): string {
     .split(" ")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join(" ");
+}
+
+function hasIncompleteQualifier(value: string): boolean {
+  return /\b(but|except|pending|remaining|not yet|incomplete|failed|failure|defect|outstanding)\b/i.test(
+    value
+  );
+}
+
+function isMeaningfulMilestoneScope(value: string): boolean {
+  const normalized = normalizeMilestoneTitle(value);
+  if (!normalized) return false;
+  if (
+    /\b(delivery|shipment|pallet|housekeeping|printer|labels?|unloading|temporary barrier|inspection report|photo|document|quotation)\b/i.test(
+      normalized
+    )
+  ) {
+    return false;
+  }
+
+  const tokens = normalized
+    .split(" ")
+    .filter(
+      (token) =>
+        token && !["activity", "project", "task", "testing", "work", "works"].includes(token)
+    );
+  if (tokens.length >= 2) return true;
+  if (tokens.length === 1 && normalized === `${tokens[0]} testing`) return true;
+
+  return /^(commissioning|demolition|excavation|handover|roofing|walls?)$/i.test(normalized);
 }
 
 function cleanDatePhrase(value: string | undefined): string | null {

@@ -1,4 +1,5 @@
 export * from "./fallback-provider.js";
+export * from "./classification-context.js";
 export * from "./message-classifier.js";
 export * from "./message-classifier-v2.js";
 export * from "./evaluation.js";

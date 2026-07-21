@@ -5,7 +5,7 @@
 | Purpose      | Track FieldOS milestone progress, task completion, technical debt, architecture decisions, and deployment readiness. |
 | Owner        | Founding Engineering                                                                                                 |
 | Status       | Active                                                                                                               |
-| Last Updated | 2026-07-20                                                                                                           |
+| Last Updated | 2026-07-21                                                                                                           |
 
 ## Table of Contents
 
@@ -27,7 +27,8 @@ AI Decision Layer v2 production shadow observation and promotion readiness revie
   - Added bounded multi-signal classification, cautious abstention, structured expectations, completion and inspection semantics, and one bounded structural repair attempt.
   - Routed every v2 coordinator recommendation through a central evidence, confidence, deduplication, and cooldown gate while preserving the legacy rollback path.
   - Added persisted classification decisions, recommendation candidates, suppression telemetry, outstanding expectations, and conservative photo-analysis fields.
-  - Added 81 labelled evaluation cases; deterministic policy acceptance measured 94.29% recommendation precision, 90.12% primary-category accuracy, 95.06% abstention accuracy, 0% inspection false positives, 1.30% follow-up false positives, and 0% duplicate rate.
+  - Added 86 labelled evaluation cases and completed a production-path Kimi run with zero provider failures, 100% recommendation precision and recall, 100% abstention accuracy, and zero inspection, follow-up, or duplicate false positives.
+  - Recorded the remaining extraction gap honestly: 88.37% primary-category accuracy, 53.57% multi-signal precision, and 46.88% multi-signal recall.
   - Corrected Kimi's v2 output contract with exact enums and nested response-expectation requirements while retaining strict validation.
   - Migrated the API and worker from retired Nixpacks to Railpack so Railway can build the repository's pinned pnpm 11.7.0 toolchain.
   - Applied production migration `20260718010000_ai_decision_layer_v2` and verified a disposable queue job persisted a `SHADOW` decision through the Kimi-primary/OpenRouter-fallback provider without creating a visible recommendation.
@@ -375,6 +376,7 @@ AI Decision Layer v2 production shadow observation and promotion readiness revie
 ## In-Progress Tasks
 
 - Observe production AI Decision Layer v2 shadow telemetry and review quality with pilot traffic before explicitly promoting `AI_DECISION_ENGINE_MODE` from `shadow` to `v2`.
+- Prepare the complete additive AI v2 migration and shadow telemetry changes for review in draft pull request 1; production promotion remains out of scope.
 
 ## Known Technical Debt
 
@@ -411,6 +413,8 @@ AI Decision Layer v2 production shadow observation and promotion readiness revie
 - WhatsApp discovery pagination is client-side; move it into the API before accounts routinely exceed several thousand chats.
 - Recommendation decision history does not yet have a dedicated audit hub.
 - AI Decision Layer v2 remains intentionally non-visible in production shadow mode until representative pilot telemetry is reviewed; deterministic evaluation is not a substitute for live-provider quality measurement.
+- Operations job metrics retain historical failures indefinitely, so the all-time failed count can look unhealthy after recovery. Recent failures, queue depth, coordinator runs, and worker heartbeat are the authoritative current-health signals until the API exposes separate time windows.
+- The stale `Demo airport operations line` WhatsApp account remains in `PENDING_QR` and produces recurring pairing timeout logs. Removing or resetting it requires an explicit administrator decision because it is production account data.
 
 ## Upcoming Milestones
 
@@ -461,6 +465,12 @@ AI Decision Layer v2 production shadow observation and promotion readiness revie
 - AI Decision Layer v2 decision: preserve the legacy rollback path, run bounded multi-signal extraction and all v2 recommendations through a central gate, persist suppression telemetry, and deploy in shadow mode before any customer-visible activation.
 
 ## Deployment Status
+
+- Railway production health was re-audited on 2026-07-21 after user-reported coordinator errors.
+  - API, worker, and coordinator cron were online; the current worker deployment `e40fa90b-ad10-4eec-b130-a171f280e7da` and latest cron run were successful.
+  - Since worker deployment at `2026-07-21T01:22:51Z`, there were zero failed jobs, zero failed coordinator runs, and no pending or running backlog. The latest milestone run completed successfully.
+  - The visible failed counts are retained historical records: 16 message classifications from July 7-8 and 45 photo analyses through July 16. The confidence-normalization hotfix is deployed from commit `be7020c`.
+  - Production remains on `AI_DECISION_ENGINE_MODE=shadow`; the complete v2 branch is not promoted or merged.
 
 - AI Decision Layer v2 is deployed in production shadow mode from commits `8b859b0`, `ff464ce`, and `3909bca` on 2026-07-20.
   - Railway API deployment `710aa9c0-c385-425b-8fbe-b444390cd3d5` completed successfully, applied migration `20260718010000_ai_decision_layer_v2`, and returns `{"status":"ok"}`.

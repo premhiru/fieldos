@@ -5,7 +5,7 @@
 | Purpose      | Define the first production hosting approach for FieldOS services. |
 | Owner        | Founding Engineering                                               |
 | Status       | Active                                                             |
-| Last Updated | 2026-07-16                                                         |
+| Last Updated | 2026-07-21                                                         |
 
 ## Table of Contents
 
@@ -109,6 +109,7 @@ KIMI_API_KEY=<Kimi API key>
 KIMI_BASE_URL=https://api.moonshot.ai/v1
 KIMI_MODEL=kimi-k2.6
 KIMI_VISION_MODEL=kimi-k2.6
+AI_DECISION_ENGINE_MODE=shadow
 OPENROUTER_API_KEY=<OpenRouter fallback API key>
 AI_BASE_URL=https://openrouter.ai/api/v1
 AI_MODEL=openrouter/free
@@ -165,6 +166,8 @@ API_URL=https://fieldos-api-production.up.railway.app
 - The API deployment runs Prisma migrations before startup.
 - Railway should run the API healthcheck against `/health`.
 - The worker should restart on failure.
+- Keep `AI_DECISION_ENGINE_MODE=shadow` until the labelled provider evaluation, additive migration, shadow telemetry, and explicit promotion review are complete. `legacy` is the immediate rollback value.
+- Treat recent failures, active queue depth, coordinator runs, and worker heartbeat as current health. All-time failed job totals retain historical incidents for audit.
 - Keep Postgres and Redis private to Railway services where possible.
 - Use a dedicated business WhatsApp test number before live pairing.
 - API and worker should use the same R2 bucket and credentials for production evidence and generated report PDFs.

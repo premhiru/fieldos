@@ -4,8 +4,8 @@
 | ------------ | ------------------------------------------------------------ |
 | Purpose      | Record reproducible AI Decision Layer v2 acceptance results. |
 | Owner        | Principal AI Engineering                                     |
-| Status       | Complete for shadow entry                                    |
-| Last Updated | 2026-07-18                                                   |
+| Status       | Complete for shadow review                                   |
+| Last Updated | 2026-07-21                                                   |
 
 ## Table of Contents
 
@@ -17,9 +17,11 @@
 
 ## Method
 
-`packages/ai/src/evaluation-cases.ts` defines 81 labelled messages. `evaluateDecisionLayer()` runs the same cautious deterministic acceptance policy used to regression-test recommendation eligibility. The suite is local, reproducible, provider-independent, and includes genuine positive recommendations.
+`packages/ai/src/evaluation-cases.ts` defines 86 labelled messages. `pnpm ai:evaluate` sends each case through the production classification provider chain and the same deterministic recommendation policy used by the worker. The captured result is stored in `packages/ai/src/evaluation-results.v2.json` and enforced by the AI test suite.
 
 Each case records relevance, primary category, secondary signals, operational impact, response expectation, recommendation eligibility/type, abstention, and prohibited outcomes.
+
+The accepted run completed at `2026-07-21T03:16:03.214Z` using `kimi-k2.6`, prompt `message-classification.v2.4`, policy `recommendation-policy.v2.1`, and schema `2.2`. Kimi handled every case; the OpenRouter fallback count and provider failure count were both zero.
 
 ## Coverage
 
@@ -27,29 +29,36 @@ The set covers routine and meaningful progress, full and partial completion, del
 
 ## Results
 
-| Metric                         | Result |
-| ------------------------------ | ------ |
-| Cases                          | 81     |
-| Recommendation precision       | 94.29% |
-| Primary-category accuracy      | 90.12% |
-| Multi-signal precision         | 75.00% |
-| Multi-signal recall            | 60.00% |
-| Abstention accuracy            | 95.06% |
-| Inspection false-positive rate | 0.00%  |
-| Follow-up false-positive rate  | 1.30%  |
-| Duplicate recommendation rate  | 0.00%  |
+| Metric                             | Result  |
+| ---------------------------------- | ------- |
+| Cases                              | 86      |
+| Evaluation/provider failure rate   | 0.00%   |
+| Recommendation precision           | 100.00% |
+| Recommendation recall              | 100.00% |
+| Primary-category accuracy          | 88.37%  |
+| Multi-signal precision             | 53.57%  |
+| Multi-signal recall                | 46.88%  |
+| Abstention accuracy                | 100.00% |
+| Recommendation false-positive rate | 0.00%   |
+| Inspection false-positive rate     | 0.00%   |
+| Follow-up false-positive rate      | 0.00%   |
+| Duplicate recommendation rate      | 0.00%   |
 
 Command used:
 
 ```bash
+railway run --service fieldos-worker --environment production --no-local pnpm ai:evaluate
 pnpm --filter @fieldos/ai test
-pnpm exec tsx -e "import { aiEvaluationCases } from './packages/ai/src/evaluation-cases.ts'; import { evaluateDecisionLayer } from './packages/ai/src/evaluation.ts'; console.log(evaluateDecisionLayer(aiEvaluationCases));"
 ```
 
 ## Interpretation
 
-The acceptance policy meets the pilot targets for recommendation precision, inspection false positives, follow-up false positives, and duplicate recommendations. Multi-signal recall is intentionally lower because the pilot favors abstention and precision. Shadow review should focus on whether live extraction omits useful secondary signals without increasing customer-visible false positives.
+The provider-backed run meets the shadow-entry targets for recommendation precision and recall, abstention, inspection safety, follow-up safety, duplicate prevention, and provider reliability. The set contains genuine positive recommendations, so these results do not come from disabling coordinator output.
+
+Primary-category accuracy and multi-signal extraction remain materially weaker. The pilot policy intentionally favors accurate customer-visible recommendations over exhaustive signal extraction. Shadow review should measure missed secondary signals and category disagreements before enabling v2 recommendations.
 
 ## Limitations
 
-These are actual offline acceptance results, not a claim of 94.29% accuracy on live customer traffic or a live-provider benchmark. Kimi/OpenRouter outputs are non-deterministic and must be measured through shadow telemetry. The set does not include audio decoding or image pixels; it evaluates transcripts, captions, structured photo conclusions, and downstream decision rules.
+These are actual provider-backed results on synthetic labelled field messages, not a claim of equivalent accuracy on customer traffic. No customer message content is stored in the fixture. Model output is non-deterministic, so the captured result is a release gate rather than a permanent quality guarantee. The set evaluates voice transcripts and photo captions, not audio decoding or raw image pixels; vision has separate contract and policy tests.
+
+During label review, technically meaningful RFIs and material defect/delivery cases were corrected to match the documented business policy. Captured model predictions were not changed when metrics were recomputed.

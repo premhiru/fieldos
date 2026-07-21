@@ -875,9 +875,12 @@ export interface JobMetrics {
 
 export interface AdminOperations {
   ai: {
+    ambiguousClassificationsToday: number;
     averageProcessingTimeMs: number | null;
+    classificationsCompletedToday: number;
     failuresToday: number;
     jobsPending: number;
+    nonOperationalClassificationsToday: number;
   };
   jobSummary: JobMetrics[];
   media: {
@@ -899,6 +902,8 @@ export interface AdminOperations {
   workers: WorkerHeartbeat[];
   coordinators: {
     approvalRate: number;
+    candidatesByCoordinator: Array<{ coordinatorType: CoordinatorType; count: number }>;
+    candidatesClarificationToday: number;
     candidatesGeneratedToday: number;
     candidatesShadowedToday: number;
     candidatesSuppressedToday: number;

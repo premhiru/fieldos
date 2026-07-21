@@ -5,7 +5,7 @@
 | Purpose      | Define the data model, ownership boundaries, migration policy, and database standards. |
 | Owner        | Engineering                                                                            |
 | Status       | Draft                                                                                  |
-| Last Updated | 2026-07-18                                                                             |
+| Last Updated | 2026-07-21                                                                             |
 
 ## Table of Contents
 
@@ -544,6 +544,8 @@ Key constraints and indexes:
 - `version`: Deployment version or commit.
 - `status`: `ONLINE`, `OFFLINE`, `STARTING`, or `STOPPING`.
 - `lastHeartbeatAt`: Updated every 30 seconds by the worker.
+
+AI Decision Layer v2 adds additive decision records and expectations. `AIClassificationDecision` stores the bounded extraction contract and model metadata, `RecommendationCandidate` stores create/suppress/shadow outcomes with a semantic fingerprint, and `OutstandingExpectation` stores explicit requested items until they are resolved. Organization, project, status, source, fingerprint, and time-window indexes support worker and operations queries.
 
 ## Pilot Readiness Model
 

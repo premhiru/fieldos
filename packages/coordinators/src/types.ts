@@ -158,6 +158,8 @@ export interface RecommendationWithProject extends Recommendation {
 
 export interface CoordinatorOperationsMetrics {
   approvalRate: number;
+  candidatesByCoordinator: Array<{ coordinatorType: CoordinatorType; count: number }>;
+  candidatesClarificationToday: number;
   candidatesGeneratedToday: number;
   candidatesShadowedToday: number;
   candidatesSuppressedToday: number;

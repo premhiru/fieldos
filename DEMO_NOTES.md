@@ -284,3 +284,5 @@ Operational improvements:
 Run the worker in `shadow`, send routine progress, partial completion, explicit inspection-ready, ambiguous, and overdue-commitment examples, then verify that v2 decisions appear only in operations telemetry. Customer-visible recommendations remain on the legacy path until the mode is deliberately changed to `v2`.
 
 The key demo is quiet behavior: ordinary progress and single-photo evidence should not create v2 recommendations.
+
+Before a release review, run `pnpm ai:evaluate` through the Kimi-primary provider chain and compare the result with `packages/ai/src/evaluation-results.v2.json`. The accepted fixture contains 86 labelled synthetic cases and no customer messages.

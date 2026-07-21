@@ -5,7 +5,7 @@
 | Purpose      | Introduce the FieldOS engineering foundation, repository layout, and development workflow. |
 | Owner        | Founding Engineering                                                                       |
 | Status       | Active                                                                                     |
-| Last Updated | 2026-07-18                                                                                 |
+| Last Updated | 2026-07-21                                                                                 |
 
 ## Table of Contents
 
@@ -136,6 +136,8 @@ pnpm db:seed
 ```
 
 Configure AI classification, search, milestone detection, and photo intelligence by setting `KIMI_API_KEY`. Kimi uses `https://api.moonshot.ai/v1` with `kimi-k2.6` as the primary text and vision model. Set `OPENROUTER_API_KEY` to retain `openrouter/free` as the automatic fallback through `AI_MODEL` and `VISION_MODEL`. `OPENAI_API_KEY` remains dedicated to voice transcription when available.
+
+Run the provider-backed AI Decision Layer evaluation with `pnpm ai:evaluate`. The accepted 86-case result and release thresholds are documented in [docs/AI_EVALUATION_REPORT.md](./docs/AI_EVALUATION_REPORT.md). Production remains in `shadow` until pilot telemetry is reviewed explicitly.
 
 Configure local signed media serving with `MEDIA_SIGNING_SECRET`. Local development defaults to `STORAGE_PROVIDER=local` and stores media under `WHATSAPP_STORAGE_PATH`.
 

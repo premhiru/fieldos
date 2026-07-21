@@ -514,9 +514,12 @@ export interface JobMetricsRecord {
 
 export interface AdminOperationsRecord {
   ai: {
+    ambiguousClassificationsToday: number;
     averageProcessingTimeMs: number | null;
+    classificationsCompletedToday: number;
     failuresToday: number;
     jobsPending: number;
+    nonOperationalClassificationsToday: number;
   };
   jobSummary: JobMetricsRecord[];
   media: {
@@ -1664,57 +1667,74 @@ export function createPrismaRepository(): AppRepository {
       const prisma = await getPrisma();
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const [jobSummary, workers, whatsappCounts, aiPending, aiFailuresToday, aiCompletedToday] =
-        await Promise.all([
-          getJobMetrics(prisma, organizationId),
-          prisma.workerHeartbeat.findMany({
-            orderBy: {
-              workerName: "asc"
-            }
-          }),
-          prisma.whatsAppAccount.groupBy({
-            by: ["status"],
-            _count: true,
-            where: {
-              organizationId
-            }
-          }),
-          prisma.processingJob.count({
-            where: {
-              organizationId,
-              status: "PENDING",
-              type: "AI_CLASSIFICATION"
-            }
-          }),
-          prisma.processingJob.count({
-            where: {
-              failedAt: {
-                gte: today
-              },
-              organizationId,
-              status: "FAILED",
-              type: "AI_CLASSIFICATION"
-            }
-          }),
-          prisma.processingJob.findMany({
-            select: {
-              completedAt: true,
-              startedAt: true
+      const [
+        jobSummary,
+        workers,
+        whatsappCounts,
+        aiPending,
+        aiFailuresToday,
+        aiCompletedToday,
+        classificationGroups
+      ] = await Promise.all([
+        getJobMetrics(prisma, organizationId),
+        prisma.workerHeartbeat.findMany({
+          orderBy: {
+            workerName: "asc"
+          }
+        }),
+        prisma.whatsAppAccount.groupBy({
+          by: ["status"],
+          _count: true,
+          where: {
+            organizationId
+          }
+        }),
+        prisma.processingJob.count({
+          where: {
+            organizationId,
+            status: "PENDING",
+            type: "AI_CLASSIFICATION"
+          }
+        }),
+        prisma.processingJob.count({
+          where: {
+            failedAt: {
+              gte: today
             },
-            where: {
-              completedAt: {
-                gte: today
-              },
-              organizationId,
-              status: "COMPLETED",
-              type: "AI_CLASSIFICATION"
-            }
-          })
-        ]);
+            organizationId,
+            status: "FAILED",
+            type: "AI_CLASSIFICATION"
+          }
+        }),
+        prisma.processingJob.findMany({
+          select: {
+            completedAt: true,
+            startedAt: true
+          },
+          where: {
+            completedAt: {
+              gte: today
+            },
+            organizationId,
+            status: "COMPLETED",
+            type: "AI_CLASSIFICATION"
+          }
+        }),
+        prisma.aIClassificationDecision.groupBy({
+          _count: true,
+          by: ["relevance"],
+          where: {
+            organizationId,
+            processedAt: { gte: today }
+          }
+        })
+      ]);
 
       const byJobType = new Map(jobSummary.map((row) => [row.type, row]));
       const countWhatsApp = (status: WhatsAppAccountRecord["status"]) =>
         whatsappCounts.find((row) => row.status === status)?._count ?? 0;
+      const countClassifications = (relevance: "AMBIGUOUS" | "NON_OPERATIONAL" | "OPERATIONAL") =>
+        classificationGroups.find((row) => row.relevance === relevance)?._count ?? 0;
       const completedAIWithDurations = aiCompletedToday.filter(
         (job) => job.startedAt && job.completedAt
       );
@@ -1731,9 +1751,15 @@ export function createPrismaRepository(): AppRepository {
 
       return {
         ai: {
+          ambiguousClassificationsToday: countClassifications("AMBIGUOUS"),
           averageProcessingTimeMs,
+          classificationsCompletedToday: classificationGroups.reduce(
+            (total, group) => total + group._count,
+            0
+          ),
           failuresToday: aiFailuresToday,
-          jobsPending: aiPending
+          jobsPending: aiPending,
+          nonOperationalClassificationsToday: countClassifications("NON_OPERATIONAL")
         },
         jobSummary,
         media: {

@@ -236,6 +236,9 @@ function SystemCards({ operations }: { operations: AdminOperations }) {
       title: "AI",
       rows: [
         ["Jobs Pending", operations.ai.jobsPending],
+        ["Classified Today", operations.ai.classificationsCompletedToday],
+        ["Ambiguous", operations.ai.ambiguousClassificationsToday],
+        ["Non-operational", operations.ai.nonOperationalClassificationsToday],
         [
           "Average Processing Time",
           operations.ai.averageProcessingTimeMs
@@ -266,6 +269,10 @@ function SystemCards({ operations }: { operations: AdminOperations }) {
       rows: [
         ["Runs Today", operations.coordinators.runsToday],
         ["Failed Runs", operations.coordinators.failedRunsToday],
+        ["Candidates", operations.coordinators.candidatesGeneratedToday],
+        ["Suppressed", operations.coordinators.candidatesSuppressedToday],
+        ["Clarification", operations.coordinators.candidatesClarificationToday],
+        ["Shadowed", operations.coordinators.candidatesShadowedToday],
         ["Created Today", operations.coordinators.recommendationsCreatedToday],
         ["Pending Recommendations", operations.coordinators.pendingRecommendations],
         ["Approval Rate", `${operations.coordinators.approvalRate}%`]

@@ -8,16 +8,35 @@ describe("MessageClassifierV2", () => {
     const classifier = new MessageClassifierV2({
       provider: providerReturning({
         abstentionReason: null,
+        ambiguity: { isAmbiguous: false, missingContext: [] },
         completionClaim: "PARTIAL",
         confidence: 0.88,
+        factualClaims: [
+          {
+            confidence: 0.95,
+            statement: "Cable tray installation is complete.",
+            status: "ASSERTED",
+            subject: "cable tray",
+            type: "PROGRESS"
+          }
+        ],
         inspectionReadiness: "NOT_READY",
         location: null,
+        locations: [],
         operationalImpact: "HIGH",
         primaryCategory: "PROGRESS_UPDATE",
         recommendationEligible: true,
+        recommendationEligibilityReason: "Testing remains an unresolved prerequisite.",
+        referencedDates: [
+          {
+            confidence: 0.9,
+            phrase: "tomorrow",
+            resolvedDate: "2026-07-19"
+          }
+        ],
         relevance: "OPERATIONAL",
         responseExpectation: {
-          dueAt: null,
+          dueAt: "2026-07-19",
           evidence: "Testing remains pending.",
           expectedResponder: null,
           requestedItem: "testing completion",
@@ -33,6 +52,7 @@ describe("MessageClassifierV2", () => {
 
     await expect(classifier.classifyMessage(input())).resolves.toMatchObject({
       completionClaim: "PARTIAL",
+      referencedDates: [expect.objectContaining({ resolvedDate: "2026-07-19" })],
       secondarySignals: ["DELAY", "INSPECTION_REQUEST"]
     });
   });
@@ -50,13 +70,18 @@ describe("MessageClassifierV2", () => {
           ? { relevance: "AMBIGUOUS" }
           : {
               abstentionReason: "The reply has no referenced scope.",
+              ambiguity: { isAmbiguous: true, missingContext: ["reply context", "work scope"] },
               completionClaim: "AMBIGUOUS",
               confidence: 0.35,
+              factualClaims: [],
               inspectionReadiness: "AMBIGUOUS",
               location: null,
+              locations: [],
               operationalImpact: "NONE",
               primaryCategory: "UNKNOWN",
               recommendationEligible: false,
+              recommendationEligibilityReason: "No specific operational action is supported.",
+              referencedDates: [],
               relevance: "AMBIGUOUS",
               responseExpectation: {
                 dueAt: null,
@@ -116,16 +141,37 @@ function input(): ClassifyMessageV2Input {
       transcriptionPending: false
     },
     messageText: "Cable tray installed; cabling and testing are pending.",
+    messageDirection: "INBOUND",
     messageType: "TEXT",
     openActionItems: [],
+    operatingContext: {
+      isWeekend: false,
+      localDateTime: "2026-07-18, 08:00:00",
+      timezone: "Asia/Singapore",
+      weekday: "Saturday"
+    },
     organizationId: "organization_1",
     processingStatus: "AI_PENDING",
-    project: { code: "P1", id: "project_1", name: "Terminal", status: "ACTIVE" },
+    photoAnalyses: [],
+    project: {
+      code: "P1",
+      id: "project_1",
+      name: "Terminal",
+      status: "ACTIVE",
+      timezone: "Asia/Singapore"
+    },
     projectState: null,
     recentMessages: [],
     recentTimelineEvents: [],
-    sender: { displayName: "Alex", externalIdentifier: "alex", id: "participant_1" },
+    replyContext: null,
+    sender: {
+      displayName: "Alex",
+      externalIdentifier: "alex",
+      id: "participant_1",
+      role: "FIELD_SUPERVISOR"
+    },
     timestamp: new Date("2026-07-18T00:00:00.000Z"),
+    unresolvedExpectations: [],
     voiceTranscript: null
   };
 }

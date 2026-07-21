@@ -86,10 +86,18 @@ const partialCompletionTexts = [
   "Ceiling complete, pending consultant comments."
 ];
 
-const partialCompletion = partialCompletionTexts.map((text, index) =>
-  testCase(`partial-${index + 1}`, text, {
-    ...noRecommendation,
-    expectedOperationalImpact: "LOW",
+const partialCompletion = partialCompletionTexts.map((text, index) => {
+  const hasMaterialIssue = index === 6 || index === 8;
+  return testCase(`partial-${index + 1}`, text, {
+    ...(hasMaterialIssue
+      ? {
+          expectedAbstention: false,
+          expectedRecommendationEligible: true,
+          expectedRecommendationType: "ACTION_ITEM" as const,
+          prohibitedRecommendationOutcomes: ["INSPECTION", "MILESTONE_COMPLETION"]
+        }
+      : noRecommendation),
+    expectedOperationalImpact: index === 8 ? "HIGH" : hasMaterialIssue ? "MEDIUM" : "LOW",
     expectedPrimaryCategory: text.toLowerCase().includes("failed")
       ? "DEFECT"
       : text.toLowerCase().includes("delivery")
@@ -100,11 +108,13 @@ const partialCompletion = partialCompletionTexts.map((text, index) =>
     expectedSecondarySignals: text.toLowerCase().includes("failed")
       ? ["PROGRESS_UPDATE"]
       : text.toLowerCase().includes("delivery")
-        ? ["PROGRESS_UPDATE"]
+        ? hasMaterialIssue
+          ? ["MATERIAL_ISSUE"]
+          : ["PROGRESS_UPDATE"]
         : [],
     prohibitedRecommendationOutcomes: ["INSPECTION", "MILESTONE_COMPLETION"]
-  })
-);
+  });
+});
 
 const inspections = [
   [
@@ -157,9 +167,9 @@ const acknowledgementCases = acknowledgements.map((text, index) =>
   testCase(`ack-${index + 1}`, text, {
     ...noRecommendation,
     expectedOperationalImpact: "NONE",
-    expectedPrimaryCategory: "GENERAL_NOTE",
-    expectedRelevance: "NON_OPERATIONAL",
-    expectedResponseExpectation: "NONE",
+    expectedPrimaryCategory: index === 0 ? "UNKNOWN" : "ACKNOWLEDGEMENT",
+    expectedRelevance: index === 0 ? "AMBIGUOUS" : "NON_OPERATIONAL",
+    expectedResponseExpectation: index === 0 ? "UNCLEAR" : "NONE",
     expectedSecondarySignals: [],
     prohibitedRecommendationOutcomes: ["CLIENT_APPROVAL", "ACTION_ITEM"]
   })
@@ -178,38 +188,59 @@ const ambiguousCases = ["Done", "Complete.", "Completed", "Finished."].map((text
 );
 
 const expectations = [
-  ["We will send the signed test sheet by Friday; it is now overdue.", true, "FOLLOW_UP"],
-  ["Still waiting for the quotation due yesterday, please send it.", true, "FOLLOW_UP"],
-  ["The requested approval is overdue; could you confirm today?", true, "FOLLOW_UP"],
-  ["Please provide the delivery update by 18 July; it is not received.", true, "FOLLOW_UP"],
-  ["Could you send current site photos?", false, null],
-  ["We will provide the method statement by Friday.", false, null],
-  ["The signed test sheet is attached as requested.", false, null],
-  ["Quotation uploaded and confirmed as requested.", false, null],
-  ["Can you confirm which drawing applies?", false, null],
-  ["Please approve the sample when convenient.", false, null]
+  [
+    "We will send the signed test sheet by Friday; it is now overdue.",
+    true,
+    "FOLLOW_UP",
+    "COMMITMENT",
+    ["DELAY"]
+  ],
+  [
+    "Still waiting for the quotation due yesterday, please send it.",
+    true,
+    "FOLLOW_UP",
+    "DELAY",
+    ["QUESTION"]
+  ],
+  [
+    "The requested approval is overdue; could you confirm today?",
+    true,
+    "FOLLOW_UP",
+    "QUESTION",
+    ["DECISION"]
+  ],
+  [
+    "Please provide the delivery update by 18 July; it is not received.",
+    true,
+    "FOLLOW_UP",
+    "DELAY",
+    ["DELIVERY", "QUESTION"]
+  ],
+  ["Could you send current site photos?", false, null, "QUESTION", []],
+  ["We will provide the method statement by Friday.", false, null, "COMMITMENT", []],
+  ["The signed test sheet is attached as requested.", false, null, "GENERAL_NOTE", []],
+  ["Quotation uploaded and confirmed as requested.", false, null, "ACKNOWLEDGEMENT", []],
+  ["Can you confirm which drawing applies?", true, "ACTION_ITEM", "RFI", ["QUESTION"]],
+  ["Please approve the sample when convenient.", false, null, "QUESTION", ["DECISION"]]
 ] as const;
 
-const expectationCases = expectations.map(([text, eligible, recommendationType], index) =>
-  testCase(`expectation-${index + 1}`, text, {
-    expectedAbstention: !eligible,
-    expectedOperationalImpact: eligible ? "HIGH" : "LOW",
-    expectedPrimaryCategory: text.toLowerCase().includes("delivery")
-      ? "DELIVERY"
-      : text.toLowerCase().includes("drawing")
-        ? "RFI"
-        : "UNKNOWN",
-    expectedRecommendationEligible: eligible,
-    expectedRecommendationType: recommendationType,
-    expectedRelevance: "OPERATIONAL",
-    expectedResponseExpectation: /attached|uploaded|confirmed as requested/i.test(text)
-      ? "RESOLVED"
-      : "OPEN",
-    expectedSecondarySignals: [],
-    prohibitedRecommendationOutcomes: eligible
-      ? ["GENERIC_PROGRESS_REQUEST"]
-      : ["PREMATURE_FOLLOW_UP"]
-  })
+const expectationCases = expectations.map(
+  ([text, eligible, recommendationType, primaryCategory, secondarySignals], index) =>
+    testCase(`expectation-${index + 1}`, text, {
+      expectedAbstention: !eligible,
+      expectedOperationalImpact: eligible ? "HIGH" : "LOW",
+      expectedPrimaryCategory: primaryCategory,
+      expectedRecommendationEligible: eligible,
+      expectedRecommendationType: recommendationType,
+      expectedRelevance: "OPERATIONAL",
+      expectedResponseExpectation: /attached|uploaded|confirmed as requested/i.test(text)
+        ? "RESOLVED"
+        : "OPEN",
+      expectedSecondarySignals: [...secondarySignals],
+      prohibitedRecommendationOutcomes: eligible
+        ? ["GENERIC_PROGRESS_REQUEST"]
+        : ["PREMATURE_FOLLOW_UP"]
+    })
 );
 
 const mixedEvidenceTexts = [
@@ -246,6 +277,7 @@ const mixedEvidence = mixedEvidenceTexts.map((text, index) => {
     if (lower.includes("damaged pallet"))
       return ["DEFECT", true, "OPERATIONAL", ["DELIVERY"]] as const;
     if (lower.includes("variation")) return ["VARIATION_ORDER", true, "OPERATIONAL", []] as const;
+    if (lower.includes("resolved")) return ["RFI", false, "OPERATIONAL", []] as const;
     return ["RFI", true, "OPERATIONAL", []] as const;
   })();
   return testCase(`mixed-${index + 1}`, text, {
@@ -294,6 +326,113 @@ const generalOperationCases = generalOperations.map(([text, primary, secondary],
   })
 );
 
+const sequenceCases: AIEvaluationCase[] = [
+  testCase("repeat-defect-1", "The fire door closer is broken and needs rectification.", {
+    expectedAbstention: false,
+    expectedOperationalImpact: "HIGH",
+    expectedPrimaryCategory: "DEFECT",
+    expectedRecommendationEligible: true,
+    expectedRecommendationType: "ACTION_ITEM",
+    expectedRelevance: "OPERATIONAL",
+    expectedResponseExpectation: "NONE",
+    expectedSecondarySignals: [],
+    prohibitedRecommendationOutcomes: ["GENERIC_REVIEW"],
+    scenarioKey: "fire-door-closer-defect"
+  }),
+  testCase("repeat-defect-2", "The fire door closer is broken and needs rectification.", {
+    duplicateOf: "repeat-defect-1",
+    expectedAbstention: true,
+    expectedOperationalImpact: "HIGH",
+    expectedPrimaryCategory: "DEFECT",
+    expectedRecommendationEligible: false,
+    expectedRecommendationType: null,
+    expectedRelevance: "OPERATIONAL",
+    expectedResponseExpectation: "NONE",
+    expectedSecondarySignals: [],
+    prohibitedRecommendationOutcomes: ["DUPLICATE_ACTION_ITEM"],
+    recentMessages: [
+      {
+        body: "The fire door closer is broken and needs rectification.",
+        direction: "INBOUND",
+        occurredAt: "2026-07-20T01:00:00.000Z",
+        relation: "PRECEDING",
+        senderName: "Site Supervisor"
+      }
+    ],
+    scenarioKey: "fire-door-closer-defect"
+  }),
+  testCase(
+    "expectation-overdue-context",
+    "The signed test sheet promised for 18 July has not arrived.",
+    {
+      expectedAbstention: false,
+      expectedOperationalImpact: "HIGH",
+      expectedPrimaryCategory: "COMMITMENT",
+      expectedRecommendationEligible: true,
+      expectedRecommendationType: "FOLLOW_UP",
+      expectedRelevance: "OPERATIONAL",
+      expectedResponseExpectation: "OPEN",
+      expectedSecondarySignals: [],
+      occurredAt: "2026-07-20T02:00:00.000Z",
+      prohibitedRecommendationOutcomes: ["GENERIC_PROGRESS_REQUEST"],
+      scenarioKey: "signed-test-sheet",
+      unresolvedExpectations: [
+        {
+          dueAt: "2026-07-18T09:00:00.000Z",
+          expectedResponder: "Alex",
+          requestedItem: "signed test sheet",
+          sourceMessageId: "signed-sheet-request",
+          type: "DOCUMENT"
+        }
+      ]
+    }
+  ),
+  testCase("expectation-resolved-context", "The signed test sheet is attached as requested.", {
+    expectedAbstention: true,
+    expectedOperationalImpact: "LOW",
+    expectedPrimaryCategory: "UNKNOWN",
+    expectedRecommendationEligible: false,
+    expectedRecommendationType: null,
+    expectedRelevance: "OPERATIONAL",
+    expectedResponseExpectation: "RESOLVED",
+    expectedSecondarySignals: [],
+    occurredAt: "2026-07-20T03:00:00.000Z",
+    prohibitedRecommendationOutcomes: ["FOLLOW_UP"],
+    scenarioKey: "signed-test-sheet",
+    unresolvedExpectations: [
+      {
+        dueAt: "2026-07-18T09:00:00.000Z",
+        expectedResponder: "Alex",
+        requestedItem: "signed test sheet",
+        sourceMessageId: "signed-sheet-request",
+        type: "DOCUMENT"
+      }
+    ]
+  }),
+  testCase("expectation-superseded-context", "Any update on the signed test sheet?", {
+    expectedAbstention: true,
+    expectedOperationalImpact: "LOW",
+    expectedPrimaryCategory: "QUESTION",
+    expectedRecommendationEligible: false,
+    expectedRecommendationType: null,
+    expectedRelevance: "OPERATIONAL",
+    expectedResponseExpectation: "RESOLVED",
+    expectedSecondarySignals: [],
+    occurredAt: "2026-07-20T04:00:00.000Z",
+    prohibitedRecommendationOutcomes: ["FOLLOW_UP"],
+    recentMessages: [
+      {
+        body: "The signed test sheet is attached as requested.",
+        direction: "INBOUND",
+        occurredAt: "2026-07-20T03:00:00.000Z",
+        relation: "PRECEDING",
+        senderName: "Alex"
+      }
+    ],
+    scenarioKey: "signed-test-sheet"
+  })
+];
+
 export const aiEvaluationCases: AIEvaluationCase[] = [
   ...routineProgress,
   ...meaningful,
@@ -303,5 +442,6 @@ export const aiEvaluationCases: AIEvaluationCase[] = [
   ...ambiguousCases,
   ...expectationCases,
   ...mixedEvidence,
-  ...generalOperationCases
+  ...generalOperationCases,
+  ...sequenceCases
 ];

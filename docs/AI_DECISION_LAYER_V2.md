@@ -5,7 +5,7 @@
 | Purpose      | Define the precision-first FieldOS classification and recommendation architecture. |
 | Owner        | Principal AI Engineering                                                           |
 | Status       | Shadow rollout                                                                     |
-| Last Updated | 2026-07-18                                                                         |
+| Last Updated | 2026-07-21                                                                         |
 
 ## Table of Contents
 
@@ -103,11 +103,11 @@ Production starts in `shadow`. Switching the worker variable back to `legacy` is
 
 ## Evaluation
 
-The deterministic acceptance harness contains 81 labelled construction, M&E, facilities, infrastructure, aviation, photo-caption, and voice-transcript cases. Results and methodology are in `docs/AI_EVALUATION_REPORT.md`.
+The provider-backed acceptance harness contains 86 labelled construction, M&E, facilities, infrastructure, aviation, photo-caption, and voice-transcript cases. The accepted Kimi run had zero provider failures, 100% recommendation precision and recall, 100% abstention accuracy, and zero inspection, follow-up, or duplicate false positives. Results and methodology are in `docs/AI_EVALUATION_REPORT.md`.
 
 ## Limitations
 
-The offline suite measures extraction contracts and deterministic decision policy, not live Kimi semantic accuracy on customer messages. Shadow telemetry must be reviewed before v2 activation. Reporting cadence is currently the project weekly reporting policy; per-conversation cadence remains deferred.
+The labelled suite uses the live provider path but synthetic messages; it does not establish quality on customer traffic. Primary-category accuracy is 88.37%, while multi-signal precision and recall are 53.57% and 46.88%, respectively. Shadow telemetry must be reviewed before v2 activation. Reporting cadence is currently the project weekly reporting policy; per-conversation cadence remains deferred.
 
 ## Rollback
 

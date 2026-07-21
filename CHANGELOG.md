@@ -5,7 +5,7 @@
 | Purpose      | Track notable FieldOS product and platform work. |
 | Owner        | Engineering                                      |
 | Status       | Active                                           |
-| Last Updated | 2026-07-18                                       |
+| Last Updated | 2026-07-21                                       |
 
 ## Table of Contents
 
@@ -19,7 +19,8 @@
 - Added a central evidence, confidence, deduplication, cooldown, and shadow-mode recommendation gate.
 - Rebuilt progress, follow-up, inspection, report, and milestone decision policies around shared ProjectState context.
 - Added structured outstanding expectations and safe photo conclusions.
-- Added an 81-case labelled evaluation suite and recorded actual precision-first metrics.
+- Added an 86-case labelled, provider-backed evaluation suite and captured an accepted Kimi result with zero provider failures, 100% recommendation precision and recall, and explicit category/signal limitations.
+- Aligned the dashboard Next.js dependency with the repository pin and configured the Turbopack monorepo root for deterministic local and CI builds.
 
 ### Final Pilot Product Editing
 

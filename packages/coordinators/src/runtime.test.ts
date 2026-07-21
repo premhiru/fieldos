@@ -379,6 +379,9 @@ function createPrismaStub() {
   const transaction = vi.fn();
   const stub = {
     $transaction: transaction,
+    aIClassificationDecision: {
+      findMany: vi.fn().mockResolvedValue([])
+    },
     aIMessageClassification: {
       findMany: vi.fn().mockResolvedValue([])
     },
@@ -413,6 +416,10 @@ function createPrismaStub() {
       findFirst: vi.fn().mockResolvedValue(null),
       findMany: vi.fn().mockResolvedValue([]),
       update: vi.fn()
+    },
+    outstandingExpectation: {
+      findMany: vi.fn().mockResolvedValue([]),
+      findUnique: vi.fn().mockResolvedValue(null)
     },
     photoAnalysis: {
       findMany: vi.fn().mockResolvedValue([])
