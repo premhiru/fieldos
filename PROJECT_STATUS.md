@@ -467,10 +467,13 @@ AI Decision Layer v2 production shadow observation and promotion readiness revie
 ## Deployment Status
 
 - Railway production health was re-audited on 2026-07-21 after user-reported coordinator errors.
-  - API, worker, and coordinator cron were online; the current worker deployment `e40fa90b-ad10-4eec-b130-a171f280e7da` and latest cron run were successful.
-  - Since worker deployment at `2026-07-21T01:22:51Z`, there were zero failed jobs, zero failed coordinator runs, and no pending or running backlog. The latest milestone run completed successfully.
+  - API deployment `d7bb89e3-35e3-408b-a51b-7a040755812c` and worker deployment `853a4e33-589c-47e3-b13e-d54f12b2eaec` completed successfully from commit `08cc85a`; the coordinator cron remains successful.
+  - API startup validated all 26 migrations with no pending work and returned `{"status":"ok"}`. The worker retained its `/data` volume, reached its job-waiting state, and reconnected the active WhatsApp line.
+  - Since the worker deployment, there were zero failed jobs, zero failed coordinator runs, and no pending or running backlog. The latest heartbeat was `ONLINE`.
+  - Production stores 36 `SHADOW` decisions through `kimi-primary-openrouter-fallback`; R2 access was verified against a current attachment without exposing credentials.
   - The visible failed counts are retained historical records: 16 message classifications from July 7-8 and 45 photo analyses through July 16. The confidence-normalization hotfix is deployed from commit `be7020c`.
   - Production remains on `AI_DECISION_ENGINE_MODE=shadow`; the complete v2 branch is not promoted or merged.
+  - GitHub lint, typecheck, tests, and build passed. Vercel preview `https://fieldos-git-agent-ai-decision-layer-v2-premhirus-projects.vercel.app` and its proxied `/api/health` endpoint returned HTTP 200.
 
 - AI Decision Layer v2 is deployed in production shadow mode from commits `8b859b0`, `ff464ce`, and `3909bca` on 2026-07-20.
   - Railway API deployment `710aa9c0-c385-425b-8fbe-b444390cd3d5` completed successfully, applied migration `20260718010000_ai_decision_layer_v2`, and returns `{"status":"ok"}`.
