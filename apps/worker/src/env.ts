@@ -1,6 +1,11 @@
 import { createEnv, nodeEnvSchema, storageEnvironmentSchema } from "@fieldos/shared";
 import { z } from "zod";
 
+const disabledFeatureFlagSchema = z
+  .enum(["true", "false"])
+  .default("false")
+  .transform((value) => value === "true");
+
 export const workerEnv = createEnv(
   z
     .object({
@@ -28,6 +33,11 @@ export const workerEnv = createEnv(
       VOICE_TRANSCRIPTION_MODEL: z.string().trim().min(1).default("whisper-1"),
       WHATSAPP_SESSION_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(10_000),
       WHATSAPP_STORAGE_PATH: z.string().default(".storage"),
+      WHATSAPP_RECOMMENDATION_DELIVERY_ENABLED: disabledFeatureFlagSchema,
+      WHATSAPP_RECOMMENDATION_REPLY_ENABLED: disabledFeatureFlagSchema,
+      WHATSAPP_PARTICIPANT_SYNC_ENABLED: disabledFeatureFlagSchema,
+      WHATSAPP_INVITATIONS_ENABLED: disabledFeatureFlagSchema,
+      WHATSAPP_OUTBOUND_MIN_INTERVAL_MS: z.coerce.number().int().positive().default(2_000),
       REDIS_URL: z.string().url().default("redis://localhost:6379")
     })
     .and(storageEnvironmentSchema)

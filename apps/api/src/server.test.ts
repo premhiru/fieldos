@@ -2726,20 +2726,26 @@ class InMemoryRepository implements AppRepository {
   }
 
   async createWhatsAppAccount(input: {
+    connectedByUserId: string;
     displayName: string;
     organizationId: string;
   }): Promise<WhatsAppAccountRecord> {
     const now = new Date();
     const account = {
       connectorType: "BAILEYS" as const,
+      connectedByUserId: input.connectedByUserId,
       createdAt: now,
+      disconnectedAt: null,
+      disconnectAlertSentAt: null,
       displayName: input.displayName,
       id: nextId("whatsapp_account"),
       lastConnectedAt: null,
+      lastDisconnectReason: null,
       lastDisconnectedAt: null,
       lastMessageAt: null,
       organizationId: input.organizationId,
       phoneNumber: null,
+      recoveryAlertSentAt: null,
       sessionKey: `baileys/${input.organizationId}/${nextId("session")}`,
       status: "PENDING_QR" as const,
       updatedAt: now
@@ -3177,7 +3183,10 @@ class InMemoryRepository implements AppRepository {
     return account;
   }
 
-  async rotateWhatsAppAccountSession(accountId: string): Promise<WhatsAppAccountRecord> {
+  async rotateWhatsAppAccountSession(
+    accountId: string,
+    connectedByUserId: string
+  ): Promise<WhatsAppAccountRecord> {
     const account = this.whatsAppAccounts.find((candidate) => candidate.id === accountId);
 
     if (!account) {
@@ -3185,6 +3194,7 @@ class InMemoryRepository implements AppRepository {
     }
 
     account.sessionKey = `baileys/${account.organizationId}/${nextId("session")}`;
+    account.connectedByUserId = connectedByUserId;
     account.status = "PENDING_QR";
     account.updatedAt = new Date();
     return account;

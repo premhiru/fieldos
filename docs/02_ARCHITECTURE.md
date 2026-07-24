@@ -5,7 +5,7 @@
 | Purpose      | Describe the FieldOS system architecture, boundaries, integration points, and evolution plan. |
 | Owner        | Engineering                                                                                   |
 | Status       | Draft                                                                                         |
-| Last Updated | 2026-07-21                                                                                    |
+| Last Updated | 2026-07-24                                                                                    |
 
 ## Table of Contents
 
@@ -16,6 +16,7 @@
 - [Data Flow](#data-flow)
 - [Integration Strategy](#integration-strategy)
 - [WhatsApp Connector](#whatsapp-connector)
+- [WhatsApp-Native Operations](#whatsapp-native-operations)
 - [AI Classification](#ai-classification)
 - [Unified Evidence Processing](#unified-evidence-processing)
 - [Photo Intelligence](#photo-intelligence)
@@ -134,6 +135,18 @@ The ingestion privacy gate is:
 If any condition fails, the worker skips the message before reading or storing message body content.
 
 Baileys auth session files remain under `.storage` locally and under `/data/whatsapp` on the persistent Railway worker volume in production. Downloaded WhatsApp evidence media is written through `StorageProvider`, using local filesystem storage in development and Cloudflare R2 in production.
+
+## WhatsApp-Native Operations
+
+WhatsApp-native recommendations are an additive delivery and command layer around the existing recommendation lifecycle. `packages/coordinators` remains the sole owner of recommendation creation and approval side effects; the WhatsApp integration formats and transports approved command envelopes but does not duplicate coordinator business rules. Generic messaging remains unaware of delivery policy and WhatsApp commands.
+
+The worker processes three durable job types: recommendation delivery, group participant synchronization, and WhatsApp invitation delivery. Delivery jobs apply project policy, recipient authorization, quiet hours, cooldowns, daily limits, sensitivity rules, idempotency, and bounded retry before sending. Provider message keys are persisted so replies can be resolved by quoted message first. Exact reference commands are a fallback; unquoted approval is intentionally rejected as ambiguous.
+
+Identity resolution uses organization-scoped `Person` records and account-scoped `PersonIdentity` records. JIDs, LIDs, and confirmed phone numbers are deterministic identifiers, but conflicting identities create an `IdentityReview` instead of being silently merged. Group synchronization records the current WhatsApp group roster and derives project participants without granting organization or project access. A reply can mutate a recommendation only when the sender identity is confirmed, linked to a FieldOS user, and authorized for the project. Group approval is disabled unless a project administrator explicitly enables it and selects approvers.
+
+The API owns settings, people administration, identity review, invitation acceptance, delivery operations, and tenant-scoped audit access. Connecting an account records the initiating FieldOS user; after Baileys confirms the line, the worker creates a confirmed identity for that account owner. Invitations use hashed, expiring, single-use tokens and require an authenticated user to accept the terms before any membership or project access is created.
+
+All outbound capabilities are dark-launch features. Delivery, reply handling, participant synchronization, and WhatsApp invitations each have an independent environment flag that defaults to disabled. With every flag disabled, inbound ingestion and the existing dashboard behavior continue unchanged.
 
 ## AI Classification
 

@@ -10,7 +10,7 @@ import {
   PageHeader,
   Skeleton
 } from "@fieldos/ui";
-import { Check, ChevronDown, Clock3, MessageSquareText, X } from "lucide-react";
+import { Check, ChevronDown, Clock3, MessageSquareText, RotateCcw, X } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -51,6 +51,20 @@ function RecommendationDetailContent() {
     retry: false
   });
   const recommendation = recommendationQuery.data?.recommendation;
+  const deliveriesQuery = useQuery({
+    queryFn: () => api.listRecommendationDeliveries(params.recommendationId),
+    queryKey: ["recommendation-deliveries", params.recommendationId],
+    refetchInterval: 30_000,
+    retry: false
+  });
+  const retryDeliveryMutation = useMutation({
+    mutationFn: (deliveryId: string) =>
+      api.retryRecommendationDelivery(deliveryId, recommendation?.organizationId ?? ""),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: ["recommendation-deliveries", params.recommendationId]
+      })
+  });
   const [draftBody, setDraftBody] = React.useState("");
   const draft = recommendation?.whatsAppDrafts?.[0] ?? null;
   const sourceEvidenceQuery = useQuery({
@@ -137,6 +151,58 @@ function RecommendationDetailContent() {
           {formatStatus(recommendation.status)}
         </Badge>
       </div>
+
+      <section
+        className="border-y border-[var(--border-subtle)] py-4"
+        aria-labelledby="whatsapp-delivery-heading"
+      >
+        <div className="flex items-center gap-2">
+          <MessageSquareText className="size-4 text-[var(--text-secondary)]" />
+          <h2 className="font-semibold text-[var(--text-primary)]" id="whatsapp-delivery-heading">
+            WhatsApp delivery
+          </h2>
+        </div>
+        {deliveriesQuery.isLoading ? (
+          <Skeleton className="mt-3 h-12" />
+        ) : (deliveriesQuery.data?.deliveries?.length ?? 0) === 0 ? (
+          <p className="mt-2 text-sm text-[var(--text-secondary)]">
+            This recommendation has not been sent through WhatsApp.
+          </p>
+        ) : (
+          <div className="mt-3 space-y-2">
+            {deliveriesQuery.data?.deliveries?.map((delivery) => (
+              <div
+                className="flex flex-wrap items-center justify-between gap-2 text-sm"
+                key={delivery.id}
+              >
+                <span className="text-[var(--text-primary)]">
+                  {delivery.recipientPerson?.displayName ?? "Configured project group"}
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[var(--text-secondary)]">
+                    {formatStatus(delivery.deliveryStatus)}
+                    {delivery.deliveredAt
+                      ? ` · ${new Date(delivery.deliveredAt).toLocaleString()}`
+                      : ""}
+                    {delivery.respondedAt
+                      ? ` · Responded ${new Date(delivery.respondedAt).toLocaleString()}`
+                      : ""}
+                  </span>
+                  {delivery.deliveryStatus === "FAILED" ? (
+                    <Button
+                      disabled={retryDeliveryMutation.isPending}
+                      onClick={() => retryDeliveryMutation.mutate(delivery.id)}
+                      variant="ghost"
+                    >
+                      <RotateCcw className="size-4" /> Retry
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-6">

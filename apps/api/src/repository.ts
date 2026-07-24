@@ -141,6 +141,7 @@ export interface ProjectWhatsAppMessageRecord extends MessageRecord {
 export interface WhatsAppAccountRecord {
   id: string;
   organizationId: string;
+  connectedByUserId: string | null;
   displayName: string;
   phoneNumber: string | null;
   connectorType: "BAILEYS" | "META_CLOUD";
@@ -631,6 +632,7 @@ export interface AppRepository extends MessagingRepository {
   }): Promise<WhatsAppChatMappingRecord>;
   archiveWhatsAppChatMapping(mappingId: string): Promise<WhatsAppChatMappingRecord>;
   createWhatsAppAccount(input: {
+    connectedByUserId: string;
     displayName: string;
     organizationId: string;
   }): Promise<WhatsAppAccountRecord>;
@@ -726,7 +728,10 @@ export interface AppRepository extends MessagingRepository {
   }): Promise<PhotoAnalysisPageRecord>;
   listProjectActionItems(projectId: string): Promise<ActionItemRecord[]>;
   ignoreActionItem(input: { actionItemId: string; userId: string }): Promise<ActionItemRecord>;
-  rotateWhatsAppAccountSession(accountId: string): Promise<WhatsAppAccountRecord>;
+  rotateWhatsAppAccountSession(
+    accountId: string,
+    connectedByUserId: string
+  ): Promise<WhatsAppAccountRecord>;
   updateWhatsAppAccountStatus(
     accountId: string,
     status: WhatsAppAccountRecord["status"]
@@ -2291,6 +2296,7 @@ export function createPrismaRepository(): AppRepository {
       return prisma.whatsAppAccount.create({
         data: {
           connectorType: "BAILEYS",
+          connectedByUserId: input.connectedByUserId,
           displayName: input.displayName,
           organizationId: input.organizationId,
           sessionKey: `baileys/${input.organizationId}/${randomUUID()}`,
@@ -2366,7 +2372,7 @@ export function createPrismaRepository(): AppRepository {
       });
     },
 
-    async rotateWhatsAppAccountSession(accountId) {
+    async rotateWhatsAppAccountSession(accountId, connectedByUserId) {
       const prisma = await getPrisma();
       const account = await prisma.whatsAppAccount.findUniqueOrThrow({
         select: {
@@ -2380,6 +2386,7 @@ export function createPrismaRepository(): AppRepository {
       return prisma.whatsAppAccount.update({
         data: {
           disconnectedAt: null,
+          connectedByUserId,
           disconnectAlertSentAt: null,
           lastDisconnectReason: null,
           recoveryAlertSentAt: null,

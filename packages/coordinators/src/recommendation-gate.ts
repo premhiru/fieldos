@@ -1,5 +1,6 @@
 import {
   Prisma,
+  queueWhatsAppRecommendationDeliveryJob,
   type AIDecisionEngineMode,
   type PrismaClient,
   type Recommendation,
@@ -126,6 +127,20 @@ export class RecommendationGate {
           status: "CREATED",
           suppressionReason: null
         })
+      });
+      await queueWhatsAppRecommendationDeliveryJob(tx, {
+        nextRunAt: input.priority === "LOW" ? new Date(this.now().getTime() + 5 * 60 * 1000) : null,
+        organizationId,
+        projectId: input.projectId,
+        sourceId: recommendation.id
+      });
+      await tx.whatsAppOperationAudit.create({
+        data: {
+          eventType: "RECOMMENDATION_DELIVERY_EVALUATION_QUEUED",
+          organizationId,
+          projectId: input.projectId,
+          recommendationId: recommendation.id
+        }
       });
       return recommendation;
     });

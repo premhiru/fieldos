@@ -5,7 +5,7 @@
 | Purpose      | Define the data model, ownership boundaries, migration policy, and database standards. |
 | Owner        | Engineering                                                                            |
 | Status       | Draft                                                                                  |
-| Last Updated | 2026-07-21                                                                             |
+| Last Updated | 2026-07-24                                                                             |
 
 ## Table of Contents
 
@@ -18,6 +18,7 @@
 - [Project Report Model](#project-report-model)
 - [AI Project Coordinator Model](#ai-project-coordinator-model)
 - [WhatsApp Connector Model](#whatsapp-connector-model)
+- [WhatsApp-Native Operations Model](#whatsapp-native-operations-model)
 - [AI Classification Model](#ai-classification-model)
 - [Event Model](#event-model)
 - [Milestone Model](#milestone-model)
@@ -70,6 +71,16 @@ Current MVP models:
 - `UserNotification`: Lightweight user notification record.
 - `WhatsAppAccount`: A WhatsApp connector account owned by an organization.
 - `WhatsAppChatMapping`: Connector-specific mapping between a WhatsApp chat JID, a generic conversation, and an optional project.
+- `Person`: Organization-scoped human identity, optionally linked to a FieldOS user.
+- `PersonIdentity`: Account-scoped external identity such as a WhatsApp JID, LID, or confirmed phone number.
+- `ProjectParticipant`: Project role and activity state for a person without implying application access.
+- `WhatsAppGroupParticipant`: Last observed group roster entry for participant discovery.
+- `IdentityReview`: Explicit conflict record for identities that require an administrator decision.
+- `WhatsAppRecommendationSetting`: Per-project delivery, approver, quiet-hour, and confirmation policy.
+- `RecommendationDelivery`: Idempotent outbound recommendation attempt and provider message reference.
+- `RecommendationResponse`: Idempotent inbound command response linked to a delivery and recommendation.
+- `WhatsAppInvitation`: Hashed, expiring WhatsApp invitation with optional project access.
+- `WhatsAppOperationAudit`: Tenant-scoped security and operations audit event.
 
 Membership roles:
 
@@ -299,6 +310,7 @@ WhatsApp connector data is intentionally separate from the generic messaging mod
 `WhatsAppAccount` fields:
 
 - `organizationId`: Owning organization.
+- `connectedByUserId`: FieldOS user who most recently initiated the successful connection, used to establish the account owner's confirmed identity.
 - `displayName`: Operator-facing account label.
 - `phoneNumber`: Populated after a successful WhatsApp connection when available.
 - `connectorType`: `BAILEYS` now, with `META_CLOUD` reserved for the official API path.
@@ -325,6 +337,21 @@ Key constraints:
 - `WhatsAppChatMapping` is unique by `whatsappAccountId` and `jid`.
 - `WhatsAppChatMapping.conversationId` is nullable until activation and first ingested message.
 - A generic conversation can have only one WhatsApp chat mapping when present.
+
+## WhatsApp-Native Operations Model
+
+People and participation are separated from authentication. `Person` is unique per organization and linked to at most one `User`; `ProjectParticipant` records operational participation and role without granting product access. `PersonIdentity` is unique by organization, WhatsApp account, type, and normalized value. Confirmed identities can authorize commands only when their person is linked to an active organization member with project access. Conflicting JID, LID, or phone evidence creates an `IdentityReview`; it is never merged implicitly.
+
+`WhatsAppGroupParticipant` stores the latest roster observed from an active project-mapped group. Synchronization marks removed members inactive and updates project participation, but it does not create memberships or `ProjectAccess` rows.
+
+`WhatsAppRecommendationSetting` is unique per project and stores delivery mode, enabled recommendation types, allowed approvers, quiet hours, daily limits, cooldown, group-delivery choice, sensitivity restrictions, and high-impact confirmation policy. `WhatsAppRecommendationApprover` links explicitly selected people to the policy.
+
+`RecommendationDelivery` records recipient identity, account, recommendation, status, attempt count, defer/expiry times, provider message key, error summary, and timestamps. Its idempotency key is unique. `RecommendationResponse` stores the exact parsed command, sender, source message key, outcome, and optional rejection reason; source message keys are unique per account so provider replays cannot apply a command twice. `Recommendation.snoozedUntil` records recommendation-level snoozing.
+
+`WhatsAppInvitation` stores only a SHA-256 token hash. It expires, is single-use, records terms acceptance, and optionally grants a project role after authenticated acceptance. `WhatsAppOperationAudit` records security-relevant delivery, command, identity, participant, and invitation operations with organization and project indexes. Audit metadata must not contain secrets, raw session material, or provider payload dumps.
+
+New processing job types are `WHATSAPP_RECOMMENDATION_DELIVERY`, `WHATSAPP_GROUP_PARTICIPANT_SYNC`, and `WHATSAPP_INVITATION_DELIVERY`. Their existing `ProcessingJob` source uniqueness and bounded-attempt behavior provide queue idempotency and retry observability.
+
 - Chat mappings cascade with their account and conversation.
 
 Status meanings:

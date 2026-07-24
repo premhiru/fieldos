@@ -5,7 +5,7 @@
 | Purpose      | Document pilot limitations and intentionally deferred work. |
 | Owner        | Principal Engineering                                       |
 | Status       | Active                                                      |
-| Last Updated | 2026-07-21                                                  |
+| Last Updated | 2026-07-24                                                  |
 
 ## Table of Contents
 
@@ -28,6 +28,10 @@
 - One stale WhatsApp account remains in QR-pairing state and can produce recurring QR timeout logs until an administrator retries or removes that account.
 
 - WhatsApp uses Baileys and should remain on a dedicated pilot/test number.
+- WhatsApp-native recommendation delivery, replies, participant sync, and invitations are dark-launched and must remain disabled globally until real test-account validation passes.
+- Baileys cannot provide authoritative phone numbers, complete metadata, or reliable read receipts for every identity; FieldOS stores JID/LID separately and reports only confirmed send state.
+- Identity merge is admin-reviewed and intentionally avoids fuzzy name matching. Bulk review and merge reversal UI are deferred.
+- A discovered external contact must complete secure account activation before approving recommendations. Unauthenticated external-approver actions are deferred until the recommendation actor model can attribute them without impersonating a platform user.
 - Existing pre-R2 media may need re-ingestion before previewing from production storage.
 - Voice transcription requires a provider with audio transcription support.
 - Analytics events are stored but not yet visualized in a dashboard.
