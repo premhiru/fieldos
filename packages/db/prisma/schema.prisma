@@ -7,12 +7,12 @@ datasource db {
 }
 
 model Organization {
-  id                        String                     @id @default(cuid())
+  id                        String                          @id @default(cuid())
   name                      String
-  slug                      String                     @unique
-  isDemo                    Boolean                    @default(false)
-  createdAt                 DateTime                   @default(now())
-  updatedAt                 DateTime                   @updatedAt
+  slug                      String                          @unique
+  isDemo                    Boolean                         @default(false)
+  createdAt                 DateTime                        @default(now())
+  updatedAt                 DateTime                        @updatedAt
   aiMessageClassifications  AIMessageClassification[]
   aiClassificationDecisions AIClassificationDecision[]
   actionItems               ActionItem[]
@@ -33,6 +33,15 @@ model Organization {
   recommendations           Recommendation[]
   recommendationCandidates  RecommendationCandidate[]
   outstandingExpectations   OutstandingExpectation[]
+  people                    Person[]
+  personIdentities          PersonIdentity[]
+  projectParticipants       ProjectParticipant[]
+  identityReviews           IdentityReview[]
+  recommendationSettings    WhatsAppRecommendationSetting[]
+  recommendationDeliveries  RecommendationDelivery[]
+  recommendationResponses   RecommendationResponse[]
+  whatsAppInvitations       WhatsAppInvitation[]
+  whatsAppOperationAudits   WhatsAppOperationAudit[]
   searchDocuments           SearchDocument[]
   whatsAppAccounts          WhatsAppAccount[]
   whatsAppChatMapping       WhatsAppChatMapping[]
@@ -40,29 +49,34 @@ model Organization {
 }
 
 model User {
-  id                            String                  @id @default(cuid())
-  email                         String                  @unique
+  id                            String                   @id @default(cuid())
+  email                         String                   @unique
   name                          String
   passwordHash                  String
-  sessionVersion                Int                     @default(0)
-  createdAt                     DateTime                @default(now())
-  updatedAt                     DateTime                @updatedAt
+  sessionVersion                Int                      @default(0)
+  createdAt                     DateTime                 @default(now())
+  updatedAt                     DateTime                 @updatedAt
   activatedWhatsAppChatMappings WhatsAppChatMapping[]
-  acceptedActionItems           ActionItem[]            @relation("ActionItemAcceptedBy")
-  assignedActionItems           ActionItem[]            @relation("ActionItemAssignedTo")
+  acceptedActionItems           ActionItem[]             @relation("ActionItemAcceptedBy")
+  assignedActionItems           ActionItem[]             @relation("ActionItemAssignedTo")
   analyticsEvents               ProductAnalyticsEvent[]
   feedback                      UserFeedback[]
-  ignoredActionItems            ActionItem[]            @relation("ActionItemIgnoredBy")
-  createdMilestones             Milestone[]             @relation("MilestoneCreatedBy")
+  ignoredActionItems            ActionItem[]             @relation("ActionItemIgnoredBy")
+  createdMilestones             Milestone[]              @relation("MilestoneCreatedBy")
   memberships                   Membership[]
-  acceptedTeamInvitations       TeamInvitation[]        @relation("TeamInvitationAcceptedBy")
-  sentTeamInvitations           TeamInvitation[]        @relation("TeamInvitationInvitedBy")
+  acceptedTeamInvitations       TeamInvitation[]         @relation("TeamInvitationAcceptedBy")
+  sentTeamInvitations           TeamInvitation[]         @relation("TeamInvitationInvitedBy")
   notifications                 UserNotification[]
   passwordResetTokens           PasswordResetToken[]
-  approvedRecommendations       Recommendation[]        @relation("RecommendationApprovedBy")
-  dismissedRecommendations      Recommendation[]        @relation("RecommendationDismissedBy")
-  createdWhatsAppDrafts         WhatsAppDraft[]         @relation("WhatsAppDraftCreatedBy")
-  approvedWhatsAppDrafts        WhatsAppDraft[]         @relation("WhatsAppDraftApprovedBy")
+  approvedRecommendations       Recommendation[]         @relation("RecommendationApprovedBy")
+  dismissedRecommendations      Recommendation[]         @relation("RecommendationDismissedBy")
+  createdWhatsAppDrafts         WhatsAppDraft[]          @relation("WhatsAppDraftCreatedBy")
+  approvedWhatsAppDrafts        WhatsAppDraft[]          @relation("WhatsAppDraftApprovedBy")
+  people                        Person[]
+  invitedWhatsAppInvitations    WhatsAppInvitation[]     @relation("WhatsAppInvitationInvitedBy")
+  whatsAppOperationAudits       WhatsAppOperationAudit[]
+  recommendationResponses       RecommendationResponse[]
+  connectedWhatsAppAccounts     WhatsAppAccount[]        @relation("WhatsAppAccountConnectedBy")
 }
 
 model PasswordResetToken {
@@ -140,14 +154,14 @@ model ProjectAccess {
 }
 
 model Project {
-  id                        String                     @id @default(cuid())
+  id                        String                         @id @default(cuid())
   organizationId            String
   name                      String
   code                      String
-  status                    ProjectStatus              @default(ACTIVE)
-  timezone                  String                     @default("UTC")
-  createdAt                 DateTime                   @default(now())
-  updatedAt                 DateTime                   @updatedAt
+  status                    ProjectStatus                  @default(ACTIVE)
+  timezone                  String                         @default("UTC")
+  createdAt                 DateTime                       @default(now())
+  updatedAt                 DateTime                       @updatedAt
   aiMessageClassifications  AIMessageClassification[]
   aiClassificationDecisions AIClassificationDecision[]
   actionItems               ActionItem[]
@@ -155,7 +169,7 @@ model Project {
   conversations             Conversation[]
   events                    Event[]
   milestones                Milestone[]
-  organization              Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization              Organization                   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   photoAnalyses             PhotoAnalysis[]
   projectState              ProjectState?
   projectReports            ProjectReport[]
@@ -163,8 +177,13 @@ model Project {
   recommendations           Recommendation[]
   recommendationCandidates  RecommendationCandidate[]
   outstandingExpectations   OutstandingExpectation[]
+  participants              ProjectParticipant[]
+  recommendationSetting     WhatsAppRecommendationSetting?
+  recommendationDeliveries  RecommendationDelivery[]
+  whatsAppInvitations       WhatsAppInvitation[]
+  whatsAppOperationAudits   WhatsAppOperationAudit[]
   searchDocuments           SearchDocument[]
-  suggestedActionItems      ActionItem[]               @relation("ActionItemSuggestedProject")
+  suggestedActionItems      ActionItem[]                   @relation("ActionItemSuggestedProject")
   teamInvitationProjects    TeamInvitationProject[]
   whatsAppChatMapping       WhatsAppChatMapping[]
   whatsAppDrafts            WhatsAppDraft[]
@@ -543,36 +562,40 @@ model ProjectState {
 }
 
 model Recommendation {
-  id                    String                   @id @default(cuid())
-  organizationId        String
-  projectId             String
-  type                  RecommendationType
-  title                 String
-  description           String
-  reason                String
-  confidence            RecommendationConfidence
-  priority              RecommendationPriority   @default(MEDIUM)
-  status                RecommendationStatus     @default(PENDING)
-  sourceCoordinator     CoordinatorType
-  sourceEntityType      String?
-  sourceEntityId        String?
-  proposedActionType    RecommendationActionType
-  proposedActionPayload Json?
-  approvedAt            DateTime?
-  approvedByUserId      String?
-  dismissedAt           DateTime?
-  dismissedByUserId     String?
-  dismissReason         String?
-  completedAt           DateTime?
-  createdAt             DateTime                 @default(now())
-  updatedAt             DateTime                 @updatedAt
-  approvedByUser        User?                    @relation("RecommendationApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
-  dismissedByUser       User?                    @relation("RecommendationDismissedBy", fields: [dismissedByUserId], references: [id], onDelete: SetNull)
-  organization          Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  project               Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  whatsAppDrafts        WhatsAppDraft[]
-  milestones            Milestone[]
-  decisionCandidate     RecommendationCandidate?
+  id                      String                   @id @default(cuid())
+  organizationId          String
+  projectId               String
+  type                    RecommendationType
+  title                   String
+  description             String
+  reason                  String
+  confidence              RecommendationConfidence
+  priority                RecommendationPriority   @default(MEDIUM)
+  status                  RecommendationStatus     @default(PENDING)
+  sourceCoordinator       CoordinatorType
+  sourceEntityType        String?
+  sourceEntityId          String?
+  proposedActionType      RecommendationActionType
+  proposedActionPayload   Json?
+  approvedAt              DateTime?
+  approvedByUserId        String?
+  dismissedAt             DateTime?
+  dismissedByUserId       String?
+  dismissReason           String?
+  completedAt             DateTime?
+  snoozedUntil            DateTime?
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  approvedByUser          User?                    @relation("RecommendationApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  dismissedByUser         User?                    @relation("RecommendationDismissedBy", fields: [dismissedByUserId], references: [id], onDelete: SetNull)
+  organization            Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project                 Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  whatsAppDrafts          WhatsAppDraft[]
+  milestones              Milestone[]
+  decisionCandidate       RecommendationCandidate?
+  deliveries              RecommendationDelivery[]
+  responses               RecommendationResponse[]
+  whatsAppOperationAudits WhatsAppOperationAudit[]
 
   @@index([organizationId, status, priority, createdAt])
   @@index([projectId, status, priority, createdAt])
@@ -792,49 +815,57 @@ model WorkerHeartbeat {
 }
 
 model WhatsAppAccount {
-  id                    String                @id @default(cuid())
-  organizationId        String
-  displayName           String
-  phoneNumber           String?
-  connectorType         WhatsAppConnectorType @default(BAILEYS)
-  status                WhatsAppAccountStatus @default(PENDING_QR)
-  sessionKey            String
-  lastConnectedAt       DateTime?
-  lastDisconnectedAt    DateTime?
-  disconnectedAt        DateTime?
-  disconnectAlertSentAt DateTime?
-  recoveryAlertSentAt   DateTime?
-  lastDisconnectReason  String?
-  lastMessageAt         DateTime?
-  createdAt             DateTime              @default(now())
-  updatedAt             DateTime              @updatedAt
-  chatMappings          WhatsAppChatMapping[]
-  drafts                WhatsAppDraft[]
-  organization          Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id                       String                   @id @default(cuid())
+  organizationId           String
+  connectedByUserId        String?
+  displayName              String
+  phoneNumber              String?
+  connectorType            WhatsAppConnectorType    @default(BAILEYS)
+  status                   WhatsAppAccountStatus    @default(PENDING_QR)
+  sessionKey               String
+  lastConnectedAt          DateTime?
+  lastDisconnectedAt       DateTime?
+  disconnectedAt           DateTime?
+  disconnectAlertSentAt    DateTime?
+  recoveryAlertSentAt      DateTime?
+  lastDisconnectReason     String?
+  lastMessageAt            DateTime?
+  createdAt                DateTime                 @default(now())
+  updatedAt                DateTime                 @updatedAt
+  chatMappings             WhatsAppChatMapping[]
+  drafts                   WhatsAppDraft[]
+  personIdentities         PersonIdentity[]
+  recommendationDeliveries RecommendationDelivery[]
+  whatsAppInvitations      WhatsAppInvitation[]
+  organization             Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  connectedBy              User?                    @relation("WhatsAppAccountConnectedBy", fields: [connectedByUserId], references: [id], onDelete: SetNull)
 
   @@unique([sessionKey])
   @@index([organizationId])
+  @@index([connectedByUserId])
 }
 
 model WhatsAppChatMapping {
-  id                String                    @id @default(cuid())
-  organizationId    String
-  whatsappAccountId String
-  conversationId    String?
-  projectId         String?
-  jid               String
-  chatName          String?
-  isGroup           Boolean                   @default(false)
-  status            WhatsAppChatMappingStatus @default(DISCOVERED)
-  activatedAt       DateTime?
-  activatedByUserId String?
-  createdAt         DateTime                  @default(now())
-  updatedAt         DateTime                  @updatedAt
-  activatedByUser   User?                     @relation(fields: [activatedByUserId], references: [id], onDelete: SetNull)
-  conversation      Conversation?             @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  organization      Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  project           Project?                  @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  whatsappAccount   WhatsAppAccount           @relation(fields: [whatsappAccountId], references: [id], onDelete: Cascade)
+  id                       String                     @id @default(cuid())
+  organizationId           String
+  whatsappAccountId        String
+  conversationId           String?
+  projectId                String?
+  jid                      String
+  chatName                 String?
+  isGroup                  Boolean                    @default(false)
+  status                   WhatsAppChatMappingStatus  @default(DISCOVERED)
+  activatedAt              DateTime?
+  activatedByUserId        String?
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime                   @updatedAt
+  activatedByUser          User?                      @relation(fields: [activatedByUserId], references: [id], onDelete: SetNull)
+  conversation             Conversation?              @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  organization             Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project                  Project?                   @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  whatsappAccount          WhatsAppAccount            @relation(fields: [whatsappAccountId], references: [id], onDelete: Cascade)
+  groupParticipants        WhatsAppGroupParticipant[]
+  recommendationDeliveries RecommendationDelivery[]
 
   @@unique([whatsappAccountId, jid])
   @@unique([conversationId])
@@ -842,6 +873,302 @@ model WhatsAppChatMapping {
   @@index([organizationId])
   @@index([projectId])
   @@index([status])
+}
+
+model Person {
+  id                       String                           @id @default(cuid())
+  organizationId           String
+  userId                   String?
+  displayName              String
+  email                    String?
+  phoneNumber              String?
+  company                  String?
+  roleTitle                String?
+  type                     PersonType                       @default(UNKNOWN)
+  status                   PersonStatus                     @default(ACTIVE)
+  mergedIntoPersonId       String?
+  createdAt                DateTime                         @default(now())
+  updatedAt                DateTime                         @updatedAt
+  organization             Organization                     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user                     User?                            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  mergedInto               Person?                          @relation("PersonMerge", fields: [mergedIntoPersonId], references: [id], onDelete: SetNull)
+  mergedPeople             Person[]                         @relation("PersonMerge")
+  identities               PersonIdentity[]
+  projectParticipants      ProjectParticipant[]
+  identityReviews          IdentityReview[]                 @relation("IdentityReviewSuggestedPerson")
+  recommendationApprovals  WhatsAppRecommendationApprover[]
+  recommendationDeliveries RecommendationDelivery[]
+  whatsAppInvitations      WhatsAppInvitation[]
+  auditEvents              WhatsAppOperationAudit[]
+
+  @@unique([organizationId, userId])
+  @@index([organizationId, status, displayName])
+  @@index([organizationId, email])
+  @@index([organizationId, phoneNumber])
+  @@index([mergedIntoPersonId])
+}
+
+model PersonIdentity {
+  id                       String                     @id @default(cuid())
+  organizationId           String
+  personId                 String
+  provider                 PersonIdentityProvider     @default(WHATSAPP)
+  whatsappAccountId        String
+  jid                      String?
+  lid                      String?
+  phoneNumber              String?
+  displayName              String?
+  pushName                 String?
+  verificationStatus       IdentityVerificationStatus @default(OBSERVED)
+  isConnectedAccountOwner  Boolean                    @default(false)
+  firstSeenAt              DateTime                   @default(now())
+  lastSeenAt               DateTime                   @default(now())
+  metadata                 Json?
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime                   @updatedAt
+  organization             Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  person                   Person                     @relation(fields: [personId], references: [id], onDelete: Cascade)
+  whatsappAccount          WhatsAppAccount            @relation(fields: [whatsappAccountId], references: [id], onDelete: Cascade)
+  groupParticipants        WhatsAppGroupParticipant[]
+  identityReviews          IdentityReview[]
+  recommendationDeliveries RecommendationDelivery[]
+  recommendationResponses  RecommendationResponse[]
+  whatsAppInvitations      WhatsAppInvitation[]
+  auditEvents              WhatsAppOperationAudit[]
+
+  @@unique([whatsappAccountId, jid])
+  @@unique([whatsappAccountId, lid])
+  @@index([organizationId, phoneNumber])
+  @@index([organizationId, verificationStatus, lastSeenAt])
+  @@index([personId, lastSeenAt])
+}
+
+model ProjectParticipant {
+  id                String                   @id @default(cuid())
+  organizationId    String
+  projectId         String
+  personId          String
+  source            ProjectParticipantSource
+  role              String?
+  participantStatus ProjectParticipantStatus @default(ACTIVE)
+  firstSeenAt       DateTime                 @default(now())
+  lastSeenAt        DateTime                 @default(now())
+  removedAt         DateTime?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+  organization      Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project           Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  person            Person                   @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, personId])
+  @@index([organizationId, participantStatus, lastSeenAt])
+  @@index([personId, participantStatus])
+}
+
+model WhatsAppGroupParticipant {
+  id                    String                   @id @default(cuid())
+  whatsappChatMappingId String
+  personIdentityId      String
+  participantStatus     ProjectParticipantStatus @default(ACTIVE)
+  isGroupAdmin          Boolean                  @default(false)
+  firstSeenAt           DateTime                 @default(now())
+  lastSeenAt            DateTime                 @default(now())
+  removedAt             DateTime?
+  metadata              Json?
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+  whatsappChatMapping   WhatsAppChatMapping      @relation(fields: [whatsappChatMappingId], references: [id], onDelete: Cascade)
+  personIdentity        PersonIdentity           @relation(fields: [personIdentityId], references: [id], onDelete: Cascade)
+
+  @@unique([whatsappChatMappingId, personIdentityId])
+  @@index([whatsappChatMappingId, participantStatus])
+  @@index([personIdentityId, participantStatus])
+}
+
+model IdentityReview {
+  id                String               @id @default(cuid())
+  organizationId    String
+  personIdentityId  String
+  suggestedPersonId String?
+  reason            IdentityReviewReason
+  status            IdentityReviewStatus @default(PENDING)
+  resolution        String?
+  resolvedByUserId  String?
+  resolvedAt        DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  organization      Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  personIdentity    PersonIdentity       @relation(fields: [personIdentityId], references: [id], onDelete: Cascade)
+  suggestedPerson   Person?              @relation("IdentityReviewSuggestedPerson", fields: [suggestedPersonId], references: [id], onDelete: SetNull)
+
+  @@unique([personIdentityId, status])
+  @@index([organizationId, status, createdAt])
+  @@index([suggestedPersonId])
+}
+
+model WhatsAppRecommendationSetting {
+  id                                     String                            @id @default(cuid())
+  organizationId                         String
+  projectId                              String                            @unique
+  enabled                                Boolean                           @default(false)
+  routingMode                            WhatsAppRecommendationRoutingMode @default(PLATFORM_ONLY)
+  allowedRecommendationTypes             Json                              @default("[]")
+  sendUrgentOnly                         Boolean                           @default(true)
+  quietHoursStart                        String?
+  quietHoursEnd                          String?
+  timezone                               String
+  requireSecondConfirmationForHighImpact Boolean                           @default(true)
+  groupApprovalsEnabled                  Boolean                           @default(false)
+  dailyRecipientLimit                    Int                               @default(5)
+  dailyProjectLimit                      Int                               @default(10)
+  deliveryCooldownMinutes                Int                               @default(30)
+  createdAt                              DateTime                          @default(now())
+  updatedAt                              DateTime                          @updatedAt
+  organization                           Organization                      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project                                Project                           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  namedApprovers                         WhatsAppRecommendationApprover[]
+
+  @@index([organizationId, enabled])
+}
+
+model WhatsAppRecommendationApprover {
+  settingId String
+  personId  String
+  createdAt DateTime                      @default(now())
+  setting   WhatsAppRecommendationSetting @relation(fields: [settingId], references: [id], onDelete: Cascade)
+  person    Person                        @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@id([settingId, personId])
+  @@index([personId])
+}
+
+model RecommendationDelivery {
+  id                    String                       @id @default(cuid())
+  organizationId        String
+  projectId             String
+  recommendationId      String
+  recipientKey          String
+  recipientPersonId     String?
+  recipientIdentityId   String?
+  whatsappAccountId     String
+  whatsappChatMappingId String?
+  destinationJid        String
+  outboundMessageId     String?
+  quotedMessageKey      String?
+  deliveryStatus        RecommendationDeliveryStatus @default(PENDING)
+  impact                RecommendationImpact         @default(STANDARD)
+  deliveredAt           DateTime?
+  readAt                DateTime?
+  respondedAt           DateTime?
+  expiresAt             DateTime
+  confirmationExpiresAt DateTime?
+  attemptCount          Int                          @default(0)
+  lastAttemptAt         DateTime?
+  failureReason         String?
+  createdAt             DateTime                     @default(now())
+  updatedAt             DateTime                     @updatedAt
+  organization          Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project               Project                      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  recommendation        Recommendation               @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
+  recipientPerson       Person?                      @relation(fields: [recipientPersonId], references: [id], onDelete: SetNull)
+  recipientIdentity     PersonIdentity?              @relation(fields: [recipientIdentityId], references: [id], onDelete: SetNull)
+  whatsappAccount       WhatsAppAccount              @relation(fields: [whatsappAccountId], references: [id], onDelete: Cascade)
+  whatsappChatMapping   WhatsAppChatMapping?         @relation(fields: [whatsappChatMappingId], references: [id], onDelete: SetNull)
+  responses             RecommendationResponse[]
+  auditEvents           WhatsAppOperationAudit[]
+
+  @@unique([recommendationId, recipientKey])
+  @@index([organizationId, deliveryStatus, createdAt])
+  @@index([projectId, deliveryStatus, createdAt])
+  @@index([outboundMessageId])
+  @@index([quotedMessageKey])
+  @@index([recipientIdentityId, deliveryStatus, expiresAt])
+}
+
+model RecommendationResponse {
+  id               String                        @id @default(cuid())
+  organizationId   String
+  projectId        String
+  recommendationId String
+  deliveryId       String
+  actorIdentityId  String
+  actorUserId      String?
+  inboundMessageId String
+  command          RecommendationResponseCommand
+  outcome          RecommendationResponseOutcome
+  reasonCode       String?
+  createdAt        DateTime                      @default(now())
+  organization     Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  recommendation   Recommendation                @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
+  delivery         RecommendationDelivery        @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  actorIdentity    PersonIdentity                @relation(fields: [actorIdentityId], references: [id], onDelete: Restrict)
+  actorUser        User?                         @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@unique([deliveryId, inboundMessageId])
+  @@index([organizationId, createdAt])
+  @@index([recommendationId, createdAt])
+  @@index([actorIdentityId, createdAt])
+}
+
+model WhatsAppInvitation {
+  id                  String                   @id @default(cuid())
+  organizationId      String
+  projectId           String
+  personId            String
+  personIdentityId    String
+  whatsappAccountId   String
+  invitedByUserId     String
+  role                MembershipRole           @default(MEMBER)
+  status              WhatsAppInvitationStatus @default(PENDING)
+  outboundMessageId   String?
+  activationTokenHash String?                  @unique
+  joinConfirmedAt     DateTime?
+  acceptedAt          DateTime?
+  expiresAt           DateTime
+  failureReason       String?
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+  organization        Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project             Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  person              Person                   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  personIdentity      PersonIdentity           @relation(fields: [personIdentityId], references: [id], onDelete: Cascade)
+  whatsappAccount     WhatsAppAccount          @relation(fields: [whatsappAccountId], references: [id], onDelete: Cascade)
+  invitedBy           User                     @relation("WhatsAppInvitationInvitedBy", fields: [invitedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, status, createdAt])
+  @@index([projectId, status, createdAt])
+  @@index([personIdentityId, status])
+  @@index([outboundMessageId])
+}
+
+model WhatsAppOperationAudit {
+  id                  String                  @id @default(cuid())
+  organizationId      String
+  projectId           String?
+  actorPersonId       String?
+  actorUserId         String?
+  personIdentityId    String?
+  recommendationId    String?
+  deliveryId          String?
+  providerMessageId   String?
+  eventType           String
+  command             String?
+  authorizationResult String?
+  reasonCode          String?
+  metadata            Json?
+  createdAt           DateTime                @default(now())
+  organization        Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project             Project?                @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  actorPerson         Person?                 @relation(fields: [actorPersonId], references: [id], onDelete: SetNull)
+  actorUser           User?                   @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  personIdentity      PersonIdentity?         @relation(fields: [personIdentityId], references: [id], onDelete: SetNull)
+  recommendation      Recommendation?         @relation(fields: [recommendationId], references: [id], onDelete: SetNull)
+  delivery            RecommendationDelivery? @relation(fields: [deliveryId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, eventType, createdAt])
+  @@index([projectId, createdAt])
+  @@index([recommendationId, createdAt])
+  @@index([personIdentityId, createdAt])
 }
 
 enum MembershipRole {
@@ -904,6 +1231,123 @@ enum ProcessingJobType {
   PROJECT_COORDINATOR_MILESTONE
   WHATSAPP_DRAFT_SEND
   WHATSAPP_CONNECTION_ALERT
+  WHATSAPP_RECOMMENDATION_DELIVERY
+  WHATSAPP_GROUP_PARTICIPANT_SYNC
+  WHATSAPP_INVITATION_DELIVERY
+}
+
+enum PersonType {
+  INTERNAL
+  EXTERNAL
+  UNKNOWN
+}
+
+enum PersonStatus {
+  ACTIVE
+  INACTIVE
+  MERGED
+  IGNORED
+}
+
+enum PersonIdentityProvider {
+  WHATSAPP
+}
+
+enum IdentityVerificationStatus {
+  OBSERVED
+  CONFIRMED
+  NEEDS_REVIEW
+  REVOKED
+}
+
+enum ProjectParticipantSource {
+  WHATSAPP_GROUP
+  MANUAL
+  EMAIL_INVITE
+  SYSTEM
+}
+
+enum ProjectParticipantStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum IdentityReviewReason {
+  AMBIGUOUS_MATCH
+  JID_LID_CONFLICT
+  MANUAL_REVIEW
+}
+
+enum IdentityReviewStatus {
+  PENDING
+  RESOLVED
+  IGNORED
+}
+
+enum WhatsAppRecommendationRoutingMode {
+  PRIVATE_PROJECT_MANAGER
+  PRIVATE_NAMED_APPROVERS
+  PRIVATE_CONNECTED_ACCOUNT_OWNER
+  PROJECT_GROUP
+  PLATFORM_ONLY
+}
+
+enum RecommendationImpact {
+  LOW_IMPACT
+  STANDARD
+  HIGH_IMPACT
+}
+
+enum RecommendationDeliveryStatus {
+  PENDING
+  QUEUED
+  SENT
+  DELIVERED
+  READ
+  AWAITING_CONFIRMATION
+  RESPONDED
+  FAILED
+  EXPIRED
+  CANCELLED
+  SUPERSEDED
+}
+
+enum RecommendationResponseCommand {
+  APPROVE
+  REJECT
+  DETAILS
+  SNOOZE_1_DAY
+  SNOOZE_3_DAYS
+  SNOOZE_1_WEEK
+  CONFIRM
+  CANCEL
+  REASON
+  JOIN
+  UNKNOWN
+}
+
+enum RecommendationResponseOutcome {
+  AUTHORIZED
+  DENIED
+  APPLIED
+  NOOP
+  DETAILS_SENT
+  SNOOZED
+  AWAITING_CONFIRMATION
+  EXPIRED
+  AMBIGUOUS
+  DUPLICATE
+}
+
+enum WhatsAppInvitationStatus {
+  PENDING
+  QUEUED
+  SENT
+  JOINED
+  ACTIVATED
+  EXPIRED
+  REVOKED
+  FAILED
 }
 
 enum ProcessingJobStatus {

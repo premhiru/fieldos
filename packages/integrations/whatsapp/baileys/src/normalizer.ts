@@ -4,7 +4,14 @@ import type { NormalizedWhatsAppMessage } from "./types.js";
 
 type NormalizedMessageBase = Pick<
   NormalizedWhatsAppMessage,
-  "chatJid" | "direction" | "isGroup" | "messageId" | "occurredAt" | "pushName" | "senderJid"
+  | "chatJid"
+  | "direction"
+  | "isGroup"
+  | "messageId"
+  | "occurredAt"
+  | "pushName"
+  | "quotedMessageId"
+  | "senderJid"
 >;
 
 export function normalizeWhatsAppMessage(message: WAMessage): NormalizedWhatsAppMessage | null {
@@ -30,6 +37,7 @@ export function normalizeWhatsAppMessage(message: WAMessage): NormalizedWhatsApp
     messageId,
     occurredAt,
     pushName,
+    quotedMessageId: getQuotedMessageId(content),
     senderJid
   };
 
@@ -205,6 +213,7 @@ function createSystemMessage(input: {
   messageId: string;
   occurredAt: Date;
   pushName: string | null;
+  quotedMessageId: string | null;
   senderJid: string;
   type?: "SYSTEM" | "TEXT";
 }): NormalizedWhatsAppMessage {
@@ -217,6 +226,7 @@ function createSystemMessage(input: {
     messageId: input.messageId,
     occurredAt: input.occurredAt,
     pushName: input.pushName,
+    quotedMessageId: input.quotedMessageId,
     senderJid: input.senderJid,
     type: input.type ?? "SYSTEM"
   };
@@ -233,6 +243,7 @@ function createMediaMessage(input: {
   messageId: string;
   occurredAt: Date;
   pushName: string | null;
+  quotedMessageId: string | null;
   senderJid: string;
   type: "IMAGE" | "DOCUMENT" | "VOICE" | "VIDEO";
 }): NormalizedWhatsAppMessage {
@@ -250,6 +261,7 @@ function createMediaMessage(input: {
     messageId: input.messageId,
     occurredAt: input.occurredAt,
     pushName: input.pushName,
+    quotedMessageId: input.quotedMessageId,
     senderJid: input.senderJid,
     type: input.type
   };
@@ -352,4 +364,25 @@ function getNumber(value: unknown): number | null {
   }
 
   return null;
+}
+
+function getQuotedMessageId(content: Record<string, unknown>): string | null {
+  for (const key of [
+    "extendedTextMessage",
+    "imageMessage",
+    "documentMessage",
+    "audioMessage",
+    "videoMessage",
+    "ptvMessage",
+    "buttonsResponseMessage",
+    "listResponseMessage",
+    "templateButtonReplyMessage"
+  ]) {
+    const message = asRecord(content[key]);
+    const contextInfo = asRecord(message?.contextInfo);
+    const stanzaId = getString(contextInfo?.stanzaId);
+    if (stanzaId) return stanzaId;
+  }
+
+  return getString(asRecord(content.contextInfo)?.stanzaId);
 }

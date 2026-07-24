@@ -232,6 +232,42 @@ export async function queueWhatsAppConnectionAlertJob(
   });
 }
 
+export async function queueWhatsAppRecommendationDeliveryJob(
+  prisma: PrismaClient | Prisma.TransactionClient,
+  input: Omit<QueueProcessingJobInput, "sourceType" | "type">
+): Promise<ProcessingJob> {
+  return queueProcessingJob(prisma, {
+    ...input,
+    maxAttempts: input.maxAttempts ?? 5,
+    sourceType: "RECOMMENDATION",
+    type: "WHATSAPP_RECOMMENDATION_DELIVERY"
+  });
+}
+
+export async function queueWhatsAppGroupParticipantSyncJob(
+  prisma: PrismaClient | Prisma.TransactionClient,
+  input: Omit<QueueProcessingJobInput, "sourceType" | "type">
+): Promise<ProcessingJob> {
+  return queueProcessingJob(prisma, {
+    ...input,
+    maxAttempts: input.maxAttempts ?? 5,
+    sourceType: "WHATSAPP_CHAT_MAPPING",
+    type: "WHATSAPP_GROUP_PARTICIPANT_SYNC"
+  });
+}
+
+export async function queueWhatsAppInvitationDeliveryJob(
+  prisma: PrismaClient | Prisma.TransactionClient,
+  input: Omit<QueueProcessingJobInput, "sourceType" | "type">
+): Promise<ProcessingJob> {
+  return queueProcessingJob(prisma, {
+    ...input,
+    maxAttempts: input.maxAttempts ?? 5,
+    sourceType: "WHATSAPP_INVITATION",
+    type: "WHATSAPP_INVITATION_DELIVERY"
+  });
+}
+
 export async function claimNextProcessingJob(
   prisma: PrismaClient,
   type: ProcessingJobType
@@ -589,7 +625,11 @@ export async function getJobMetrics(
     "MEDIA_DOWNLOAD",
     "PROJECT_COORDINATOR",
     "PROJECT_COORDINATOR_MILESTONE",
-    "WHATSAPP_DRAFT_SEND"
+    "WHATSAPP_DRAFT_SEND",
+    "WHATSAPP_CONNECTION_ALERT",
+    "WHATSAPP_RECOMMENDATION_DELIVERY",
+    "WHATSAPP_GROUP_PARTICIPANT_SYNC",
+    "WHATSAPP_INVITATION_DELIVERY"
   ] as const) {
     ensure(type);
   }

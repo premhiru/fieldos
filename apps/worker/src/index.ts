@@ -52,11 +52,18 @@ import {
   createPrismaWhatsAppConnectionAlertStore,
   WhatsAppConnectionAlertProcessor
 } from "./whatsapp-connection-alerts.js";
+import {
+  WhatsAppNativeOperationsService,
+  WhatsAppOperationDeferredError
+} from "./whatsapp-native-operations.js";
 
 class ProviderRequestThrottle {
   private nextAvailableAt = 0;
 
-  constructor(private readonly minIntervalMs: number) {}
+  constructor(
+    private readonly minIntervalMs: number,
+    private readonly operation = "AI provider request"
+  ) {}
 
   defer(delayMs: number): void {
     this.nextAvailableAt = Math.max(this.nextAvailableAt, Date.now() + delayMs);
@@ -66,7 +73,7 @@ class ProviderRequestThrottle {
     const waitMs = Math.max(this.nextAvailableAt - Date.now(), 0);
 
     if (waitMs > 0) {
-      logger.info({ waitMs }, "waiting before AI provider request");
+      logger.info({ operation: this.operation, waitMs }, "waiting before rate-limited operation");
       await sleep(waitMs);
     }
 
@@ -87,11 +94,17 @@ const storageProvider = createStorageProvider({
   },
   storage: workerEnv
 });
+const whatsappNativeOperations: { current?: WhatsAppNativeOperationsService } = {};
 const whatsappSessionManager = new BaileysWhatsAppSessionManager(
   prisma,
   new RedisWhatsAppQrStore(redis),
   {
+    controlMessageHandler: {
+      handle: (input) =>
+        whatsappNativeOperations.current?.handle(input) ?? Promise.resolve({ handled: false })
+    },
     mediaStorageProvider: storageProvider,
+    participantSyncEnabled: workerEnv.WHATSAPP_PARTICIPANT_SYNC_ENABLED,
     pollIntervalMs: workerEnv.WHATSAPP_SESSION_POLL_INTERVAL_MS,
     rootStoragePath: workerEnv.WHATSAPP_STORAGE_PATH
   }
@@ -153,6 +166,20 @@ const coordinatorRuntime = new ProjectCoordinatorRuntime(prisma, {
     model: textAIProvider.model,
     provider: textAIProvider.provider
   })
+});
+const whatsAppOutboundThrottle = new ProviderRequestThrottle(
+  workerEnv.WHATSAPP_OUTBOUND_MIN_INTERVAL_MS,
+  "WhatsApp outbound message"
+);
+whatsappNativeOperations.current = new WhatsAppNativeOperationsService(prisma, coordinatorRuntime, {
+  appUrl: workerEnv.APP_URL,
+  deliveryEnabled: workerEnv.WHATSAPP_RECOMMENDATION_DELIVERY_ENABLED,
+  invitationsEnabled: workerEnv.WHATSAPP_INVITATIONS_ENABLED,
+  replyEnabled: workerEnv.WHATSAPP_RECOMMENDATION_REPLY_ENABLED,
+  sendText: async (input) => {
+    await whatsAppOutboundThrottle.wait();
+    return whatsappSessionManager.sendText(input);
+  }
 });
 const aiProviderThrottle = new ProviderRequestThrottle(workerEnv.AI_PROVIDER_MIN_INTERVAL_MS);
 const milestoneCoordinatorThrottle = new ProviderRequestThrottle(
@@ -241,6 +268,18 @@ async function processBackgroundJobs(): Promise<void> {
     "WHATSAPP_CONNECTION_ALERT",
     processWhatsAppConnectionAlertJob
   );
+  const recommendationDeliveryProcessed = await processJobsOfType(
+    "WHATSAPP_RECOMMENDATION_DELIVERY",
+    processWhatsAppRecommendationDeliveryJob
+  );
+  const participantSyncProcessed = await processJobsOfType(
+    "WHATSAPP_GROUP_PARTICIPANT_SYNC",
+    processWhatsAppGroupParticipantSyncJob
+  );
+  const invitationDeliveryProcessed = await processJobsOfType(
+    "WHATSAPP_INVITATION_DELIVERY",
+    processWhatsAppInvitationDeliveryJob
+  );
   const aiProcessed = await processJobsOfType("AI_CLASSIFICATION", processAIJob, {
     limit: workerEnv.AI_PROVIDER_JOBS_PER_POLL
   });
@@ -253,7 +292,10 @@ async function processBackgroundJobs(): Promise<void> {
     coordinatorProcessed +
     milestoneCoordinatorProcessed +
     draftSendProcessed +
-    connectionAlertProcessed;
+    connectionAlertProcessed +
+    recommendationDeliveryProcessed +
+    participantSyncProcessed +
+    invitationDeliveryProcessed;
 
   if (processed > 0) {
     logger.info(
@@ -263,9 +305,12 @@ async function processBackgroundJobs(): Promise<void> {
         coordinatorProcessed,
         draftSendProcessed,
         milestoneCoordinatorProcessed,
+        invitationDeliveryProcessed,
+        participantSyncProcessed,
         photoProcessed,
         processed,
         reportProcessed,
+        recommendationDeliveryProcessed,
         searchProcessed,
         voiceProcessed
       },
@@ -309,6 +354,9 @@ async function processJobsOfType(
     | "SEARCH_INDEX"
     | "WHATSAPP_CONNECTION_ALERT"
     | "WHATSAPP_DRAFT_SEND"
+    | "WHATSAPP_GROUP_PARTICIPANT_SYNC"
+    | "WHATSAPP_INVITATION_DELIVERY"
+    | "WHATSAPP_RECOMMENDATION_DELIVERY"
     | "VOICE_TRANSCRIPTION",
   processor: (job: ProcessingJob) => Promise<void>,
   options: { limit?: number } = {}
@@ -328,6 +376,19 @@ async function processJobsOfType(
   }
 
   return processed;
+}
+
+async function processWhatsAppRecommendationDeliveryJob(job: ProcessingJob): Promise<void> {
+  await whatsappNativeOperations.current?.deliverRecommendation(job.sourceId);
+}
+
+async function processWhatsAppGroupParticipantSyncJob(job: ProcessingJob): Promise<void> {
+  if (!workerEnv.WHATSAPP_PARTICIPANT_SYNC_ENABLED) return;
+  await whatsappSessionManager.syncGroupParticipants(job.sourceId);
+}
+
+async function processWhatsAppInvitationDeliveryJob(job: ProcessingJob): Promise<void> {
+  await whatsappNativeOperations.current?.deliverInvitation(job.sourceId);
 }
 
 async function processClaimedJob(
@@ -407,6 +468,30 @@ async function processClaimedJob(
           retryAfterMs
         },
         "WhatsApp connection alert deferred after delivery failure"
+      );
+      return;
+    }
+
+    if (
+      job.type === "WHATSAPP_RECOMMENDATION_DELIVERY" ||
+      job.type === "WHATSAPP_GROUP_PARTICIPANT_SYNC" ||
+      job.type === "WHATSAPP_INVITATION_DELIVERY"
+    ) {
+      const errorMessage = error instanceof Error ? error.message : "WhatsApp operation failed.";
+      const retryAfterMs =
+        error instanceof WhatsAppOperationDeferredError
+          ? error.retryAfterMs
+          : Math.min(5_000 * 2 ** Math.max(job.attempts - 1, 0), 5 * 60_000);
+      await deferProcessingJob(prisma, { errorMessage, job, retryAfterMs });
+      logger.warn(
+        {
+          correlationId: job.correlationId,
+          jobId: job.id,
+          jobType: job.type,
+          organizationId: job.organizationId,
+          retryAfterMs
+        },
+        "WhatsApp operation deferred after failure"
       );
       return;
     }

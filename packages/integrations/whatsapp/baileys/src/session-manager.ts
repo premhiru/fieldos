@@ -13,6 +13,7 @@ import {
   queueAIClassificationJob,
   queuePhotoAnalysisJob,
   queueSearchIndexJob,
+  queueWhatsAppGroupParticipantSyncJob,
   queueWhatsAppConnectionAlertJob,
   queueVoiceTranscriptionJob,
   type Attachment,
@@ -37,6 +38,7 @@ import {
   isLidJid
 } from "./jid.js";
 import { normalizeWhatsAppMessage } from "./normalizer.js";
+import { WhatsAppParticipantSyncService } from "./identity-sync.js";
 import type { WhatsAppQrStore } from "./qr-store.js";
 import { BaileysFilesystemStorage } from "./storage.js";
 import type { BaileysSessionManagerOptions, NormalizedWhatsAppMessage } from "./types.js";
@@ -71,6 +73,9 @@ export class BaileysWhatsAppSessionManager {
   private readonly storage: BaileysFilesystemStorage;
   private pollTimer: NodeJS.Timeout | undefined;
   private stopping = false;
+  private readonly controlMessageHandler;
+  private readonly participantSyncEnabled: boolean;
+  private readonly participantSyncService: WhatsAppParticipantSyncService;
 
   constructor(
     private readonly prisma: PrismaClient,
@@ -82,6 +87,9 @@ export class BaileysWhatsAppSessionManager {
       options.mediaStorageProvider
     );
     this.pollIntervalMs = options.pollIntervalMs ?? 10_000;
+    this.controlMessageHandler = options.controlMessageHandler;
+    this.participantSyncEnabled = options.participantSyncEnabled ?? false;
+    this.participantSyncService = new WhatsAppParticipantSyncService(prisma);
   }
 
   private readonly pollIntervalMs: number;
@@ -245,6 +253,62 @@ export class BaileysWhatsAppSessionManager {
     return { externalMessageId };
   }
 
+  async sendText(input: {
+    whatsappAccountId: string;
+    organizationId: string;
+    destinationJid: string;
+    text: string;
+  }): Promise<{ externalMessageId: string }> {
+    const account = await this.prisma.whatsAppAccount.findFirst({
+      where: {
+        id: input.whatsappAccountId,
+        organizationId: input.organizationId,
+        status: "CONNECTED"
+      }
+    });
+    const session = account ? this.sessions.get(account.id) : null;
+    if (!account || !session) {
+      throw new Error("WhatsApp account is not connected in the active worker.");
+    }
+
+    const sent = await session.socket.sendMessage(input.destinationJid, { text: input.text });
+    if (!sent?.key.id) {
+      throw new Error("WhatsApp did not return an outbound message identifier.");
+    }
+
+    return { externalMessageId: sent.key.id };
+  }
+
+  async syncGroupParticipants(mappingId: string) {
+    const mapping = await this.prisma.whatsAppChatMapping.findUnique({
+      where: { id: mappingId }
+    });
+    if (!mapping?.isGroup || !mapping.projectId || mapping.status !== "ACTIVE") {
+      throw new Error("An active project WhatsApp group is required for participant sync.");
+    }
+    const session = this.sessions.get(mapping.whatsappAccountId);
+    if (!session) {
+      throw new Error("WhatsApp account is not connected in the active worker.");
+    }
+    const metadata = await session.socket.groupMetadata(mapping.jid);
+    const participants = metadata.participants.map((participant) => {
+      const record = participant as unknown as Record<string, unknown>;
+      const id = typeof record.id === "string" ? record.id : null;
+      const lid = typeof record.lid === "string" ? record.lid : null;
+      return {
+        displayName: null,
+        isAdmin: record.admin === "admin" || record.admin === "superadmin",
+        jid: id,
+        lid,
+        metadata: {
+          admin: typeof record.admin === "string" ? record.admin : null
+        },
+        pushName: null
+      };
+    });
+    return this.participantSyncService.syncGroup(mapping.id, participants);
+  }
+
   private async reconcileSessions(): Promise<void> {
     const accounts = await this.prisma.whatsAppAccount.findMany({
       where: {
@@ -271,6 +335,7 @@ export class BaileysWhatsAppSessionManager {
   }
 
   private async startSession(account: {
+    connectedByUserId: string | null;
     id: string;
     organizationId: string;
     displayName: string;
@@ -350,6 +415,34 @@ export class BaileysWhatsAppSessionManager {
         }
       }
     });
+    socket.ev.on(
+      "group-participants.update",
+      async (event: BaileysEventMap["group-participants.update"]) => {
+        if (!this.participantSyncEnabled) return;
+        try {
+          const mapping = await this.prisma.whatsAppChatMapping.findUnique({
+            where: {
+              whatsappAccountId_jid: {
+                jid: event.id,
+                whatsappAccountId: account.id
+              }
+            }
+          });
+          if (mapping?.isGroup && mapping.projectId && mapping.status === "ACTIVE") {
+            await queueWhatsAppGroupParticipantSyncJob(this.prisma, {
+              organizationId: mapping.organizationId,
+              projectId: mapping.projectId,
+              sourceId: mapping.id
+            });
+          }
+        } catch (error: unknown) {
+          this.logger.error(
+            { accountId: account.id, error, groupJid: event.id },
+            "WhatsApp group participant sync enqueue failed"
+          );
+        }
+      }
+    );
     socket.ev.on(
       "messaging-history.set",
       async (history: BaileysEventMap["messaging-history.set"]) => {
@@ -478,6 +571,84 @@ export class BaileysWhatsAppSessionManager {
               where: { id: account.id }
             });
 
+            if (account.connectedByUserId && socket.user?.id) {
+              const ownerIdentifier = normalizeConnectedAccountIdentifier(socket.user.id);
+              const phoneNumber = ownerIdentifier.jid
+                ? normalizePhoneNumber(ownerIdentifier.jid)
+                : null;
+              const owner = await tx.person.upsert({
+                create: {
+                  displayName: socket.user.name ?? account.displayName,
+                  organizationId: account.organizationId,
+                  phoneNumber,
+                  type: "INTERNAL",
+                  userId: account.connectedByUserId
+                },
+                update: {
+                  displayName: socket.user.name ?? undefined,
+                  phoneNumber: phoneNumber ?? undefined,
+                  status: "ACTIVE",
+                  type: "INTERNAL"
+                },
+                where: {
+                  organizationId_userId: {
+                    organizationId: account.organizationId,
+                    userId: account.connectedByUserId
+                  }
+                }
+              });
+              if (ownerIdentifier.jid || ownerIdentifier.lid) {
+                await tx.personIdentity.updateMany({
+                  data: { isConnectedAccountOwner: false },
+                  where: { whatsappAccountId: account.id }
+                });
+              }
+              const existingOwnerIdentity =
+                ownerIdentifier.jid || ownerIdentifier.lid
+                  ? await tx.personIdentity.findFirst({
+                      where: {
+                        OR: [
+                          ownerIdentifier.jid ? { jid: ownerIdentifier.jid } : null,
+                          ownerIdentifier.lid ? { lid: ownerIdentifier.lid } : null
+                        ].filter((value): value is { jid: string } | { lid: string } =>
+                          Boolean(value)
+                        ),
+                        whatsappAccountId: account.id
+                      }
+                    })
+                  : null;
+              if (existingOwnerIdentity) {
+                await tx.personIdentity.update({
+                  data: {
+                    displayName: socket.user.name ?? undefined,
+                    isConnectedAccountOwner: true,
+                    jid: ownerIdentifier.jid ?? undefined,
+                    lastSeenAt: connectedAt,
+                    lid: ownerIdentifier.lid ?? undefined,
+                    personId: owner.id,
+                    phoneNumber: phoneNumber ?? undefined,
+                    verificationStatus: "CONFIRMED"
+                  },
+                  where: { id: existingOwnerIdentity.id }
+                });
+              } else if (ownerIdentifier.jid || ownerIdentifier.lid) {
+                await tx.personIdentity.create({
+                  data: {
+                    displayName: socket.user.name ?? account.displayName,
+                    isConnectedAccountOwner: true,
+                    jid: ownerIdentifier.jid,
+                    lastSeenAt: connectedAt,
+                    lid: ownerIdentifier.lid,
+                    organizationId: account.organizationId,
+                    personId: owner.id,
+                    phoneNumber,
+                    verificationStatus: "CONFIRMED",
+                    whatsappAccountId: account.id
+                  }
+                });
+              }
+            }
+
             if (recoveryAction === "QUEUE") {
               await queueWhatsAppConnectionAlertJob(tx, {
                 alertType: "RECOVERY",
@@ -486,6 +657,25 @@ export class BaileysWhatsAppSessionManager {
               });
             }
           });
+          if (this.participantSyncEnabled) {
+            const activeGroups = await this.prisma.whatsAppChatMapping.findMany({
+              where: {
+                isGroup: true,
+                projectId: { not: null },
+                status: "ACTIVE",
+                whatsappAccountId: account.id
+              }
+            });
+            for (const mapping of activeGroups) {
+              if (mapping.projectId) {
+                await queueWhatsAppGroupParticipantSyncJob(this.prisma, {
+                  organizationId: mapping.organizationId,
+                  projectId: mapping.projectId,
+                  sourceId: mapping.id
+                });
+              }
+            }
+          }
         }
 
         if (update.connection === "close") {
@@ -571,6 +761,7 @@ export class BaileysWhatsAppSessionManager {
 
           const updatedAccount = await this.prisma.whatsAppAccount.findUniqueOrThrow({
             select: {
+              connectedByUserId: true,
               displayName: true,
               id: true,
               organizationId: true,
@@ -714,6 +905,32 @@ export class BaileysWhatsAppSessionManager {
       canonicalChatJid: identity.chatJid,
       mapping
     });
+    const normalized = normalizeWhatsAppMessage(rawMessage);
+
+    if (!normalized) {
+      return;
+    }
+
+    if (normalized.direction === "INBOUND" && normalized.body && this.controlMessageHandler) {
+      const control = await this.controlMessageHandler.handle({
+        accountId: account.id,
+        body: normalized.body,
+        chatJid,
+        inboundMessageId: normalized.messageId,
+        isGroup,
+        organizationId: account.organizationId,
+        pushName: normalized.pushName,
+        quotedMessageId: normalized.quotedMessageId,
+        senderJid: normalized.senderJid
+      });
+      if (control.handled) {
+        if (control.replyText) {
+          await socket.sendMessage(chatJid, { text: control.replyText }, { quoted: rawMessage });
+        }
+        return;
+      }
+    }
+
     const decision = decideWhatsAppIngestion({
       account: accountState,
       mapping: activeMapping
@@ -730,12 +947,6 @@ export class BaileysWhatsAppSessionManager {
         },
         "WhatsApp message skipped before content ingestion"
       );
-      return;
-    }
-
-    const normalized = normalizeWhatsAppMessage(rawMessage);
-
-    if (!normalized) {
       return;
     }
 
@@ -1294,6 +1505,19 @@ export class BaileysWhatsAppSessionManager {
 function normalizePhoneNumber(jid: string): string | null {
   const value = jid.split("@")[0]?.split(":")[0];
   return value || null;
+}
+
+function normalizeConnectedAccountIdentifier(id: string): {
+  jid: string | null;
+  lid: string | null;
+} {
+  const [localPart, domain] = id.split("@");
+  const stableLocalPart = localPart?.split(":")[0];
+  const normalized = stableLocalPart && domain ? `${stableLocalPart}@${domain}` : id;
+  return {
+    jid: domain === "s.whatsapp.net" ? normalized : null,
+    lid: domain === "lid" ? normalized : null
+  };
 }
 
 function isRecoverableDisconnect(statusCode: number | undefined): boolean {

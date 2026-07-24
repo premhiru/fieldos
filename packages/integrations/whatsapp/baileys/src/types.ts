@@ -4,6 +4,7 @@ import type { StorageProvider } from "@fieldos/shared";
 export interface WhatsAppAccountRecord {
   id: string;
   organizationId: string;
+  connectedByUserId: string | null;
   displayName: string;
   phoneNumber: string | null;
   connectorType: "BAILEYS" | "META_CLOUD";
@@ -52,6 +53,7 @@ export interface NormalizedWhatsAppMessage {
   pushName: string | null;
   isGroup: boolean;
   messageId: string;
+  quotedMessageId: string | null;
   direction: MessageDirection;
   type: MessageType;
   body: string | null;
@@ -65,7 +67,30 @@ export interface NormalizedWhatsAppMessage {
 }
 
 export interface BaileysSessionManagerOptions {
+  controlMessageHandler?: WhatsAppControlMessageHandler;
   mediaStorageProvider?: StorageProvider;
+  participantSyncEnabled?: boolean;
   pollIntervalMs?: number;
   rootStoragePath?: string;
+}
+
+export interface WhatsAppControlMessageInput {
+  accountId: string;
+  body: string;
+  chatJid: string;
+  inboundMessageId: string;
+  isGroup: boolean;
+  organizationId: string;
+  pushName: string | null;
+  quotedMessageId: string | null;
+  senderJid: string;
+}
+
+export interface WhatsAppControlMessageResult {
+  handled: boolean;
+  replyText?: string | null;
+}
+
+export interface WhatsAppControlMessageHandler {
+  handle(input: WhatsAppControlMessageInput): Promise<WhatsAppControlMessageResult>;
 }

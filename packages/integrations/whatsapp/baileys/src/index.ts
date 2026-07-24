@@ -5,3 +5,6 @@ export * from "./qr-store.js";
 export * from "./session-manager.js";
 export * from "./storage.js";
 export * from "./types.js";
+export * from "./identity-sync.js";
+export * from "./recommendation-commands.js";
+export * from "./recommendation-policy.js";
