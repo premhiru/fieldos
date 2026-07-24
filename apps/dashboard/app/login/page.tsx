@@ -24,12 +24,14 @@ export default function LoginPage() {
   const [validationError, setValidationError] = React.useState<string | null>(null);
   const [passwordChanged, setPasswordChanged] = React.useState(false);
   const [inviteToken, setInviteToken] = React.useState("");
+  const [whatsAppInviteToken, setWhatsAppInviteToken] = React.useState("");
 
   React.useEffect(() => {
     const query = new URLSearchParams(window.location.search);
     const invite = new URLSearchParams(window.location.hash.slice(1));
     setPasswordChanged(query.get("passwordChanged") === "1");
     setInviteToken(invite.get("invite") ?? "");
+    setWhatsAppInviteToken(invite.get("whatsappInvite") ?? "");
     const invitedEmail = invite.get("email");
     if (invitedEmail) setEmail(invitedEmail);
   }, []);
@@ -40,7 +42,13 @@ export default function LoginPage() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["me"] });
       await queryClient.invalidateQueries({ queryKey: ["organizations"] });
-      router.push(inviteToken ? "/projects" : "/");
+      router.push(
+        whatsAppInviteToken
+          ? `/whatsapp-invite#token=${encodeURIComponent(whatsAppInviteToken)}`
+          : inviteToken
+            ? "/projects"
+            : "/"
+      );
     }
   });
 
@@ -150,9 +158,11 @@ export default function LoginPage() {
             <Link
               className="font-medium text-[var(--text-primary)] hover:underline"
               href={
-                inviteToken
-                  ? `/signup#invite=${encodeURIComponent(inviteToken)}&email=${encodeURIComponent(email)}`
-                  : "/signup"
+                whatsAppInviteToken
+                  ? `/signup#whatsappInvite=${encodeURIComponent(whatsAppInviteToken)}`
+                  : inviteToken
+                    ? `/signup#invite=${encodeURIComponent(inviteToken)}&email=${encodeURIComponent(email)}`
+                    : "/signup"
               }
             >
               Create an account

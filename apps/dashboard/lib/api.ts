@@ -964,6 +964,64 @@ export interface WhatsAppChatMapping {
   } | null;
 }
 
+export type WhatsAppRecommendationRoutingMode =
+  | "PRIVATE_PROJECT_MANAGER"
+  | "PRIVATE_NAMED_APPROVERS"
+  | "PRIVATE_CONNECTED_ACCOUNT_OWNER"
+  | "PROJECT_GROUP"
+  | "PLATFORM_ONLY";
+
+export interface WhatsAppRecommendationSetting {
+  id: string;
+  enabled: boolean;
+  routingMode: WhatsAppRecommendationRoutingMode;
+  allowedRecommendationTypes: RecommendationType[];
+  sendUrgentOnly: boolean;
+  quietHoursStart: string | null;
+  quietHoursEnd: string | null;
+  timezone: string;
+  requireSecondConfirmationForHighImpact: boolean;
+  groupApprovalsEnabled: boolean;
+  dailyRecipientLimit: number;
+  dailyProjectLimit: number;
+  deliveryCooldownMinutes: number;
+  namedApprovers: Array<{ person: { id: string; displayName: string } }>;
+}
+
+export interface ProjectPerson {
+  id: string;
+  role: string | null;
+  participantStatus: "ACTIVE" | "INACTIVE";
+  lastSeenAt: string;
+  person: {
+    id: string;
+    displayName: string;
+    company: string | null;
+    roleTitle: string | null;
+    type: "INTERNAL" | "EXTERNAL" | "UNKNOWN";
+    status: "ACTIVE" | "INACTIVE" | "MERGED" | "IGNORED";
+    userId: string | null;
+    identities: Array<{
+      id: string;
+      verificationStatus: "OBSERVED" | "CONFIRMED" | "NEEDS_REVIEW" | "REVOKED";
+      lastSeenAt: string;
+      groupParticipants: Array<{ isGroupAdmin: boolean; participantStatus: "ACTIVE" | "INACTIVE" }>;
+    }>;
+    identityReviews: Array<{ id: string; reason: string; status: string }>;
+    whatsAppInvitations: Array<{ id: string; status: string; expiresAt: string }>;
+  };
+}
+
+export interface RecommendationDelivery {
+  id: string;
+  deliveryStatus: string;
+  deliveredAt: string | null;
+  respondedAt: string | null;
+  attemptCount: number;
+  failureReason: string | null;
+  recipientPerson: { id: string; displayName: string } | null;
+}
+
 class DashboardApiError extends Error {
   constructor(
     message: string,
@@ -1509,6 +1567,89 @@ export const api = {
     apiRequest<{ chat: WhatsAppChatMapping }>(`/whatsapp/chat-mappings/${mappingId}/ignore`, {
       method: "POST"
     }),
+  getWhatsAppRecommendationSetting: (projectId: string) =>
+    apiRequest<{ setting: WhatsAppRecommendationSetting | null }>(
+      `/projects/${projectId}/whatsapp-recommendation-settings`
+    ),
+  testWhatsAppRecommendationDelivery: (projectId: string) =>
+    apiRequest<{ test: { recommendationId: string } }>(
+      `/projects/${projectId}/whatsapp-recommendation-settings/test`,
+      { method: "POST" }
+    ),
+  updateWhatsAppRecommendationSetting: (
+    projectId: string,
+    body: Omit<WhatsAppRecommendationSetting, "id" | "namedApprovers"> & {
+      namedApproverPersonIds: string[];
+    }
+  ) =>
+    apiRequest<{ setting: WhatsAppRecommendationSetting }>(
+      `/projects/${projectId}/whatsapp-recommendation-settings`,
+      { body: JSON.stringify(body), method: "PUT" }
+    ),
+  listProjectPeople: (projectId: string, filter = "all") =>
+    apiRequest<{ people: ProjectPerson[] }>(
+      `/projects/${projectId}/people?filter=${encodeURIComponent(filter)}`
+    ),
+  syncWhatsAppParticipants: (mappingId: string) =>
+    apiRequest<{ status: "QUEUED" }>(`/whatsapp/chat-mappings/${mappingId}/sync-participants`, {
+      method: "POST"
+    }),
+  updateProjectPerson: (personId: string, organizationId: string, body: Record<string, unknown>) =>
+    apiRequest<{ updated: true }>(`/people/${personId}?organizationId=${organizationId}`, {
+      body: JSON.stringify(body),
+      method: "PATCH"
+    }),
+  updateProjectParticipant: (
+    participantId: string,
+    organizationId: string,
+    body: Record<string, unknown>
+  ) =>
+    apiRequest<{ updated: true }>(
+      `/project-participants/${participantId}?organizationId=${organizationId}`,
+      {
+        body: JSON.stringify(body),
+        method: "PATCH"
+      }
+    ),
+  ignoreIdentityReview: (reviewId: string, organizationId: string) =>
+    apiRequest<{ ignored: true }>(
+      `/identity-reviews/${reviewId}/ignore?organizationId=${organizationId}`,
+      { method: "POST" }
+    ),
+  mergeIdentityReview: (reviewId: string, organizationId: string, targetPersonId: string) =>
+    apiRequest<{ merged: true }>(
+      `/identity-reviews/${reviewId}/merge?organizationId=${organizationId}`,
+      { body: JSON.stringify({ targetPersonId }), method: "POST" }
+    ),
+  createWhatsAppInvitation: (projectId: string, body: { personId: string; role: MembershipRole }) =>
+    apiRequest<{ invitation: { id: string; status: string } }>(
+      `/projects/${projectId}/whatsapp-invitations`,
+      { body: JSON.stringify(body), method: "POST" }
+    ),
+  listRecommendationDeliveries: (recommendationId: string) =>
+    apiRequest<{ deliveries: RecommendationDelivery[] }>(
+      `/recommendations/${recommendationId}/deliveries`
+    ),
+  retryRecommendationDelivery: (deliveryId: string, organizationId: string) =>
+    apiRequest<{ status: "QUEUED" }>(
+      `/recommendation-deliveries/${deliveryId}/retry?organizationId=${organizationId}`,
+      { method: "POST" }
+    ),
+  getWhatsAppInvitation: (token: string) =>
+    apiRequest<{
+      invitation: {
+        expiresAt: string;
+        organizationName: string;
+        personName: string;
+        projectName: string;
+        status: string;
+      };
+    }>(`/whatsapp-invitations/activate?token=${encodeURIComponent(token)}`),
+  acceptWhatsAppInvitation: (token: string) =>
+    apiRequest<{ activation: { organizationId: string; projectId: string } }>(
+      "/whatsapp-invitations/activate",
+      { body: JSON.stringify({ acceptTerms: true, token }), method: "POST" }
+    ),
   ignoreActionItem: (actionItemId: string) =>
     apiRequest<{ actionItem: ActionItem }>(`/action-items/${actionItemId}/ignore`, {
       method: "POST"

@@ -5,7 +5,7 @@
 | Purpose      | Summarize Sprint 14 readiness work and remaining risk. |
 | Owner        | Principal Product Engineering                          |
 | Status       | Active                                                 |
-| Last Updated | 2026-07-21                                             |
+| Last Updated | 2026-07-24                                             |
 
 ## Table of Contents
 
@@ -21,6 +21,8 @@
 ## Summary
 
 FieldOS is ready for a controlled first customer pilot after deployment and production smoke testing. Sprint 14 adds onboarding, demo data, demo reset, feedback, notifications, product analytics, and clearer pilot-facing UX.
+
+WhatsApp-native operations are code-complete for dark launch, with additive migration validation and default-off kill switches. They are not approved for production recommendation traffic until private delivery, unauthorized reply, group sync, and invitation scenarios pass on a dedicated non-production WhatsApp account.
 
 AI Decision Layer v2 is suitable for a shadow pilot only. Its additive schema, bounded contexts, suppression telemetry, and one-variable rollback reduce rollout risk, but customer-visible v2 recommendations must wait for live shadow review.
 

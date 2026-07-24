@@ -5,7 +5,7 @@
 | Purpose      | Track FieldOS milestone progress, task completion, technical debt, architecture decisions, and deployment readiness. |
 | Owner        | Founding Engineering                                                                                                 |
 | Status       | Active                                                                                                               |
-| Last Updated | 2026-07-21                                                                                                           |
+| Last Updated | 2026-07-24                                                                                                           |
 
 ## Table of Contents
 
@@ -19,9 +19,15 @@
 
 ## Current Milestone
 
-AI Decision Layer v2 production observation and pilot quality monitoring.
+WhatsApp-native operations dark launch and controlled demo validation.
 
 ## Completed Tasks
+
+- WhatsApp-native recommendations and project participant discovery.
+  - Added private recommendation routing, deterministic quoted replies, high-impact confirmation, idempotent delivery/response records, bounded retries, rate controls, and immutable security auditing.
+  - Added organization-scoped people, account-scoped WhatsApp identities, project participants, identity review, participant synchronization, and secure WhatsApp invitation activation without automatic access grants.
+  - Added project People administration, recommendation delivery visibility, rollout flags, migration, threat-model tests, architecture documentation, and an operator runbook.
+  - Validated all migrations in an isolated populated PostgreSQL database and deployed the additive migration, API, and worker dark with all four feature flags disabled pending real test-account validation.
 
 - Media library deletion.
   - Added owner/admin deletion controls to Project Evidence photo cards with explicit confirmation, pending feedback, and quiet retry guidance.
@@ -388,6 +394,8 @@ AI Decision Layer v2 production observation and pilot quality monitoring.
 
 ## In-Progress Tasks
 
+- Real connected test-number validation for recommendation delivery, unauthorized replies, group membership changes, and WhatsApp invitation activation.
+
 - Monitor customer-visible v2 decisions, recommendation acceptance, suppression reasons, and extraction quality with pilot traffic.
 - Confirm the first post-promotion inbound classification persists a `V2` decision; no new inbound message arrived during the deployment verification window.
 
@@ -479,6 +487,14 @@ AI Decision Layer v2 production observation and pilot quality monitoring.
 - AI Decision Layer v2 promotion decision: enable `v2` after the provider-backed recommendation gates passed, retain `legacy` for immediate rollback, and treat category and secondary-signal quality as monitored limitations rather than recommendation blockers.
 
 ## Deployment Status
+
+- WhatsApp-native operations were dark-deployed from draft pull request 2 on 2026-07-24.
+  - Production migration `20260724090000_whatsapp_native_operations` applied successfully after a fresh all-migration replay and no-drift check.
+  - Railway API deployment `80341c1c-3240-4e20-b13c-49640aa85a83` and worker deployment `133cb012-dcb3-4759-b26d-60957ccca7fd` completed successfully.
+  - API health returns `{"status":"ok"}`; the worker retained its persistent volume, reached its job-waiting state, and reconnected the existing WhatsApp session.
+  - Recommendation delivery, recommendation replies, participant sync, and WhatsApp invitations are explicitly disabled on both Railway services. Post-deploy logs show zero WhatsApp-native deliveries, invitations, or participant-sync jobs processed.
+  - Vercel preview deployment `dpl_H9eHnXXJTTWDFrb8vs9gvyPckPmE` is Ready at `https://fieldos-8vigi8mpl-premhirus-projects.vercel.app`. Vercel's authenticated protection bypass verified the FieldOS login page; direct anonymous browser smoke is blocked by preview SSO as intended.
+  - Draft pull request 2 remains unmerged. Real-device testing with a designated non-production WhatsApp account and group is still required before enabling any flag.
 
 - Media library deletion deployed on 2026-07-21 from commit `e0dd57f`.
   - Vercel production deployment `dpl_EYMEMj2M9zejhNiVWPLnXRjbszZZ` is Ready and aliased to `https://fieldos-sand.vercel.app`.

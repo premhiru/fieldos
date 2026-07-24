@@ -1,7 +1,16 @@
 "use client";
 
 import { Badge, Button, EmptyState, PageHeader, Skeleton } from "@fieldos/ui";
-import { ArrowRight, CheckCircle2, FileText, Flag, History, Images, ListTodo } from "lucide-react";
+import {
+  ArrowRight,
+  CheckCircle2,
+  FileText,
+  Flag,
+  History,
+  Images,
+  ListTodo,
+  Users
+} from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -269,6 +278,7 @@ function ProjectCommandCenter() {
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <QuickLink href={`/projects/${project.id}/timeline`} icon={History} label="Timeline" />
           <QuickLink href={`/projects/${project.id}/evidence`} icon={Images} label="Evidence" />
+          <QuickLink href={`/projects/${project.id}/people`} icon={Users} label="People" />
           <QuickLink href={`/projects/${project.id}/milestones`} icon={Flag} label="Milestones" />
           <QuickLink
             href={`/projects/${project.id}/intelligence`}
