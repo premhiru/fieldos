@@ -1,4 +1,4 @@
-export const FIELDOS_SERVICE_NAME = "FieldOS";
+export const FIELDOS_SERVICE_NAME = "Caladrona";
 
 export const DEFAULT_API_PORT = 3001;
 

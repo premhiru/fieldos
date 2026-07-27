@@ -1,6 +1,14 @@
 "use client";
 
-import { Button, Card, CardContent, CardHeader, CardTitle, PageContainer } from "@fieldos/ui";
+import {
+  BrandLockup,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  PageContainer
+} from "@fieldos/ui";
 import { useMutation } from "@tanstack/react-query";
 import Link from "next/link";
 import * as React from "react";
@@ -21,7 +29,8 @@ export default function ResetPasswordPage() {
   }, []);
 
   return (
-    <PageContainer className="flex min-h-screen items-center justify-center">
+    <PageContainer className="flex min-h-screen flex-col items-center justify-center gap-8">
+      <BrandLockup />
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Choose a new password</CardTitle>
@@ -43,7 +52,7 @@ export default function ResetPasswordPage() {
             <div className="space-y-4">
               <p className="text-sm text-emerald-700">Your password has been updated.</p>
               <Link className="text-sm font-medium text-slate-950 underline" href="/login">
-                Log in to FieldOS
+                Log in to Caladrona
               </Link>
             </div>
           ) : (

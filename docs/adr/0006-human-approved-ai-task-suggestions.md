@@ -17,7 +17,7 @@
 
 ## Context
 
-FieldOS now classifies active project messages and can identify follow-up work from field communications. These classifications are useful for triage, but provider output can be incomplete, stale, or wrong.
+Caladrona now classifies active project messages and can identify follow-up work from field communications. These classifications are useful for triage, but provider output can be incomplete, stale, or wrong.
 
 ## Decision
 
@@ -37,4 +37,4 @@ This keeps AI support useful while preserving accountability and leaving a clean
 
 ## Review Triggers
 
-Revisit this decision when FieldOS adds first-class project tasks, automatic routing rules, customer-facing actions, or tenant policies that allow limited automation under explicit admin control.
+Revisit this decision when Caladrona adds first-class project tasks, automatic routing rules, customer-facing actions, or tenant policies that allow limited automation under explicit admin control.

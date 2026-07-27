@@ -17,13 +17,13 @@
 
 ## Context
 
-FieldOS needs a global post-login homepage that gives operators immediate visibility into project health, current work, recent activity, upcoming deadlines, and AI review load.
+Caladrona needs a global post-login homepage that gives operators immediate visibility into project health, current work, recent activity, upcoming deadlines, and AI review load.
 
 The dashboard should not become a business logic layer. Health, ranking, and organization scoping must be consistent across API consumers.
 
 ## Decision
 
-FieldOS will implement the Operations Command Center as an API-owned aggregate consumed by the dashboard.
+Caladrona will implement the Operations Command Center as an API-owned aggregate consumed by the dashboard.
 
 The command center includes:
 
@@ -56,8 +56,8 @@ Dashboard screens should call the dashboard API endpoints rather than recomputin
 
 The API must maintain stable response shapes for summary, project ranking, Action Item groups, recent activity, milestones, and brief data.
 
-Future provider-backed brief generation must use only known FieldOS records and retain the deterministic fallback.
+Future provider-backed brief generation must use only known Caladrona records and retain the deterministic fallback.
 
 ## Review Triggers
 
-Revisit this decision when FieldOS adds a full scheduling domain, first-class task assignment, generated OpenAPI route contracts, or tenant-configurable health thresholds.
+Revisit this decision when Caladrona adds a full scheduling domain, first-class task assignment, generated OpenAPI route contracts, or tenant-configurable health thresholds.

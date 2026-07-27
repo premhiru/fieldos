@@ -1,6 +1,14 @@
 "use client";
 
-import { Button, Card, CardContent, CardHeader, CardTitle, PageContainer } from "@fieldos/ui";
+import {
+  BrandLockup,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  PageContainer
+} from "@fieldos/ui";
 import { useMutation } from "@tanstack/react-query";
 import Link from "next/link";
 import * as React from "react";
@@ -18,7 +26,8 @@ export default function ForgotPasswordPage() {
   const mutation = useMutation({ mutationFn: api.forgotPassword });
 
   return (
-    <PageContainer className="flex min-h-screen items-center justify-center">
+    <PageContainer className="flex min-h-screen flex-col items-center justify-center gap-8">
+      <BrandLockup />
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Reset your password</CardTitle>

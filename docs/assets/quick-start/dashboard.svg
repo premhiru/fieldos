@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="960" height="520" viewBox="0 0 960 520" role="img" aria-label="FieldOS dashboard screenshot reference">
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="520" viewBox="0 0 960 520" role="img" aria-label="Caladrona dashboard screenshot reference">
   <rect width="960" height="520" fill="#f8fafc"/>
   <rect x="0" y="0" width="220" height="520" fill="#ffffff" stroke="#e2e8f0"/>
-  <text x="28" y="42" font-family="Arial" font-size="20" font-weight="700" fill="#020617">FieldOS</text>
+  <text x="28" y="42" font-family="Arial" font-size="20" font-weight="700" fill="#020617">Caladrona</text>
   <rect x="28" y="84" width="160" height="34" rx="6" fill="#020617"/>
   <text x="48" y="107" font-family="Arial" font-size="13" fill="#ffffff">Dashboard</text>
   <text x="260" y="58" font-family="Arial" font-size="28" font-weight="700" fill="#020617">Operations Command Center</text>

@@ -2,6 +2,7 @@
 
 import {
   Badge,
+  BrandLockup,
   Button,
   Card,
   CardContent,
@@ -48,10 +49,11 @@ export default function InvitationPage() {
   }).toString();
 
   return (
-    <PageContainer className="flex min-h-screen items-center justify-center py-8">
+    <PageContainer className="flex min-h-screen flex-col items-center justify-center gap-8 py-8">
+      <BrandLockup />
       <Card className="w-full max-w-lg">
         <CardHeader>
-          <CardTitle>Join FieldOS</CardTitle>
+          <CardTitle>Join Caladrona</CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
           {!token || invitationQuery.isLoading ? (

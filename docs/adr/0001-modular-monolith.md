@@ -1,11 +1,11 @@
-# ADR 0001: Build FieldOS as a Modular Monolith First
+# ADR 0001: Build Caladrona as a Modular Monolith First
 
-| Field        | Value                                                                    |
-| ------------ | ------------------------------------------------------------------------ |
-| Purpose      | Record the initial architecture decision for FieldOS service boundaries. |
-| Owner        | Engineering                                                              |
-| Status       | Accepted                                                                 |
-| Last Updated | 2026-06-30                                                               |
+| Field        | Value                                                                      |
+| ------------ | -------------------------------------------------------------------------- |
+| Purpose      | Record the initial architecture decision for Caladrona service boundaries. |
+| Owner        | Engineering                                                                |
+| Status       | Accepted                                                                   |
+| Last Updated | 2026-06-30                                                                 |
 
 ## Table of Contents
 
@@ -17,13 +17,13 @@
 
 ## Context
 
-FieldOS needs to move quickly from product discovery into reliable field operations workflows. The product will likely include multiple domains, including jobs, scheduling, dispatch, assets, customer communication, documents, reporting, and AI assistance.
+Caladrona needs to move quickly from product discovery into reliable field operations workflows. The product will likely include multiple domains, including jobs, scheduling, dispatch, assets, customer communication, documents, reporting, and AI assistance.
 
 Starting with distributed services would add operational overhead before the domain model and scaling constraints are proven.
 
 ## Decision
 
-FieldOS will begin as a modular monolith.
+Caladrona will begin as a modular monolith.
 
 The codebase will use clear package and module boundaries so each domain has explicit ownership, public interfaces, tests, and dependency rules. These boundaries should make later service extraction possible when there is evidence that a domain needs independent deployment, scaling, compliance isolation, or ownership.
 
@@ -46,7 +46,7 @@ Tradeoffs:
 ## Alternatives Considered
 
 - Microservices from day one: rejected because the team does not yet have enough product or domain evidence to justify the operational cost.
-- Single unstructured application: rejected because FieldOS needs domain clarity and future extraction paths.
+- Single unstructured application: rejected because Caladrona needs domain clarity and future extraction paths.
 
 ## Review Triggers
 

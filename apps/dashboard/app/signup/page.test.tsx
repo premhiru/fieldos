@@ -29,7 +29,7 @@ describe("SignupPage", () => {
   it("renders the signup form", () => {
     render(React.createElement(SignupPage));
 
-    expect(screen.getByText("Create your FieldOS account")).toBeTruthy();
+    expect(screen.getByText("Create your Caladrona account")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Sign up" })).toBeTruthy();
   });
 });

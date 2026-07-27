@@ -1,4 +1,4 @@
-# FieldOS UX Audit
+# Caladrona UX Audit
 
 | Field        | Value                                                               |
 | ------------ | ------------------------------------------------------------------- |
@@ -20,7 +20,7 @@
 
 ## Executive Summary
 
-The pre-sprint application exposed most of FieldOS's technical capabilities directly in the navigation and on the dashboard. It was powerful but difficult to scan, especially for a new pilot user deciding what to do next. The redesign establishes a five-destination product shell, makes recommendations the primary decision surface, and organizes project information around the operational sequence of brief, recommendations, timeline, evidence, milestones, and reports.
+The pre-sprint application exposed most of Caladrona's technical capabilities directly in the navigation and on the dashboard. It was powerful but difficult to scan, especially for a new pilot user deciding what to do next. The redesign establishes a five-destination product shell, makes recommendations the primary decision surface, and organizes project information around the operational sequence of brief, recommendations, timeline, evidence, milestones, and reports.
 
 The API and domain model remain unchanged. This sprint is a presentation and interaction refactor, with small client-state reliability fixes where the audit found visible product defects.
 
@@ -63,7 +63,7 @@ The API and domain model remain unchanged. This sprint is a presentation and int
 
 **Problems found:** Project detail used implementation-oriented headings and repeated AI concepts across the page.
 
-**Improvement:** Established the product order: Project Brief, Recommendations, Timeline, Evidence, Milestones, Reports. Coordinator controls, Ask FieldOS, and Action Items remain available as supporting details.
+**Improvement:** Established the product order: Project Brief, Recommendations, Timeline, Evidence, Milestones, Reports. Coordinator controls, Ask Caladrona, and Action Items remain available as supporting details.
 
 ### Inbox
 
@@ -75,7 +75,7 @@ The API and domain model remain unchanged. This sprint is a presentation and int
 
 ### Recommendations
 
-**Purpose:** Let a human decide whether FieldOS should act on evidence.
+**Purpose:** Let a human decide whether Caladrona should act on evidence.
 
 **Problems found:** Recommendation rationale and approval effects were weak, while implementation payloads were prominent.
 
@@ -125,7 +125,7 @@ The API and domain model remain unchanged. This sprint is a presentation and int
 
 ```mermaid
 flowchart TD
-  Shell["FieldOS"] --> Dashboard["Dashboard"]
+  Shell["Caladrona"] --> Dashboard["Dashboard"]
   Shell --> Projects["Projects"]
   Shell --> Inbox["Inbox"]
   Shell --> Search["Search"]

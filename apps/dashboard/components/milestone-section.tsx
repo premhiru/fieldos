@@ -430,7 +430,7 @@ function MilestoneEditor({
             </div>
             <div className="rounded-md bg-emerald-50 p-3 text-sm text-emerald-950">
               <div className="text-xs font-semibold text-emerald-700">
-                Why FieldOS suggested this
+                Why Caladrona suggested this
               </div>
               <p className="mt-1">{recommendation.reason}</p>
               <p className="mt-2 text-xs text-emerald-800">

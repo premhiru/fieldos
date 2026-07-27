@@ -1,11 +1,11 @@
 # ADR 0011: Unified Evidence Processing
 
-| Field        | Value                                                                                              |
-| ------------ | -------------------------------------------------------------------------------------------------- |
-| Purpose      | Document how FieldOS groups message text, media metadata, and voice transcripts for AI and search. |
-| Owner        | AI and Media Engineering                                                                           |
-| Status       | Accepted                                                                                           |
-| Last Updated | 2026-07-07                                                                                         |
+| Field        | Value                                                                                                |
+| ------------ | ---------------------------------------------------------------------------------------------------- |
+| Purpose      | Document how Caladrona groups message text, media metadata, and voice transcripts for AI and search. |
+| Owner        | AI and Media Engineering                                                                             |
+| Status       | Accepted                                                                                             |
+| Last Updated | 2026-07-07                                                                                           |
 
 ## Table of Contents
 
@@ -18,11 +18,11 @@
 
 Field operations updates often arrive as one WhatsApp update with text, photos, voice notes, and PDFs. Treating each attachment as a separate AI input fragments the operational context and creates noisy UI surfaces.
 
-FieldOS needs the AI, search index, inbox, and command center to understand the same update as one evidence package.
+Caladrona needs the AI, search index, inbox, and command center to understand the same update as one evidence package.
 
 ## Decision
 
-FieldOS will build a runtime `UnifiedEvidenceContext` before AI classification and message search indexing.
+Caladrona will build a runtime `UnifiedEvidenceContext` before AI classification and message search indexing.
 
 The context includes project, conversation, sender, timestamp, message text, available voice transcript, attachment metadata, evidence summary counts, and message processing metadata.
 

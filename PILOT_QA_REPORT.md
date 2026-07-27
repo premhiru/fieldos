@@ -1,11 +1,11 @@
 # Pilot QA Report
 
-| Field        | Value                                                                 |
-| ------------ | --------------------------------------------------------------------- |
-| Purpose      | Record go-live QA findings and readiness for the first FieldOS pilot. |
-| Owner        | Principal QA Engineering                                              |
-| Status       | Active                                                                |
-| Last Updated | 2026-07-10                                                            |
+| Field        | Value                                                                   |
+| ------------ | ----------------------------------------------------------------------- |
+| Purpose      | Record go-live QA findings and readiness for the first Caladrona pilot. |
+| Owner        | Principal QA Engineering                                                |
+| Status       | Active                                                                  |
+| Last Updated | 2026-07-10                                                              |
 
 ## Table of Contents
 
@@ -24,7 +24,7 @@
 
 Overall pilot readiness: 88%.
 
-FieldOS is ready for a constrained one-project, one-week pilot after the latest Railway and dashboard deployments are verified from this commit. The product is credible for evidence intake, command-center review, AI Search, reports, and human-approved recommendations. It is not ready for contractual, safety-critical, or production billing workflows.
+Caladrona is ready for a constrained one-project, one-week pilot after the latest Railway and dashboard deployments are verified from this commit. The product is credible for evidence intake, command-center review, AI Search, reports, and human-approved recommendations. It is not ready for contractual, safety-critical, or production billing workflows.
 
 ## Critical Issues
 
@@ -74,7 +74,7 @@ FieldOS is ready for a constrained one-project, one-week pilot after the latest 
 - Three to five users.
 - One week.
 - Daily check-in with the pilot lead.
-- Do not use FieldOS for contractual approvals, claims, payments, legal notices, or safety-critical sign-offs during the first pilot.
+- Do not use Caladrona for contractual approvals, claims, payments, legal notices, or safety-critical sign-offs during the first pilot.
 
 ## Final Smoke Test
 

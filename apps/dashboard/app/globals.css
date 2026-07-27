@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap");
 @import "tailwindcss";
 
 @source "../../../packages/ui/src/**/*.{ts,tsx}";
@@ -6,43 +7,43 @@
   color-scheme: light;
 
   /* Foundation */
-  --canvas: #f4f5f6;
+  --canvas: #f6f4ee;
   --surface: #ffffff;
-  --surface-subtle: #f7f8f8;
-  --surface-muted: #eef0f1;
+  --surface-subtle: #f9f8f4;
+  --surface-muted: #efede6;
   --surface-raised: #ffffff;
-  --text-primary: #171a1d;
-  --text-secondary: #5d646b;
-  --text-tertiary: #7f878e;
-  --text-disabled: #a6acb1;
-  --border-subtle: #eaeced;
-  --border-default: #dfe2e4;
-  --border-strong: #c7cbce;
-  --action-primary: #1b2024;
-  --action-primary-hover: #30363b;
+  --text-primary: #15130d;
+  --text-secondary: #68624f;
+  --text-tertiary: #8a836f;
+  --text-disabled: #aaa38f;
+  --border-subtle: #eeece5;
+  --border-default: #e1ded4;
+  --border-strong: #cbc6b8;
+  --action-primary: #15130d;
+  --action-primary-hover: #2d2a20;
   --action-primary-text: #ffffff;
-  --brand-mark: #181c20;
-  --focus-ring: #2878c7;
+  --brand-mark: #0f9d86;
+  --focus-ring: #0f9d86;
 
   /* Operational status */
-  --status-healthy: #1f9d61;
-  --status-healthy-strong: #167347;
-  --status-healthy-soft: #ecf8f1;
-  --status-healthy-border: #b9e5ce;
-  --status-healthy-text: #17623f;
-  --status-attention: #d18b16;
-  --status-attention-soft: #fff7e6;
-  --status-attention-border: #f0d497;
-  --status-attention-text: #80530d;
+  --status-healthy: #0f9d86;
+  --status-healthy-strong: #0a7566;
+  --status-healthy-soft: #e6f5f1;
+  --status-healthy-border: #a9ddd3;
+  --status-healthy-text: #0a7566;
+  --status-attention: #ff7a33;
+  --status-attention-soft: #fff0e4;
+  --status-attention-border: #f8c7a9;
+  --status-attention-text: #b6480e;
   --status-critical: #ce3e45;
   --status-critical-strong: #aa2e35;
   --status-critical-soft: #fff0f0;
   --status-critical-border: #f2bfc2;
   --status-critical-text: #9e2930;
-  --status-info: #2878c7;
-  --status-info-soft: #eef6fd;
-  --status-info-border: #bedbf4;
-  --status-info-text: #235f99;
+  --status-info: #357391;
+  --status-info-soft: #edf5f7;
+  --status-info-border: #bdd7df;
+  --status-info-text: #285d75;
 
   /* Shape, depth, and motion */
   --radius-control: 6px;
@@ -57,29 +58,29 @@
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --canvas: #111315;
-    --surface: #181b1e;
-    --surface-subtle: #1e2225;
-    --surface-muted: #25292d;
-    --surface-raised: #202428;
-    --text-primary: #f3f4f4;
-    --text-secondary: #b2b8bd;
-    --text-tertiary: #8f979e;
-    --text-disabled: #626a71;
-    --border-subtle: #252a2e;
-    --border-default: #30363b;
-    --border-strong: #454c52;
-    --action-primary: #f3f4f4;
-    --action-primary-hover: #dfe2e4;
-    --action-primary-text: #111315;
-    --brand-mark: #f3f4f4;
-    --focus-ring: #68a9e5;
-    --status-healthy-soft: #132a20;
-    --status-healthy-border: #24553c;
-    --status-healthy-text: #74d5a4;
-    --status-attention-soft: #302512;
-    --status-attention-border: #654a16;
-    --status-attention-text: #e8bd64;
+    --canvas: #151713;
+    --surface: #1d201b;
+    --surface-subtle: #232720;
+    --surface-muted: #2b2f27;
+    --surface-raised: #252922;
+    --text-primary: #f5f3eb;
+    --text-secondary: #c0baa9;
+    --text-tertiary: #97917f;
+    --text-disabled: #686556;
+    --border-subtle: #2a2e26;
+    --border-default: #373c32;
+    --border-strong: #505648;
+    --action-primary: #f5f3eb;
+    --action-primary-hover: #e1ded3;
+    --action-primary-text: #151713;
+    --brand-mark: #33e2c4;
+    --focus-ring: #33e2c4;
+    --status-healthy-soft: #12302a;
+    --status-healthy-border: #246155;
+    --status-healthy-text: #70ddc9;
+    --status-attention-soft: #38251b;
+    --status-attention-border: #75452c;
+    --status-attention-text: #ffad7c;
     --status-critical-soft: #34191b;
     --status-critical-border: #6c2d31;
     --status-critical-text: #ef9297;
@@ -105,7 +106,7 @@ body {
   background: var(--canvas);
   color: var(--text-primary);
   font-family:
-    Inter,
+    "Instrument Sans",
     ui-sans-serif,
     system-ui,
     -apple-system,

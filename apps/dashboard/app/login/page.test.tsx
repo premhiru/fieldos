@@ -30,7 +30,7 @@ describe("LoginPage", () => {
   it("renders the login form", () => {
     render(React.createElement(LoginPage));
 
-    expect(screen.getByText("Log in to FieldOS")).toBeTruthy();
+    expect(screen.getByText("Log in to Caladrona")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Log in" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Forgot password?" })).toBeTruthy();
   });

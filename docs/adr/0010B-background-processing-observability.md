@@ -1,11 +1,11 @@
 # ADR 0010B: Background Processing Observability
 
-| Field        | Value                                                                               |
-| ------------ | ----------------------------------------------------------------------------------- |
-| Purpose      | Document FieldOS background processing, search indexing, and operations visibility. |
-| Owner        | Platform Engineering                                                                |
-| Status       | Accepted                                                                            |
-| Last Updated | 2026-07-06                                                                          |
+| Field        | Value                                                                                 |
+| ------------ | ------------------------------------------------------------------------------------- |
+| Purpose      | Document Caladrona background processing, search indexing, and operations visibility. |
+| Owner        | Platform Engineering                                                                  |
+| Status       | Accepted                                                                              |
+| Last Updated | 2026-07-06                                                                            |
 
 ## Table of Contents
 
@@ -18,11 +18,11 @@
 
 Tasks 001-010 introduced asynchronous work: WhatsApp ingestion, AI classification, Action Item creation, event creation, and grounded search indexing. Search indexing previously happened during API search requests, which made search endpoints mutate state and hid operational failures from developers and support engineers.
 
-FieldOS needs basic visibility into worker health, queued work, failed work, and retry behavior before the platform adds more asynchronous features.
+Caladrona needs basic visibility into worker health, queued work, failed work, and retry behavior before the platform adds more asynchronous features.
 
 ## Decision
 
-FieldOS will use a lightweight database-backed `ProcessingJob` table for MVP background processing visibility and retries.
+Caladrona will use a lightweight database-backed `ProcessingJob` table for MVP background processing visibility and retries.
 
 Search indexing will move to worker-owned `SEARCH_INDEX` jobs. API search endpoints are read-only and never rebuild the index synchronously.
 
@@ -44,6 +44,6 @@ The database remains the source of truth for job visibility, which keeps local d
 
 ## Alternatives Considered
 
-Temporal, Bull Board, and external orchestration platforms were intentionally deferred. They add operational surface area before FieldOS has enough workflow complexity to justify them.
+Temporal, Bull Board, and external orchestration platforms were intentionally deferred. They add operational surface area before Caladrona has enough workflow complexity to justify them.
 
 Redis-only queues were also deferred because they do not provide durable, queryable job history as simply as the existing PostgreSQL database.

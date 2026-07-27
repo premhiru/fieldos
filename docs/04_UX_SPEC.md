@@ -1,11 +1,11 @@
 # UX Specification
 
-| Field        | Value                                                                                  |
-| ------------ | -------------------------------------------------------------------------------------- |
-| Purpose      | Define the FieldOS user experience principles, interaction patterns, and core screens. |
-| Owner        | Design                                                                                 |
-| Status       | Draft                                                                                  |
-| Last Updated | 2026-07-06                                                                             |
+| Field        | Value                                                                                    |
+| ------------ | ---------------------------------------------------------------------------------------- |
+| Purpose      | Define the Caladrona user experience principles, interaction patterns, and core screens. |
+| Owner        | Design                                                                                   |
+| Status       | Draft                                                                                    |
+| Last Updated | 2026-07-06                                                                               |
 
 ## Table of Contents
 
@@ -49,7 +49,7 @@ The Search page supports:
 
 Project detail pages include a scoped `Ask about this project` panel. Project-scoped answers only use records belonging to the selected project.
 
-When FieldOS cannot find enough evidence, the answer panel shows the deterministic fallback rather than inventing a response.
+When Caladrona cannot find enough evidence, the answer panel shows the deterministic fallback rather than inventing a response.
 
 ## Accessibility
 

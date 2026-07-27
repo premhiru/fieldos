@@ -65,7 +65,7 @@ beforeAll(async () => {
   buildServer = (await import("./server.js")).buildServer;
 }, 120_000);
 
-describe("FieldOS API auth and tenancy", () => {
+describe("Caladrona API auth and tenancy", () => {
   let repository: InMemoryRepository;
   let server: FastifyInstance;
   let passwordResetEmails: Array<{ recipient: string; resetUrl: string }>;
@@ -2412,7 +2412,7 @@ describe("FieldOS API auth and tenancy", () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json().answer).toBe(
-      "I could not find enough information in FieldOS to answer that."
+      "I could not find enough information in Caladrona to answer that."
     );
     expect(response.json().sources).toHaveLength(0);
   });
@@ -4186,7 +4186,7 @@ class InMemoryRepository implements AppRepository {
     );
 
     const organization = await this.createOrganization({
-      name: "FieldOS Aviation Demo",
+      name: "Caladrona Aviation Demo",
       ownerUserId: userId,
       slug: `fieldos-aviation-demo-${nextId("slug")}`
     });

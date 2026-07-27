@@ -17,13 +17,13 @@
 
 ## Context
 
-Tasks 001 through 007 established the FieldOS foundation, authentication, projects, messaging, WhatsApp integration, and AI classification. Before adding the next product feature, the codebase needed a simpler shared vocabulary and a smaller AI data contract.
+Tasks 001 through 007 established the Caladrona foundation, authentication, projects, messaging, WhatsApp integration, and AI classification. Before adding the next product feature, the codebase needed a simpler shared vocabulary and a smaller AI data contract.
 
 The previous "SuggestedTask" language implied that every recommendation should become an operational task. That is not true for the MVP. Many recommendations are review prompts, routing suggestions, or lightweight follow-ups.
 
 ## Decision
 
-FieldOS will use `ActionItem` as the canonical term for human-reviewable recommendations.
+Caladrona will use `ActionItem` as the canonical term for human-reviewable recommendations.
 
 AI classification output is limited to:
 
@@ -37,7 +37,7 @@ The system may also store `reasoningSummary`, a short user-facing explanation. I
 
 Timeline preparation will use a generic `Event` model with source type, source id, event type, title, description, and timestamps.
 
-Project suggestions will be represented as `ActionItem` records with type `PROJECT_SUGGESTION`. Accepting a suggestion may update the conversation and connector mapping. Ignoring a suggestion records the decision. FieldOS will not automatically reassign projects from AI output.
+Project suggestions will be represented as `ActionItem` records with type `PROJECT_SUGGESTION`. Accepting a suggestion may update the conversation and connector mapping. Ignoring a suggestion records the decision. Caladrona will not automatically reassign projects from AI output.
 
 ## Reason
 
@@ -59,4 +59,4 @@ Task 008 can consume `Event` records but should not assume every historical reco
 
 ## Review Triggers
 
-Revisit this decision when FieldOS introduces first-class project tasks, customer-facing automation, full activity timeline backfills, or tenant-configurable automatic routing policies.
+Revisit this decision when Caladrona introduces first-class project tasks, customer-facing automation, full activity timeline backfills, or tenant-configurable automatic routing policies.

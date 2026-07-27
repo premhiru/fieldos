@@ -20,7 +20,7 @@ function createHarness(overrides: Partial<WhatsAppConnectionAlertContext> = {}) 
     disconnectedAt,
     lastDisconnectReason: "Network connection was lost",
     organizationId: "org-1",
-    organizationName: "FieldOS Pilot",
+    organizationName: "Caladrona Pilot",
     phoneNumber: "+6512345678",
     recoveryAlertSentAt: null,
     status: "DISCONNECTED",
@@ -42,7 +42,7 @@ function createHarness(overrides: Partial<WhatsAppConnectionAlertContext> = {}) 
     { send },
     {
       appUrl: "https://fieldos.example.com/",
-      fromEmail: "FieldOS <alerts@example.com>",
+      fromEmail: "Caladrona <alerts@example.com>",
       logger,
       now: () => now
     }
@@ -62,7 +62,7 @@ describe("WhatsAppConnectionAlertProcessor", () => {
     expect(send).toHaveBeenCalledWith(
       expect.objectContaining({
         idempotencyKey: `whatsapp-disconnect/account-1/${disconnectedAt.toISOString()}`,
-        subject: "FieldOS alert: WhatsApp connection lost",
+        subject: "Caladrona alert: WhatsApp connection lost",
         to: ["owner@example.com", "admin@example.com"]
       })
     );
@@ -106,7 +106,7 @@ describe("WhatsAppConnectionAlertProcessor", () => {
     expect(send).toHaveBeenCalledWith(
       expect.objectContaining({
         idempotencyKey: `whatsapp-recovery/account-1/${disconnectedAt.toISOString()}`,
-        subject: "FieldOS update: WhatsApp connection restored",
+        subject: "Caladrona update: WhatsApp connection restored",
         text: expect.stringContaining("7 minutes")
       })
     );

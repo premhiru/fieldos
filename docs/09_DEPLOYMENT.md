@@ -1,11 +1,11 @@
 # Deployment
 
-| Field        | Value                                                              |
-| ------------ | ------------------------------------------------------------------ |
-| Purpose      | Define the first production hosting approach for FieldOS services. |
-| Owner        | Founding Engineering                                               |
-| Status       | Active                                                             |
-| Last Updated | 2026-07-21                                                         |
+| Field        | Value                                                                |
+| ------------ | -------------------------------------------------------------------- |
+| Purpose      | Define the first production hosting approach for Caladrona services. |
+| Owner        | Founding Engineering                                                 |
+| Status       | Active                                                               |
+| Last Updated | 2026-07-21                                                           |
 
 ## Table of Contents
 
@@ -20,7 +20,7 @@
 
 ## Overview
 
-FieldOS uses Vercel for the Next.js dashboard and Railway for the backend runtime layer.
+Caladrona uses Vercel for the Next.js dashboard and Railway for the backend runtime layer.
 
 The dashboard is deployed to Vercel. The API, worker, PostgreSQL, and Redis are deployed together in Railway so the worker can stay long-running and the backend services can share managed infrastructure.
 
@@ -84,7 +84,7 @@ OPENROUTER_API_KEY=<OpenRouter fallback API key>
 AI_BASE_URL=https://openrouter.ai/api/v1
 AI_MODEL=openrouter/free
 RESEND_API_KEY=<resend-api-key>
-EMAIL_FROM=FieldOS <no-reply@leesaapp.com>
+EMAIL_FROM=Caladrona <no-reply@leesaapp.com>
 WHATSAPP_STORAGE_PATH=/data/whatsapp
 MEDIA_SIGNING_SECRET=<generated secret shared by API and worker>
 WHATSAPP_SESSION_POLL_INTERVAL_MS=10000

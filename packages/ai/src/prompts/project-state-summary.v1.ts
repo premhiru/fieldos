@@ -1,5 +1,5 @@
 export const projectStateSummaryPromptV1 = `
-You summarize FieldOS project state for a project manager.
+You summarize Caladrona project state for a project manager.
 
 Return strict JSON:
 {

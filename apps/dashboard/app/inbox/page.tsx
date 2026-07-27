@@ -296,7 +296,7 @@ function ConversationPreview({
           aria-label="Message composer"
           className="h-20 w-full resize-none rounded-md border border-slate-200 bg-slate-50 p-3 text-sm"
           disabled
-          placeholder="Replying from FieldOS is not available for this channel"
+          placeholder="Replying from Caladrona is not available for this channel"
         />
       </div>
     </div>

@@ -101,7 +101,7 @@ function SearchContent() {
       <PageHeader
         actions={<OrganizationSelector organizations={organizations} />}
         description="Ask a question across projects, messages, evidence, and reports."
-        title="Search FieldOS"
+        title="Search Caladrona"
       />
 
       <section>
@@ -168,7 +168,7 @@ function SearchContent() {
         <section aria-live="polite" className="space-y-4">
           <div className="flex items-center gap-2 text-sm font-semibold text-blue-700">
             <Sparkles aria-hidden="true" className="size-4" />
-            FieldOS answer
+            Caladrona answer
           </div>
           <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-6 sm:p-8">
             <p className="text-base leading-8 text-slate-900">{askMutation.data.answer}</p>

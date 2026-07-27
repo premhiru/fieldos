@@ -6,7 +6,7 @@ import "./caladrona.css";
 export const metadata: Metadata = {
   description:
     "Operational intelligence that turns field messages, photos, voice notes, and documents into grounded decisions.",
-  title: "Caladrona | Operational Intelligence"
+  title: { absolute: "Caladrona | Operational Intelligence" }
 };
 
 export default function HomePage() {

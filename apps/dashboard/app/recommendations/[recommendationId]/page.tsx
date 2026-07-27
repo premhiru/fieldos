@@ -278,8 +278,8 @@ function RecommendationDetailContent() {
               {sendDraftMutation.data?.result.sent === false &&
               "queued" in sendDraftMutation.data.result ? (
                 <p className="text-sm text-slate-600">
-                  Draft approved and queued. The FieldOS worker will send it through the connected
-                  WhatsApp line.
+                  Draft approved and queued. Caladrona will send it through the connected WhatsApp
+                  line.
                 </p>
               ) : null}
               {sendDraftMutation.data?.result.sent === false &&

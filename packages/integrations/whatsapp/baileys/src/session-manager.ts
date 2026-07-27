@@ -103,7 +103,7 @@ export class BaileysWhatsAppSessionManager {
     }
 
     for (const session of this.sessions.values()) {
-      session.socket.end(new Error("FieldOS worker shutdown"));
+      session.socket.end(new Error("Caladrona worker shutdown"));
     }
 
     this.sessions.clear();
@@ -168,12 +168,12 @@ export class BaileysWhatsAppSessionManager {
     const participant = await this.prisma.participant.upsert({
       create: {
         conversationId: conversation.id,
-        displayName: "FieldOS",
+        displayName: "Caladrona",
         externalIdentifier: `fieldos:${account.id}`,
         role: "fieldos"
       },
       update: {
-        displayName: "FieldOS"
+        displayName: "Caladrona"
       },
       where: {
         conversationId_externalIdentifier: {
@@ -641,7 +641,7 @@ export class BaileysWhatsAppSessionManager {
           disconnectedAt,
           disconnectAlertSentAt: null,
           lastDisconnectedAt: disconnectedAt,
-          lastDisconnectReason: "FieldOS worker restarted and WhatsApp did not reconnect",
+          lastDisconnectReason: "Caladrona worker restarted and WhatsApp did not reconnect",
           recoveryAlertSentAt: null,
           status: "CONNECTING"
         },

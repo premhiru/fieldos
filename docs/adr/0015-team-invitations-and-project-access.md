@@ -15,11 +15,11 @@
 
 ## Context
 
-Organization membership previously granted access to every project. FieldOS needs owner-managed invitations, clear roles, and selected-project access without breaking existing pilot accounts.
+Organization membership previously granted access to every project. Caladrona needs owner-managed invitations, clear roles, and selected-project access without breaking existing pilot accounts.
 
 ## Decision
 
-FieldOS uses expiring, single-use `TeamInvitation` records. Raw invitation tokens are delivered to users but only SHA-256 hashes are stored. Invitations require an exact email match during authenticated acceptance.
+Caladrona uses expiring, single-use `TeamInvitation` records. Raw invitation tokens are delivered to users but only SHA-256 hashes are stored. Invitations require an exact email match during authenticated acceptance.
 
 Invitation links keep tokens in URL fragments, and dashboard API calls move them into a dedicated request header. Tokens are therefore not included in Vercel page URLs or Railway API request logs.
 

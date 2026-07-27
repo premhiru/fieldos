@@ -1,11 +1,11 @@
 # ADR 0016: Milestone Intelligence
 
-| Field        | Value                                                                                |
-| ------------ | ------------------------------------------------------------------------------------ |
-| Purpose      | Record how FieldOS derives and approves milestone changes from operational evidence. |
-| Owner        | Product Engineering                                                                  |
-| Status       | Accepted                                                                             |
-| Last Updated | 2026-07-13                                                                           |
+| Field        | Value                                                                                  |
+| ------------ | -------------------------------------------------------------------------------------- |
+| Purpose      | Record how Caladrona derives and approves milestone changes from operational evidence. |
+| Owner        | Product Engineering                                                                    |
+| Status       | Accepted                                                                               |
+| Last Updated | 2026-07-13                                                                             |
 
 ## Table of Contents
 
@@ -22,7 +22,7 @@ ADR number `0015` is already assigned to team invitations and project access. Th
 
 ## Decision
 
-FieldOS will create milestone recommendations from classified messages, voice transcripts, existing milestones, and project date context. Humans must approve every create or update.
+Caladrona will create milestone recommendations from classified messages, voice transcripts, existing milestones, and project date context. Humans must approve every create or update.
 
 Deterministic parsing and normalized title matching run first. Matching an existing milestone is preferred over creating another record. A strict, versioned AI prompt is used only when deterministic extraction cannot resolve a clear result.
 

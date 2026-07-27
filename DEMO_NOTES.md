@@ -1,11 +1,11 @@
 # Demo Notes
 
-| Field        | Value                                                          |
-| ------------ | -------------------------------------------------------------- |
-| Purpose      | Capture demo steps and verification notes for FieldOS changes. |
-| Owner        | Product Engineering                                            |
-| Status       | Active                                                         |
-| Last Updated | 2026-07-18                                                     |
+| Field        | Value                                                            |
+| ------------ | ---------------------------------------------------------------- |
+| Purpose      | Capture demo steps and verification notes for Caladrona changes. |
+| Owner        | Product Engineering                                              |
+| Status       | Active                                                           |
+| Last Updated | 2026-07-18                                                       |
 
 ## Table of Contents
 
@@ -30,7 +30,7 @@ What changed:
 - Timeline, Evidence, and Milestones open in focused project views.
 - Recommendations lead the dashboard and routine activity no longer competes with decisions.
 - Settings opens one administrative section at a time; WhatsApp chats stay hidden until Manage chats is selected.
-- FieldOS summaries replace raw classification status, provider errors, and prominent rerun controls.
+- Caladrona summaries replace raw classification status, provider errors, and prominent rerun controls.
 
 How to test:
 
@@ -40,7 +40,7 @@ How to test:
 4. Use each Quick Link and confirm Timeline, Evidence, Milestones, Reports, and Action Items remain reachable.
 5. Open Settings and move between Workspace, Team, WhatsApp, Integrations, Security, and Operations without a long combined page.
 6. In WhatsApp Settings, select Manage chats, search, change status filters, and move between pages.
-7. Open an Inbox message and confirm the interpretation uses plain-language FieldOS summary states.
+7. Open an Inbox message and confirm the interpretation uses plain-language Caladrona summary states.
 
 Current limitations:
 
@@ -129,7 +129,7 @@ What changed:
 
 - Operations Command Center now starts with AI Recommendations.
 - Project pages now show Project Coordinator state, recent summaries, pending recommendations, run-now control, and coordinator history.
-- FieldOS can approve recommendations into Action Items, report-generation jobs, or WhatsApp drafts.
+- Caladrona can approve recommendations into Action Items, report-generation jobs, or WhatsApp drafts.
 - WhatsApp drafts are editable and require a final explicit send action.
 - WhatsApp draft sends are queued by the API and delivered by the worker through the active Baileys session.
 - Operations Health includes coordinator run and recommendation metrics.
@@ -178,7 +178,7 @@ Current limitation:
 What changed:
 
 - Project pages now link to a Project Intelligence workspace.
-- FieldOS generates morning briefs, daily summaries, weekly progress reports, risk summaries, and pending decisions from stored project evidence.
+- Caladrona generates morning briefs, daily summaries, weekly progress reports, risk summaries, and pending decisions from stored project evidence.
 - Weekly reports can be exported as Markdown or PDF.
 - Weekly report generation can be queued for the worker and cached as a `ProjectReport`.
 - The Evidence Viewer can preview images, PDFs, and audio through signed URLs while showing transcript, vision analysis, source WhatsApp message, timeline references, and linked Action Items.
@@ -205,7 +205,7 @@ What changed:
 
 - Image attachments from active WhatsApp conversations queue `PHOTO_ANALYSIS` jobs.
 - The worker sends stored photos to the configured OpenAI-compatible vision provider.
-- FieldOS stores concise summaries, detected objects, possible issues, confidence, and tags.
+- Caladrona stores concise summaries, detected objects, possible issues, confidence, and tags.
 - Inbox image attachments show visual summaries when analysis completes.
 - Project detail pages show recent photo intelligence for the project.
 - Command center Recent Evidence can surface visual summary snippets.

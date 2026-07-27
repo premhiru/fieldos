@@ -7,6 +7,8 @@ interface BrandMarkProps extends React.SVGAttributes<SVGSVGElement> {
 }
 
 export function BrandMark({ className, inverted = false, ...props }: BrandMarkProps) {
+  const gradientId = React.useId();
+
   return (
     <svg
       aria-hidden="true"
@@ -15,17 +17,20 @@ export function BrandMark({ className, inverted = false, ...props }: BrandMarkPr
       viewBox="0 0 32 32"
       {...props}
     >
-      <rect
-        className={inverted ? "fill-white" : "fill-[var(--brand-mark)]"}
-        width="32"
-        height="32"
-        rx="6"
-      />
-      <path
-        className={inverted ? "fill-[var(--brand-mark)]" : "fill-white"}
-        d="M8 8h15.5v4H12v3.25h9v4h-9V24H8V8Z"
-      />
-      <rect className="fill-[var(--status-healthy)]" height="4" rx="1" width="4" x="21" y="20" />
+      <defs>
+        <linearGradient
+          gradientUnits="userSpaceOnUse"
+          id={gradientId}
+          x1="5"
+          x2="27"
+          y1="3"
+          y2="29"
+        >
+          <stop stopColor={inverted ? "#ff9a61" : "#ff7a33"} />
+          <stop offset="1" stopColor={inverted ? "#33e2c4" : "#0f9d86"} />
+        </linearGradient>
+      </defs>
+      <rect fill={`url(#${gradientId})`} height="32" rx="7" width="32" />
     </svg>
   );
 }
@@ -51,7 +56,7 @@ export function BrandLockup({
             inverted ? "text-white" : "text-[var(--text-primary)]"
           )}
         >
-          FieldOS
+          Caladrona
         </div>
         {!compact ? (
           <div
@@ -60,7 +65,7 @@ export function BrandLockup({
               inverted ? "text-[#aeb4b9]" : "text-[var(--text-tertiary)]"
             )}
           >
-            Field operations
+            Operational intelligence
           </div>
         ) : null}
       </div>

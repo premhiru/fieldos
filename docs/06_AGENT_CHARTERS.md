@@ -1,11 +1,11 @@
 # Agent Charters
 
-| Field        | Value                                                                                                  |
-| ------------ | ------------------------------------------------------------------------------------------------------ |
-| Purpose      | Define responsibilities, constraints, review requirements, and escalation paths for FieldOS AI agents. |
-| Owner        | AI Engineering                                                                                         |
-| Status       | Draft                                                                                                  |
-| Last Updated | 2026-06-30                                                                                             |
+| Field        | Value                                                                                                    |
+| ------------ | -------------------------------------------------------------------------------------------------------- |
+| Purpose      | Define responsibilities, constraints, review requirements, and escalation paths for Caladrona AI agents. |
+| Owner        | AI Engineering                                                                                           |
+| Status       | Draft                                                                                                    |
+| Last Updated | 2026-06-30                                                                                               |
 
 ## Table of Contents
 

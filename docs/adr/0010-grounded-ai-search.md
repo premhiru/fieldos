@@ -17,13 +17,13 @@
 
 ## Context
 
-FieldOS needs operators to ask practical questions across messages, projects, AI classifications, Action Items, and activity records without losing tenant isolation or source traceability.
+Caladrona needs operators to ask practical questions across messages, projects, AI classifications, Action Items, and activity records without losing tenant isolation or source traceability.
 
-AI search must not become an ungrounded assistant. Answers must be based on FieldOS records and must cite the source records used to produce the answer.
+AI search must not become an ungrounded assistant. Answers must be based on Caladrona records and must cite the source records used to produce the answer.
 
 ## Decision
 
-FieldOS will implement search through a generic `SearchDocument` index owned by the API and database layer.
+Caladrona will implement search through a generic `SearchDocument` index owned by the API and database layer.
 
 The index stores organization-scoped and optionally project-scoped source documents for:
 
@@ -35,7 +35,7 @@ The index stores organization-scoped and optionally project-scoped source docume
 
 Keyword search uses PostgreSQL text search. AI answers retrieve a small set of relevant source records, send only those snippets to the AI provider, and return the answer with cited sources.
 
-When there is not enough matching evidence, FieldOS returns a deterministic fallback: `I could not find enough information in FieldOS to answer that.`
+When there is not enough matching evidence, Caladrona returns a deterministic fallback: `I could not find enough information in Caladrona to answer that.`
 
 ## Reason
 

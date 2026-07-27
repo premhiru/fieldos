@@ -152,7 +152,7 @@ export class WhatsAppConnectionAlertProcessor {
       from: this.requireFromEmail(),
       html: buildDisconnectHtml(context, this.settingsUrl()),
       idempotencyKey: `whatsapp-disconnect/${context.accountId}/${context.disconnectedAt.toISOString()}`,
-      subject: "FieldOS alert: WhatsApp connection lost",
+      subject: "Caladrona alert: WhatsApp connection lost",
       text: buildDisconnectText(context, this.settingsUrl()),
       to: recipients
     });
@@ -193,7 +193,7 @@ export class WhatsAppConnectionAlertProcessor {
       from: this.requireFromEmail(),
       html: buildRecoveryHtml(context, duration, this.settingsUrl()),
       idempotencyKey: `whatsapp-recovery/${context.accountId}/${context.disconnectedAt.toISOString()}`,
-      subject: "FieldOS update: WhatsApp connection restored",
+      subject: "Caladrona update: WhatsApp connection restored",
       text: buildRecoveryText(context, duration, this.settingsUrl()),
       to: recipients
     });
@@ -238,16 +238,16 @@ function accountLabel(context: WhatsAppConnectionAlertContext): string {
 
 function buildDisconnectText(context: WhatsAppConnectionAlertContext, settingsUrl: string): string {
   return [
-    `FieldOS lost its WhatsApp connection for ${accountLabel(context)} in ${context.organizationName}.`,
+    `Caladrona lost its WhatsApp connection for ${accountLabel(context)} in ${context.organizationName}.`,
     `Disconnected: ${context.disconnectedAt?.toISOString() ?? "Unknown"}`,
     `Reason: ${context.lastDisconnectReason ?? "Connection closed unexpectedly"}`,
-    "FieldOS will continue reconnect attempts while the linked session remains valid.",
+    "Caladrona will continue reconnect attempts while the linked session remains valid.",
     `Review the connection: ${settingsUrl}`
   ].join("\n\n");
 }
 
 function buildDisconnectHtml(context: WhatsAppConnectionAlertContext, settingsUrl: string): string {
-  return `<p>FieldOS lost its WhatsApp connection for <strong>${escapeHtml(accountLabel(context))}</strong> in ${escapeHtml(context.organizationName)}.</p><p><strong>Disconnected:</strong> ${escapeHtml(context.disconnectedAt?.toISOString() ?? "Unknown")}<br><strong>Reason:</strong> ${escapeHtml(context.lastDisconnectReason ?? "Connection closed unexpectedly")}</p><p>FieldOS will continue reconnect attempts while the linked session remains valid.</p><p><a href="${escapeHtml(settingsUrl)}">Review the WhatsApp connection</a></p>`;
+  return `<h1 style="font-family:Arial,sans-serif;font-size:22px;color:#15130d">Caladrona</h1><p>Caladrona lost its WhatsApp connection for <strong>${escapeHtml(accountLabel(context))}</strong> in ${escapeHtml(context.organizationName)}.</p><p><strong>Disconnected:</strong> ${escapeHtml(context.disconnectedAt?.toISOString() ?? "Unknown")}<br><strong>Reason:</strong> ${escapeHtml(context.lastDisconnectReason ?? "Connection closed unexpectedly")}</p><p>Caladrona will continue reconnect attempts while the linked session remains valid.</p><p><a href="${escapeHtml(settingsUrl)}" style="color:#0a7566;font-weight:600">Review the WhatsApp connection</a></p>`;
 }
 
 function buildRecoveryText(
@@ -256,7 +256,7 @@ function buildRecoveryText(
   settingsUrl: string
 ): string {
   return [
-    `FieldOS restored the WhatsApp connection for ${accountLabel(context)} in ${context.organizationName}.`,
+    `Caladrona restored the WhatsApp connection for ${accountLabel(context)} in ${context.organizationName}.`,
     `Approximate interruption: ${duration}.`,
     "Message processing has resumed.",
     `Review the connection: ${settingsUrl}`
@@ -268,7 +268,7 @@ function buildRecoveryHtml(
   duration: string,
   settingsUrl: string
 ): string {
-  return `<p>FieldOS restored the WhatsApp connection for <strong>${escapeHtml(accountLabel(context))}</strong> in ${escapeHtml(context.organizationName)}.</p><p><strong>Approximate interruption:</strong> ${escapeHtml(duration)}.</p><p>Message processing has resumed.</p><p><a href="${escapeHtml(settingsUrl)}">Review the WhatsApp connection</a></p>`;
+  return `<h1 style="font-family:Arial,sans-serif;font-size:22px;color:#15130d">Caladrona</h1><p>Caladrona restored the WhatsApp connection for <strong>${escapeHtml(accountLabel(context))}</strong> in ${escapeHtml(context.organizationName)}.</p><p><strong>Approximate interruption:</strong> ${escapeHtml(duration)}.</p><p>Message processing has resumed.</p><p><a href="${escapeHtml(settingsUrl)}" style="color:#0a7566;font-weight:600">Review the WhatsApp connection</a></p>`;
 }
 
 function formatDuration(durationMs: number): string {

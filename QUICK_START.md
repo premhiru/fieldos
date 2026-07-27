@@ -1,11 +1,11 @@
 # Quick Start
 
-| Field        | Value                                                 |
-| ------------ | ----------------------------------------------------- |
-| Purpose      | Help a pilot user start FieldOS in under ten minutes. |
-| Owner        | Product Engineering                                   |
-| Status       | Active                                                |
-| Last Updated | 2026-07-13                                            |
+| Field        | Value                                                   |
+| ------------ | ------------------------------------------------------- |
+| Purpose      | Help a pilot user start Caladrona in under ten minutes. |
+| Owner        | Product Engineering                                     |
+| Status       | Active                                                  |
+| Last Updated | 2026-07-13                                              |
 
 ## Table of Contents
 
@@ -60,7 +60,7 @@ The demo workspace creates aviation project data, WhatsApp-style conversations, 
 4. Click `Review evidence` to edit the title, status, dates, description, or priority before approval.
 5. Confirm the milestone timeline, Project State summary, and Operations Command Center refresh after approval.
 
-Milestone recommendations are advisory. Dismiss unclear suggestions; FieldOS never changes milestones from AI evidence alone.
+Milestone recommendations are advisory. Dismiss unclear suggestions; Caladrona never changes milestones from AI evidence alone.
 
 ## Screenshots
 

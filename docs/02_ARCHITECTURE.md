@@ -1,11 +1,11 @@
 # Architecture
 
-| Field        | Value                                                                                         |
-| ------------ | --------------------------------------------------------------------------------------------- |
-| Purpose      | Describe the FieldOS system architecture, boundaries, integration points, and evolution plan. |
-| Owner        | Engineering                                                                                   |
-| Status       | Draft                                                                                         |
-| Last Updated | 2026-07-21                                                                                    |
+| Field        | Value                                                                                           |
+| ------------ | ----------------------------------------------------------------------------------------------- |
+| Purpose      | Describe the Caladrona system architecture, boundaries, integration points, and evolution plan. |
+| Owner        | Engineering                                                                                     |
+| Status       | Draft                                                                                           |
+| Last Updated | 2026-07-21                                                                                      |
 
 ## Table of Contents
 
@@ -33,7 +33,7 @@
 
 ## Architecture Overview
 
-FieldOS starts as a modular monolith with explicit domain and package boundaries. The architecture should support fast iteration while preserving clear ownership, testability, and future extraction paths.
+Caladrona starts as a modular monolith with explicit domain and package boundaries. The architecture should support fast iteration while preserving clear ownership, testability, and future extraction paths.
 
 ## System Diagram
 
@@ -203,7 +203,7 @@ Photo analysis results are visible in the inbox, project detail page, command-ce
 
 ## Project Intelligence and Reporting
 
-Project Intelligence is grounded summarization over FieldOS records. The API builds a `ProjectIntelligenceContext` from timeline events, Action Items, AI classifications, photo analyses, voice transcripts, evidence metadata, and milestones, then passes that context to `packages/intelligence`.
+Project Intelligence is grounded summarization over Caladrona records. The API builds a `ProjectIntelligenceContext` from timeline events, Action Items, AI classifications, photo analyses, voice transcripts, evidence metadata, and milestones, then passes that context to `packages/intelligence`.
 
 The intelligence package exposes:
 
@@ -266,7 +266,7 @@ Project and Operations Command Center components only render API state and issue
 
 ## Media Serving
 
-FieldOS uses a `StorageProvider` abstraction with `upload()`, `download()`, `getSignedUrl()`, `delete()`, and `exists()` methods. `LocalStorageProvider` is the local implementation and signs API media URLs with `MEDIA_SIGNING_SECRET`. `R2StorageProvider` is the production implementation and uses Cloudflare R2 through the S3-compatible API.
+Caladrona uses a `StorageProvider` abstraction with `upload()`, `download()`, `getSignedUrl()`, `delete()`, and `exists()` methods. `LocalStorageProvider` is the local implementation and signs API media URLs with `MEDIA_SIGNING_SECRET`. `R2StorageProvider` is the production implementation and uses Cloudflare R2 through the S3-compatible API.
 
 The dashboard never receives raw storage keys. It requests evidence through `GET /evidence/:id/view`, receives a short-lived signed URL, and previews media from that URL. Local development URLs point back through `GET /media/:token`; production URLs point at R2 signed URLs.
 
@@ -312,7 +312,7 @@ Command center endpoints:
 
 ## Background Processing and Operations Health
 
-FieldOS uses a lightweight database-backed job table for MVP background processing. `ProcessingJob` tracks job type, status, source record, attempts, error message, timestamps, and correlation ID. This avoids introducing a workflow platform before the product needs one.
+Caladrona uses a lightweight database-backed job table for MVP background processing. `ProcessingJob` tracks job type, status, source record, attempts, error message, timestamps, and correlation ID. This avoids introducing a workflow platform before the product needs one.
 
 Supported job types are:
 

@@ -2,7 +2,7 @@
   "name": "fieldos",
   "version": "0.0.0",
   "private": true,
-  "description": "AI Operating System for Field Operations",
+  "description": "Operational intelligence for the physical world",
   "license": "MIT",
   "packageManager": "pnpm@11.7.0",
   "engines": {

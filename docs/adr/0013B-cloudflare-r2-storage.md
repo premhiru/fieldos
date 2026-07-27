@@ -18,11 +18,11 @@
 
 Task 013 introduced evidence previews and worker-generated PDF reports. Local filesystem storage is acceptable for development, but Railway API and worker services run as separate deployments and should not be assumed to share local files. Local files can also disappear across redeploys.
 
-FieldOS needs durable production storage for WhatsApp evidence files, photo previews, voice notes, PDFs, and generated report PDFs.
+Caladrona needs durable production storage for WhatsApp evidence files, photo previews, voice notes, PDFs, and generated report PDFs.
 
 ## Decision
 
-FieldOS will use Cloudflare R2 as the production implementation of `StorageProvider`.
+Caladrona will use Cloudflare R2 as the production implementation of `StorageProvider`.
 
 `R2StorageProvider` uses the S3-compatible API for upload, download, signed URL generation, deletion, and existence checks. API and worker select the provider through `STORAGE_PROVIDER`. Local development keeps `STORAGE_PROVIDER=local`; production should use `STORAGE_PROVIDER=r2`.
 

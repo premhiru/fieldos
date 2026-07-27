@@ -181,7 +181,7 @@ function DashboardContent() {
               Try again
             </Button>
           }
-          description="FieldOS could not load your operational summary. Your project data is unchanged."
+          description="Caladrona could not load your operational summary. Your project data is unchanged."
           icon={<Activity aria-hidden="true" className="size-5" />}
           title="Dashboard temporarily unavailable"
         />
@@ -200,7 +200,7 @@ function DashboardContent() {
               </div>
             ) : recommendations.length === 0 ? (
               <EmptyState
-                description="New recommendations will appear here when FieldOS identifies a decision or follow-up in your project evidence."
+                description="New recommendations will appear here when Caladrona identifies a decision or follow-up in your project evidence."
                 icon={<CheckCircle2 aria-hidden="true" className="size-5" />}
                 title="You are all caught up"
               />

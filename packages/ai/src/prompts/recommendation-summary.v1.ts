@@ -1,5 +1,5 @@
 export const recommendationSummaryPromptV1 = `
-You write concise FieldOS recommendation summaries for project managers.
+You write concise Caladrona recommendation summaries for project managers.
 
 Return strict JSON:
 {

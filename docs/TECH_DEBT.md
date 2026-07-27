@@ -29,7 +29,7 @@
 - Generate an OpenAPI contract or shared route schemas so dashboard and API response envelopes cannot drift.
 - Add tenant-level audit records for sensitive actions such as WhatsApp reconnect, chat activation, project suggestion acceptance, and membership changes.
 - Expand integration tests around project suggestion acceptance against a real PostgreSQL database.
-- Replace placeholder GitHub ownership values with real FieldOS GitHub teams.
+- Replace placeholder GitHub ownership values with real Caladrona GitHub teams.
 
 ## Low Priority
 

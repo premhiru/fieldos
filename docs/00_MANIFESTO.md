@@ -1,11 +1,11 @@
-# FieldOS Manifesto
+# Caladrona Manifesto
 
-| Field        | Value                                              |
-| ------------ | -------------------------------------------------- |
-| Purpose      | Define the principles and beliefs guiding FieldOS. |
-| Owner        | Founding Engineering                               |
-| Status       | Draft                                              |
-| Last Updated | 2026-06-30                                         |
+| Field        | Value                                                |
+| ------------ | ---------------------------------------------------- |
+| Purpose      | Define the principles and beliefs guiding Caladrona. |
+| Owner        | Founding Engineering                                 |
+| Status       | Draft                                                |
+| Last Updated | 2026-06-30                                           |
 
 ## Table of Contents
 

@@ -46,23 +46,23 @@ export default function LoginPage() {
 
   return (
     <main className="grid min-h-screen bg-[var(--canvas)] lg:grid-cols-[minmax(340px,0.85fr)_minmax(520px,1.15fr)]">
-      <section className="hidden min-h-screen flex-col justify-between bg-[#181c20] p-10 text-white lg:flex xl:p-14">
+      <section className="hidden min-h-screen flex-col justify-between bg-[#15130d] p-10 text-white lg:flex xl:p-14">
         <BrandLockup inverted />
         <div className="max-w-lg">
           <div className="mb-7 flex size-12 items-center justify-center rounded-md border border-white/15 bg-white/5">
-            <LockKeyhole aria-hidden="true" className="size-5 text-[#8ed7b3]" />
+            <LockKeyhole aria-hidden="true" className="size-5 text-[#33e2c4]" />
           </div>
           <h1 className="text-4xl font-semibold leading-[1.15] text-white xl:text-5xl">
-            Field operations,
+            Nothing happens on site
             <br />
-            intelligently managed.
+            without Caladrona knowing.
           </h1>
           <p className="mt-5 max-w-md text-base leading-7 text-[#b7bdc2]">
             A calm command center for projects, field evidence, decisions, and operational
             follow-through.
           </p>
         </div>
-        <p className="text-xs text-[#8d959b]">Secure access to your FieldOS workspace</p>
+        <p className="text-xs text-[#aaa38f]">Secure access to your Caladrona workspace</p>
       </section>
 
       <section className="flex min-h-screen items-center justify-center px-5 py-10 sm:px-10">
@@ -73,7 +73,7 @@ export default function LoginPage() {
           <div className="mb-7">
             <p className="text-sm font-medium text-[var(--text-tertiary)]">Welcome back</p>
             <h2 className="mt-1 text-2xl font-semibold leading-8 text-[var(--text-primary)]">
-              Log in to FieldOS
+              Log in to Caladrona
             </h2>
             <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
               Continue to your operations workspace.
@@ -146,7 +146,7 @@ export default function LoginPage() {
           </Card>
 
           <p className="mt-6 text-center text-sm text-[var(--text-secondary)]">
-            New to FieldOS?{" "}
+            New to Caladrona?{" "}
             <Link
               className="font-medium text-[var(--text-primary)] hover:underline"
               href={

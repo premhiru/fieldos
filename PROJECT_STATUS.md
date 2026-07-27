@@ -1,11 +1,11 @@
 # Project Status
 
-| Field        | Value                                                                                                                |
-| ------------ | -------------------------------------------------------------------------------------------------------------------- |
-| Purpose      | Track FieldOS milestone progress, task completion, technical debt, architecture decisions, and deployment readiness. |
-| Owner        | Founding Engineering                                                                                                 |
-| Status       | Active                                                                                                               |
-| Last Updated | 2026-07-27                                                                                                           |
+| Field        | Value                                                                                                                  |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| Purpose      | Track Caladrona milestone progress, task completion, technical debt, architecture decisions, and deployment readiness. |
+| Owner        | Founding Engineering                                                                                                   |
+| Status       | Active                                                                                                                 |
+| Last Updated | 2026-07-27                                                                                                             |
 
 ## Table of Contents
 
@@ -22,6 +22,13 @@
 Caladrona public website launch, pilot onboarding, and AI Decision Layer v2 quality monitoring.
 
 ## Completed Tasks
+
+- Caladrona product brand migration.
+  - Replaced customer-facing FieldOS identity with Caladrona across the dashboard, authentication, transactional email, WhatsApp sender labels, API copy, AI prompts, and documentation.
+  - Added the approved Caladrona logo system, warm operational palette, Instrument Sans typography, product positioning, favicon, Apple touch icon, and web app manifest metadata.
+  - Added a data-only migration for existing visible WhatsApp system-participant names while preserving internal `@fieldos/*` package scopes, service names, cookie names, storage keys, and database identifiers for compatibility.
+  - Completed desktop and mobile visual QA of the authentication experience and verified browser metadata, icon delivery, and manifest content locally.
+  - Completed repository-wide format, lint, typecheck, tests, and build validation.
 
 - Recommendation priority triage and bulk dismissal.
   - Added All, High, and Medium recommendation views to the operations dashboard, with High selected by default to reduce review noise.
@@ -87,7 +94,7 @@ Caladrona public website launch, pilot onboarding, and AI Decision Layer v2 qual
   - Centralized deterministic project health into one status-and-reason service used by project list and detail contracts.
   - Prioritized recommendations on the dashboard and removed the duplicate Recent Activity feed.
   - Split Settings into six task-oriented views and made WhatsApp chat management active-first, hidden by default, searchable, and paginated.
-  - Replaced customer-facing AI machinery with FieldOS summaries and natural confidence labels.
+  - Replaced customer-facing AI machinery with Caladrona summaries and natural confidence labels.
   - Added `docs/PRODUCT_EDITING_REPORT.md` and resolved the critical first-customer UX findings.
 
 - AI coordinator scheduling reliability.
@@ -139,7 +146,7 @@ Caladrona public website launch, pilot onboarding, and AI Decision Layer v2 qual
 
 - GitHub Actions runtime modernization.
   - Upgraded checkout and Node setup actions to `v7` and pnpm setup to `v6` across all workflows.
-  - Removed the deprecated Node 20 action-runtime warning while retaining Node 22 for FieldOS validation.
+  - Removed the deprecated Node 20 action-runtime warning while retaining Node 22 for Caladrona validation.
 
 - GitHub Actions test reliability correction.
   - Updated the operations dashboard API test to expect the accepted high-priority Action Item created by its fixture.
@@ -164,12 +171,12 @@ Caladrona public website launch, pilot onboarding, and AI Decision Layer v2 qual
   - Added focused tests for outage transitions, duplicate suppression, recovery, missing recipients, and provider failure.
 
 - Verified-domain transactional email delivery.
-  - Standardized password-reset and team-invitation email on `FieldOS <no-reply@leesaapp.com>`.
+  - Standardized password-reset and team-invitation email on `Caladrona <no-reply@leesaapp.com>`.
   - Configured the Railway production API with the verified Resend sender.
   - Completed a controlled production send with a final Resend status of `delivered`.
 
 - Brand Identity and Visual Design System 1.0.
-  - Introduced the canonical FieldOS mark, wordmark, favicon, app identity, loading treatment, and empty-state illustration language.
+  - Introduced the canonical Caladrona mark, wordmark, favicon, app identity, loading treatment, and empty-state illustration language.
   - Added semantic light and dark tokens for surfaces, typography, borders, status, elevation, focus, and motion.
   - Standardized shared UI components and applied the system across the product shell and major workflows without changing navigation or functionality.
   - Refined the login first impression and replaced prominent text-only loading and developer-facing connection language.
@@ -186,9 +193,9 @@ Caladrona public website launch, pilot onboarding, and AI Decision Layer v2 qual
   - Dashboard API requests now use a same-origin proxy so production session cookies are first-party.
   - Login and signup now complete invitation acceptance inside the tracked authentication mutation.
 - Dashboard application icon.
-  - Added a FieldOS favicon and installable web app icon for browser tabs, pinned shortcuts, and taskbars.
-  - Added web app metadata with FieldOS branding and theme colors.
-- Task 001: Initialize the FieldOS Repository.
+  - Added a Caladrona favicon and installable web app icon for browser tabs, pinned shortcuts, and taskbars.
+  - Added web app metadata with Caladrona branding and theme colors.
+- Task 001: Initialize the Caladrona Repository.
   - Local repository created at `C:/Users/Admin/OneDrive/Documents/Atlas/fieldos`.
   - Git initialized on `main`.
   - Repository structure created.
@@ -196,7 +203,7 @@ Caladrona public website launch, pilot onboarding, and AI Decision Layer v2 qual
   - Turborepo, TypeScript, ESLint, Prettier, Husky, lint-staged, and Changesets configured.
   - GitHub pull request templates, issue templates, CODEOWNERS, and CI workflows created.
   - Documentation skeleton created.
-  - Initial commit created: `d18eb96 chore: initialize FieldOS engineering foundation`.
+  - Initial commit created: `d18eb96 chore: initialize Caladrona engineering foundation`.
   - Repository pushed to GitHub: `https://github.com/premhiru/fieldos`.
 - Task 002: Build the Engineering Foundation.
   - Dashboard, API, worker, and shared packages are implemented.
@@ -204,7 +211,7 @@ Caladrona public website launch, pilot onboarding, and AI Decision Layer v2 qual
   - Dashboard startup verified at `http://127.0.0.1:3000`.
   - API startup verified at `http://127.0.0.1:3001`.
   - API endpoints verified:
-    - `GET /` returns `{"service":"FieldOS API"}`.
+    - `GET /` returns `{"service":"Caladrona API"}`.
     - `GET /health` returns `{"status":"ok"}`.
   - GitHub Release created: `v0.0.1-foundation`.
   - Docker Compose verified with PostgreSQL and Redis healthy locally.
@@ -359,7 +366,7 @@ Caladrona public website launch, pilot onboarding, and AI Decision Layer v2 qual
   - Local validation passed for format, lint, typecheck, tests, build, and Prisma migration deploy.
   - Railway API deployment applied migration `20260708040000_ai_project_coordinators`.
   - Railway worker deployment verified coordinator startup scan and processed `PROJECT_COORDINATOR` jobs.
-- Go-Live QA Sprint: FieldOS Pilot Release.
+- Go-Live QA Sprint: Caladrona Pilot Release.
   - `PILOT_QA_REPORT.md` added with readiness score, issue review, recommended pilot scope, smoke test, known limitations, and rollback plan.
   - WhatsApp draft sending hardened for production: the API queues `WHATSAPP_DRAFT_SEND` jobs and the worker sends through the active Baileys session.
   - Recommendation detail page now requires explicit confirmation before draft send and distinguishes queued, sent, and failed states.
@@ -391,7 +398,7 @@ Caladrona public website launch, pilot onboarding, and AI Decision Layer v2 qual
   - Owners can assign administrators; administrators cannot manage other administrators or the owner.
   - Members and viewers can be restricted to selected projects across Projects, Dashboard, Search, and Inbox access paths.
   - Production migration `20260713030000_team_invitations` is applied and the invitation lifecycle passed a disposable production database smoke test.
-- UX Refactoring Sprint: Make FieldOS Feel Like a Product.
+- UX Refactoring Sprint: Make Caladrona Feel Like a Product.
   - Reduced primary navigation to Dashboard, Projects, Inbox, Search, and Reports; moved support and role-gated administration under Settings.
   - Focused Dashboard on recommendations, assigned Action Items, and ten recent events.
   - Reordered project detail around Brief, Recommendations, Timeline, Evidence, Milestones, and Reports.
@@ -408,7 +415,7 @@ Caladrona public website launch, pilot onboarding, and AI Decision Layer v2 qual
 ## Known Technical Debt
 
 - CODEOWNERS references `@fieldos/engineering`, which must be replaced or backed by a real GitHub team after the organization is created.
-- Git author identity is configured locally as `FieldOS Engineering <engineering@fieldos.local>` and should be replaced with the company identity when available.
+- Git author identity is configured locally as `Caladrona Engineering <engineering@fieldos.local>` and should be replaced with the company identity when available.
 - Email verification is not implemented yet; invitation and membership administration are live.
 - Password-reset request rate limiting is not yet implemented.
 - Production password resets and team invitations use Resend with the verified `leesaapp.com` sending domain.
@@ -466,7 +473,7 @@ Caladrona public website launch, pilot onboarding, and AI Decision Layer v2 qual
 
 ## Architecture Decisions Made
 
-- ADR 0001: Build FieldOS as a modular monolith first, with clear package boundaries that can later evolve into services.
+- ADR 0001: Build Caladrona as a modular monolith first, with clear package boundaries that can later evolve into services.
 - Prisma 7 is configured with the PostgreSQL driver adapter via `@prisma/adapter-pg`.
 - The API exposes health endpoints without eagerly opening a database connection, so health checks remain available during dependency outages.
 - ADR 0002: Use JWT session tokens in HTTP-only cookies for MVP authentication.
@@ -480,7 +487,7 @@ Caladrona public website launch, pilot onboarding, and AI Decision Layer v2 qual
 - ADR 0010B: Use lightweight database-backed background jobs and worker heartbeat for operations observability.
 - ADR 0011: Use runtime unified evidence context for grouped operational updates.
 - ADR 0012: Analyze image attachments asynchronously as advisory Photo Intelligence.
-- ADR 0013: Generate grounded project intelligence and reports from stored FieldOS records, with signed evidence media access.
+- ADR 0013: Generate grounded project intelligence and reports from stored Caladrona records, with signed evidence media access.
 - ADR 0013B: Use Cloudflare R2 for production media and report storage through signed URLs.
 - ADR 0014: Use AI Project Coordinators, deterministic ProjectState, and human-approved Recommendations.
 - ADR 0015: Use hashed team invitations, organization roles, and explicit project access for restricted members.
@@ -612,13 +619,13 @@ Caladrona public website launch, pilot onboarding, and AI Decision Layer v2 qual
 
 - Verified-domain Resend email delivery is deployed.
   - Railway API deployment `fb1b7a7f-972d-4bd8-8d8c-222c70e690a3` completed successfully.
-  - Production `EMAIL_FROM` resolves to `FieldOS <no-reply@leesaapp.com>`.
+  - Production `EMAIL_FROM` resolves to `Caladrona <no-reply@leesaapp.com>`.
   - A controlled delivery test was accepted and reported as `delivered` by Resend.
   - API health remains verified at `https://fieldos-api-production.up.railway.app/health`.
 
-- FieldOS Design System 1.0 is deployed.
+- Caladrona Design System 1.0 is deployed.
   - Dashboard commit `4b3b085` is live at `https://fieldos-sand.vercel.app`.
-  - Production login verified with the new FieldOS identity and `Field operations, intelligently managed.` first impression.
+  - Production login verified with the new Caladrona identity and `Field operations, intelligently managed.` first impression.
   - GitHub Actions `lint`, `typecheck`, `tests`, and `build` completed successfully for the release commit.
   - Railway API health remains verified at `https://fieldos-api-production.up.railway.app/health`.
   - Production-render Playwright QA passed at 1440 px desktop and 390 px mobile widths with no horizontal overflow.

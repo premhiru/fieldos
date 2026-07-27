@@ -29,7 +29,7 @@ export function createTeamInvitationEmailSender(config: {
             from,
             html: invitationEmailHtml(input),
             idempotencyKey: `team-invitation/${input.invitationId}/${input.deliveryKey}`,
-            subject: `Join ${input.organizationName} on FieldOS`,
+            subject: `Join ${input.organizationName} on Caladrona`,
             text: `You have been invited to join ${input.organizationName} as ${input.role}. Accept the invitation: ${input.invitationUrl}\n\nThis invitation expires in seven days.`,
             to: input.recipient
           });
@@ -65,7 +65,7 @@ function invitationEmailHtml(input: {
   role: string;
 }): string {
   const url = escapeHtml(input.invitationUrl);
-  return `<p>You have been invited to join <strong>${escapeHtml(input.organizationName)}</strong> on FieldOS as ${escapeHtml(input.role)}.</p><p><a href="${url}">Accept invitation</a></p><p>This invitation expires in seven days.</p>`;
+  return `<h1 style="font-family:Arial,sans-serif;font-size:22px;color:#15130d">Caladrona</h1><p>You have been invited to join <strong>${escapeHtml(input.organizationName)}</strong> on Caladrona as ${escapeHtml(input.role)}.</p><p><a href="${url}" style="color:#0a7566;font-weight:600">Accept invitation</a></p><p>This invitation expires in seven days.</p>`;
 }
 
 function escapeHtml(value: string): string {

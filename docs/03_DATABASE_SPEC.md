@@ -62,7 +62,7 @@ Current MVP models:
 - `ActionItem`: Human-reviewable recommendation derived from an AI classification or deterministic project suggestion.
 - `Event`: Generic organization-scoped activity record prepared for timeline features.
 - `Milestone`: Lightweight project deadline used by the Operations Command Center.
-- `SearchDocument`: Grounded search index entry for retrievable FieldOS records.
+- `SearchDocument`: Grounded search index entry for retrievable Caladrona records.
 - `ProcessingJob`: Lightweight background job record used for search indexing, AI classification, and future media/transcription work.
 - `WorkerHeartbeat`: Operational heartbeat record for deployed worker processes.
 - `UserFeedback`: Pilot feedback submitted from the dashboard.
@@ -311,7 +311,7 @@ WhatsApp connector data is intentionally separate from the generic messaging mod
 - `organizationId`: Owning organization.
 - `whatsappAccountId`: Source WhatsApp account.
 - `conversationId`: Generic conversation created from the WhatsApp chat.
-- `projectId`: Optional project assignment. Active unmapped chats can ingest messages so FieldOS can suggest a project assignment without automatically changing state.
+- `projectId`: Optional project assignment. Active unmapped chats can ingest messages so Caladrona can suggest a project assignment without automatically changing state.
 - `jid`: WhatsApp chat JID.
 - `chatName`: Last known chat or group display name.
 - `isGroup`: Whether the JID is a group chat.

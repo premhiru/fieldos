@@ -20,7 +20,7 @@
 
 ## Executive Summary
 
-This sprint edited FieldOS around one product promise: tell an operations manager what changed, what matters, and what decision is needed. No major capability was added. Existing capability was reorganized, progressively disclosed, or moved to a focused destination.
+This sprint edited Caladrona around one product promise: tell an operations manager what changed, what matters, and what decision is needed. No major capability was added. Existing capability was reorganized, progressively disclosed, or moved to a focused destination.
 
 The Project Command Center now has four primary sections: Project Brief, Recommended Actions, What's Changed, and Quick Links. Dashboard recommendations lead the daily workflow. Settings shows one administrative task at a time. Technical AI labels and raw processing states have been removed from customer workflows.
 
@@ -48,7 +48,7 @@ The Project Command Center now has four primary sections: Project Brief, Recomme
 - Only one Settings view renders at a time.
 - WhatsApp chat management is closed by default, starts with active chats, hides ignored chats by default, supports search and filters, and paginates 15 rows at a time.
 - Inbox rows prioritize unread state, project assignment, recency, and urgent language.
-- Message interpretation is presented as a FieldOS summary. Raw provider errors, model language, classification statuses, and rerun controls are no longer in the primary flow.
+- Message interpretation is presented as a Caladrona summary. Raw provider errors, model language, classification statuses, and rerun controls are no longer in the primary flow.
 
 ## Project Health
 
@@ -109,4 +109,4 @@ Production deployment and smoke-test evidence is recorded in `PROJECT_STATUS.md`
 
 ## Pilot Recommendation
 
-FieldOS is ready for a controlled enterprise pilot with a defined workspace, named administrators, and monitored WhatsApp integration. The product now presents a calmer and more trustworthy daily operating surface. The deferred items above should be measured during the pilot before broader rollout.
+Caladrona is ready for a controlled enterprise pilot with a defined workspace, named administrators, and monitored WhatsApp integration. The product now presents a calmer and more trustworthy daily operating surface. The deferred items above should be measured during the pilot before broader rollout.

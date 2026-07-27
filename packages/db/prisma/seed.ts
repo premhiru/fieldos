@@ -83,11 +83,11 @@ async function main() {
   const user = await prisma.user.upsert({
     create: {
       email: seedUserEmail,
-      name: "FieldOS Seed User",
+      name: "Caladrona Seed User",
       passwordHash: seedPasswordHash
     },
     update: {
-      name: "FieldOS Seed User",
+      name: "Caladrona Seed User",
       passwordHash: seedPasswordHash
     },
     where: {
@@ -97,7 +97,7 @@ async function main() {
 
   const organization = await prisma.organization.create({
     data: {
-      name: "FieldOS Seed Operations",
+      name: "Caladrona Seed Operations",
       slug: seedOrganizationSlug
     }
   });
@@ -184,7 +184,7 @@ async function main() {
     }
   }
 
-  console.log(`Seeded FieldOS messaging data for ${seedUserEmail}. Password: password123`);
+  console.log(`Seeded Caladrona messaging data for ${seedUserEmail}. Password: password123`);
 }
 
 function getMessageType(conversationIndex: number, messageIndex: number) {

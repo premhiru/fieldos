@@ -1,11 +1,11 @@
 # AI Decision Layer v2
 
-| Field        | Value                                                                              |
-| ------------ | ---------------------------------------------------------------------------------- |
-| Purpose      | Define the precision-first FieldOS classification and recommendation architecture. |
-| Owner        | Principal AI Engineering                                                           |
-| Status       | Shadow rollout                                                                     |
-| Last Updated | 2026-07-21                                                                         |
+| Field        | Value                                                                                |
+| ------------ | ------------------------------------------------------------------------------------ |
+| Purpose      | Define the precision-first Caladrona classification and recommendation architecture. |
+| Owner        | Principal AI Engineering                                                             |
+| Status       | Shadow rollout                                                                       |
+| Last Updated | 2026-07-21                                                                           |
 
 ## Table of Contents
 

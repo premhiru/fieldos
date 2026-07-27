@@ -35,4 +35,4 @@ No historical message backfill is performed during activation. Only new incoming
 
 ## Review Triggers
 
-Revisit this decision if FieldOS introduces audited bulk onboarding, official Meta Cloud API sync workflows, or tenant-level policies for automated chat activation.
+Revisit this decision if Caladrona introduces audited bulk onboarding, official Meta Cloud API sync workflows, or tenant-level policies for automated chat activation.

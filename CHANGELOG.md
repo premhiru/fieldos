@@ -1,17 +1,25 @@
 # Changelog
 
-| Field        | Value                                            |
-| ------------ | ------------------------------------------------ |
-| Purpose      | Track notable FieldOS product and platform work. |
-| Owner        | Engineering                                      |
-| Status       | Active                                           |
-| Last Updated | 2026-07-21                                       |
+| Field        | Value                                              |
+| ------------ | -------------------------------------------------- |
+| Purpose      | Track notable Caladrona product and platform work. |
+| Owner        | Engineering                                        |
+| Status       | Active                                             |
+| Last Updated | 2026-07-27                                         |
 
 ## Table of Contents
 
 - [Unreleased](#unreleased)
 
 ## Unreleased
+
+### Caladrona Brand Migration
+
+- Rebranded every customer-facing dashboard, authentication, email, WhatsApp, metadata, and documentation surface from FieldOS to Caladrona.
+- Introduced the approved amber-to-teal Caladrona mark, warm operational palette, Instrument Sans typography, and updated product positioning.
+- Added Caladrona browser-tab, app-manifest, Apple touch, and theme-color metadata with cache-busted icon references.
+- Preserved internal package scopes, database identifiers, service names, storage keys, and authentication cookies to avoid operational migration risk.
+- Added a data-only migration that updates the visible WhatsApp system participant name for existing installations.
 
 ### AI Decision Layer v2
 
@@ -29,7 +37,7 @@
 - Centralized deterministic project health into one status-and-reason service consumed by list and detail views.
 - Made recommendations the first dashboard workflow and removed the duplicate Recent Activity feed.
 - Split Settings into task-oriented views and made WhatsApp chat management closed, active-first, searchable, and paginated.
-- Replaced customer-facing AI machinery and raw classification errors with natural FieldOS summaries and confidence labels.
+- Replaced customer-facing AI machinery and raw classification errors with natural Caladrona summaries and confidence labels.
 - Added `docs/PRODUCT_EDITING_REPORT.md` and resolved the critical findings from the first-customer UX critique.
 
 ### WhatsApp Connection Reliability
@@ -41,15 +49,15 @@
 
 ### Email Delivery
 
-- Configured FieldOS transactional email to send from the verified `leesaapp.com` domain.
-- Standardized the production sender as `FieldOS <no-reply@leesaapp.com>` for password resets and team invitations.
+- Configured Caladrona transactional email to send from the verified `leesaapp.com` domain.
+- Standardized the production sender as `Caladrona <no-reply@leesaapp.com>` for password resets and team invitations.
 
 ### Brand Identity and Visual Design System
 
-- Introduced the FieldOS mark, wordmark, favicon, app identity, loading treatment, and empty-state illustration language.
+- Introduced the Caladrona mark, wordmark, favicon, app identity, loading treatment, and empty-state illustration language.
 - Added semantic light and dark design tokens for surfaces, typography, borders, status colors, radii, shadows, focus, and motion.
 - Standardized shared buttons, cards, badges, page headers, empty states, skeletons, forms, and product shell styling.
-- Refined the login first impression around the FieldOS promise: `Field operations, intelligently managed.`
+- Refined the login first impression around the Caladrona promise: `Field operations, intelligently managed.`
 - Replaced prominent text-only loading and developer-facing integration language with product-ready states.
 - Added design principles, brand guidance, visual system documentation, demo notes, and visual QA references.
 

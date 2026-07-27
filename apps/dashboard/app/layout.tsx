@@ -4,17 +4,24 @@ import "./globals.css";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  applicationName: "FieldOS",
-  title: "FieldOS",
-  description: "AI Operating System for Field Operations",
+  applicationName: "Caladrona",
+  title: {
+    default: "Caladrona",
+    template: "%s | Caladrona"
+  },
+  description: "Operational intelligence for the physical world",
+  icons: {
+    apple: "/icon.svg?v=2",
+    icon: [{ type: "image/svg+xml", url: "/icon.svg?v=2" }]
+  },
   manifest: "/manifest.webmanifest"
 };
 
 export const viewport: Viewport = {
   colorScheme: "light dark",
   themeColor: [
-    { color: "#f4f5f6", media: "(prefers-color-scheme: light)" },
-    { color: "#111315", media: "(prefers-color-scheme: dark)" }
+    { color: "#f6f4ee", media: "(prefers-color-scheme: light)" },
+    { color: "#151713", media: "(prefers-color-scheme: dark)" }
   ]
 };
 

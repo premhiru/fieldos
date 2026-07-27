@@ -1,11 +1,11 @@
-# FieldOS Visual Design System
+# Caladrona Visual Design System
 
 | Field        | Value                                                             |
 | ------------ | ----------------------------------------------------------------- |
 | Purpose      | Document reusable visual tokens, components, and QA expectations. |
 | Owner        | Product Design and Frontend Engineering                           |
-| Status       | Version 1.0                                                       |
-| Last Updated | 2026-07-14                                                        |
+| Status       | Version 2.0                                                       |
+| Last Updated | 2026-07-27                                                        |
 
 ## Table of Contents
 
@@ -30,7 +30,7 @@ The implementation lives in `apps/dashboard/app/globals.css` and `packages/ui/sr
 - **Borders:** subtle, default, and strong neutral roles.
 - **Elevation:** a one-pixel panel shadow and one raised overlay shadow. Page sections remain unframed.
 - **Motion:** 120 ms direct feedback and 180 ms standard transitions using an ease-out curve.
-- **Color:** canvas, surface, text, border, action, and semantic operational status roles.
+- **Color:** warm canvas, white surfaces, graphite text and actions, amber attention, teal health, and distinct semantic operational status roles.
 
 ## Components
 

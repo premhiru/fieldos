@@ -18,7 +18,7 @@
 
 ## Context
 
-FieldOS needs a WhatsApp connector so field operations messages can enter the unified inbox. The messaging core is already channel-agnostic, so WhatsApp-specific pairing, session state, identifiers, and media handling must stay outside `packages/messaging`.
+Caladrona needs a WhatsApp connector so field operations messages can enter the unified inbox. The messaging core is already channel-agnostic, so WhatsApp-specific pairing, session state, identifiers, and media handling must stay outside `packages/messaging`.
 
 ## Decision
 
@@ -31,7 +31,7 @@ The adapter owns WhatsApp-specific models:
 
 ## Reason
 
-Baileys gives FieldOS a pragmatic development connector before official Meta WhatsApp Cloud API onboarding is complete. Keeping it in an adapter package preserves the unified inbox design: the dashboard and messaging services continue to work with conversations and messages, not provider-specific objects.
+Baileys gives Caladrona a pragmatic development connector before official Meta WhatsApp Cloud API onboarding is complete. Keeping it in an adapter package preserves the unified inbox design: the dashboard and messaging services continue to work with conversations and messages, not provider-specific objects.
 
 ## Alternatives Considered
 
@@ -45,4 +45,4 @@ Baileys uses WhatsApp Web pairing and should be treated as a development and ear
 
 ## Review Triggers
 
-Revisit this decision when FieldOS needs production WhatsApp onboarding, multi-region workers, managed media storage, official Meta Cloud API support, or stronger controls around WhatsApp session material.
+Revisit this decision when Caladrona needs production WhatsApp onboarding, multi-region workers, managed media storage, official Meta Cloud API support, or stronger controls around WhatsApp session material.

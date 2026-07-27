@@ -1,5 +1,5 @@
 <!--
-Purpose: Standardize FieldOS pull request review context.
+Purpose: Standardize Caladrona pull request review context.
 Owner: Engineering
 Status: Draft
 Last Updated: 2026-06-30

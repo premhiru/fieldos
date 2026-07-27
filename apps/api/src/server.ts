@@ -300,7 +300,7 @@ export function buildServer(options: BuildServerOptions = {}) {
   });
 
   server.get("/", async () => ({
-    service: "FieldOS API"
+    service: "Caladrona API"
   }));
 
   server.get("/health", async () => ({
@@ -708,7 +708,7 @@ export function buildServer(options: BuildServerOptions = {}) {
       userId: user.id
     });
     await createUserNotification({
-      body: "Thank you. The FieldOS team can review this from the pilot feedback table.",
+      body: "Thank you. The Caladrona team can review this from the pilot feedback table.",
       href: body.page ?? "/",
       organizationId: body.organizationId,
       title: "Feedback received",
@@ -1989,7 +1989,7 @@ export function buildServer(options: BuildServerOptions = {}) {
         userId: user.id
       });
       await createUserNotification({
-        body: `${chat.chatName ?? "WhatsApp chat"} is now active in FieldOS.`,
+        body: `${chat.chatName ?? "WhatsApp chat"} is now active in Caladrona.`,
         href: "/inbox",
         organizationId: chat.organizationId,
         title: "WhatsApp chat activated",
@@ -2383,7 +2383,8 @@ export function buildServer(options: BuildServerOptions = {}) {
   return server;
 }
 
-const notEnoughInformationAnswer = "I could not find enough information in FieldOS to answer that.";
+const notEnoughInformationAnswer =
+  "I could not find enough information in Caladrona to answer that.";
 
 function getRequestBaseUrl(request: FastifyRequest): string {
   const forwardedProtocol = headerValue(request.headers["x-forwarded-proto"]);
@@ -2458,7 +2459,7 @@ function buildDeterministicSearchAnswer(
     .map((source) => `${source.title}: ${source.snippet}`)
     .join(" ");
 
-  return `I found ${sources.length} FieldOS source${sources.length === 1 ? "" : "s"} related to "${question}". ${summary}`;
+  return `I found ${sources.length} Caladrona source${sources.length === 1 ? "" : "s"} related to "${question}". ${summary}`;
 }
 
 function getCookieBaseOptions() {

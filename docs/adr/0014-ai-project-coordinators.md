@@ -15,11 +15,11 @@
 
 ## Context
 
-FieldOS already captures messages, evidence, photo analysis, voice transcripts, timeline events, search documents, and reports. Project managers need an active system that says what changed, what needs attention, and what should happen next without forcing manual search.
+Caladrona already captures messages, evidence, photo analysis, voice transcripts, timeline events, search documents, and reports. Project managers need an active system that says what changed, what needs attention, and what should happen next without forcing manual search.
 
 ## Decision
 
-FieldOS will use AI Project Coordinators backed by a deterministic `ProjectState` snapshot and first-class `Recommendation` records.
+Caladrona will use AI Project Coordinators backed by a deterministic `ProjectState` snapshot and first-class `Recommendation` records.
 
 The MVP includes:
 
@@ -28,7 +28,7 @@ The MVP includes:
 - Inspection Coordinator.
 - Report Coordinator.
 
-Recommendations require human approval. FieldOS may create an Action Item, queue a report, or create a WhatsApp draft after approval, but WhatsApp drafts still require a final send action. FieldOS does not send messages, reassign projects, close work, or escalate issues automatically.
+Recommendations require human approval. Caladrona may create an Action Item, queue a report, or create a WhatsApp draft after approval, but WhatsApp drafts still require a final send action. Caladrona does not send messages, reassign projects, close work, or escalate issues automatically.
 
 Coordinator logic is deterministic-first. AI may be used for concise summaries and draft wording, but not for hidden chain-of-thought or ungrounded operational claims.
 

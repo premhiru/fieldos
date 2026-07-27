@@ -1,11 +1,11 @@
 # Branch Strategy
 
-| Field        | Value                                                                                        |
-| ------------ | -------------------------------------------------------------------------------------------- |
-| Purpose      | Define the intended GitHub branch model, merge strategy, and commit conventions for FieldOS. |
-| Owner        | Engineering                                                                                  |
-| Status       | Draft                                                                                        |
-| Last Updated | 2026-06-30                                                                                   |
+| Field        | Value                                                                                          |
+| ------------ | ---------------------------------------------------------------------------------------------- |
+| Purpose      | Define the intended GitHub branch model, merge strategy, and commit conventions for Caladrona. |
+| Owner        | Engineering                                                                                    |
+| Status       | Draft                                                                                          |
+| Last Updated | 2026-06-30                                                                                     |
 
 ## Table of Contents
 
@@ -33,7 +33,7 @@
 
 ## Commit Message Convention
 
-FieldOS uses Conventional Commits.
+Caladrona uses Conventional Commits.
 
 ```text
 <type>(optional-scope): <description>
@@ -55,7 +55,7 @@ Examples:
 feat(dispatch): add job assignment workflow
 fix(auth): handle expired session refresh
 docs: update architecture overview
-chore: initialize FieldOS engineering foundation
+chore: initialize Caladrona engineering foundation
 ```
 
 ## Pull Request Expectations

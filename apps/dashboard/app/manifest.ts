@@ -2,16 +2,16 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "FieldOS",
-    short_name: "FieldOS",
-    description: "AI Operating System for Field Operations",
+    name: "Caladrona",
+    short_name: "Caladrona",
+    description: "Operational intelligence for the physical world",
     start_url: "/",
     display: "standalone",
-    background_color: "#f4f5f6",
-    theme_color: "#181c20",
+    background_color: "#f6f4ee",
+    theme_color: "#0f9d86",
     icons: [
       {
-        src: "/icon.svg",
+        src: "/icon.svg?v=2",
         sizes: "any",
         type: "image/svg+xml"
       }

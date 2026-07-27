@@ -1,11 +1,11 @@
 # Railway Deployment
 
-| Field        | Value                                                               |
-| ------------ | ------------------------------------------------------------------- |
-| Purpose      | Document Railway service configuration for FieldOS backend hosting. |
-| Owner        | Founding Engineering                                                |
-| Status       | Active                                                              |
-| Last Updated | 2026-07-18                                                          |
+| Field        | Value                                                                 |
+| ------------ | --------------------------------------------------------------------- |
+| Purpose      | Document Railway service configuration for Caladrona backend hosting. |
+| Owner        | Founding Engineering                                                  |
+| Status       | Active                                                                |
+| Last Updated | 2026-07-18                                                            |
 
 ## Table of Contents
 
@@ -13,7 +13,7 @@
 - [Required Variables](#required-variables)
 - [Notes](#notes)
 
-FieldOS uses Railway for the first backend hosting target because the API, worker, PostgreSQL, and Redis can live in one project.
+Caladrona uses Railway for the first backend hosting target because the API, worker, PostgreSQL, and Redis can live in one project.
 
 ## Services
 

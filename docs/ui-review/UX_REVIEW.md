@@ -1,11 +1,11 @@
-# FieldOS UX Review
+# Caladrona UX Review
 
-| Field        | Value                                                                                                                 |
-| ------------ | --------------------------------------------------------------------------------------------------------------------- |
-| Purpose      | Evaluate whether FieldOS feels trustworthy, clear, and valuable to a first-time enterprise field-operations customer. |
-| Owner        | Product Design                                                                                                        |
-| Status       | Complete - Critical findings resolved                                                                                 |
-| Last Updated | 2026-07-16                                                                                                            |
+| Field        | Value                                                                                                                   |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| Purpose      | Evaluate whether Caladrona feels trustworthy, clear, and valuable to a first-time enterprise field-operations customer. |
+| Owner        | Product Design                                                                                                          |
+| Status       | Complete - Critical findings resolved                                                                                   |
+| Last Updated | 2026-07-16                                                                                                              |
 
 ## Table of Contents
 
@@ -28,9 +28,9 @@
 
 ## Executive Summary
 
-FieldOS has the bones of a credible operations product: restrained branding, a consistent shell, a useful unified inbox, real evidence, reports, assignment controls, and an understandable operational vocabulary. It does not yet feel like premium enterprise software.
+Caladrona has the bones of a credible operations product: restrained branding, a consistent shell, a useful unified inbox, real evidence, reports, assignment controls, and an understandable operational vocabulary. It does not yet feel like premium enterprise software.
 
-The central problem is not styling. It is product hierarchy. FieldOS repeatedly exposes everything it knows instead of helping the project manager decide what matters now. The Project Command Center is an inventory of modules, Settings becomes an enormous administration stream, and the conversation detail exposes repeated AI processing controls that feel like internal tooling. The product often makes the user interpret the system rather than letting the system interpret operations for the user.
+The central problem is not styling. It is product hierarchy. Caladrona repeatedly exposes everything it knows instead of helping the project manager decide what matters now. The Project Command Center is an inventory of modules, Settings becomes an enormous administration stream, and the conversation detail exposes repeated AI processing controls that feel like internal tooling. The product often makes the user interpret the system rather than letting the system interpret operations for the user.
 
 The strongest pages are Reports and Action Items because each has one clear job. The weakest page is Settings, followed by the Project Command Center. Status disagreement is a serious trust issue: the project list labels the live project `Critical`, while its Project Brief labels it `Needs Attention`. An enterprise customer will question every subsequent signal after seeing that contradiction.
 
@@ -45,7 +45,7 @@ The critique above is retained as the baseline captured before the Final Pilot P
 | Project health disagrees across views          | One deterministic health service now supplies both status and reason to list and detail contracts.                       |
 | Project Command Center lacks a dominant task   | The page now contains Project Brief, Recommended Actions, What's Changed, and Quick Links only.                          |
 | Settings is an unbounded administration stream | Settings now renders one of six task-oriented views; chat management is closed, active-first, searchable, and paginated. |
-| AI machinery is exposed in daily work          | Customer flows use FieldOS summaries and natural confidence labels; retries are progressively disclosed.                 |
+| AI machinery is exposed in daily work          | Customer flows use Caladrona summaries and natural confidence labels; retries are progressively disclosed.               |
 | Dashboard duplicates counts and activity       | Recommendations lead the page, summary counts are compact, and the duplicate activity feed was removed.                  |
 | Timeline contains routine noise                | Significant events are the default and Show all activity is explicit.                                                    |
 | Project creation occupies permanent space      | The create form is hidden until requested.                                                                               |
@@ -62,7 +62,7 @@ See [`../PRODUCT_EDITING_REPORT.md`](../PRODUCT_EDITING_REPORT.md) for measureme
 
 The first impression is calm, serious, and more credible than a typical prototype. The login screen has a clear point of view and the shell is consistent. Once inside, that confidence erodes because the product lacks a strong editorial layer. Important decisions, raw messages, AI summaries, system states, and administrative controls compete for attention.
 
-FieldOS currently feels like a technically capable platform presented through a product-shaped interface. It does not yet feel like a product that has made hard choices on behalf of an operations manager.
+Caladrona currently feels like a technically capable platform presented through a product-shaped interface. It does not yet feel like a product that has made hard choices on behalf of an operations manager.
 
 ## Strengths
 
@@ -153,7 +153,7 @@ Scores are 0-10. `Density` measures whether the amount of information is useful 
 
 ### Recommendation Review
 
-**Current problems:** With zero pending recommendations, there is no route to a review history or example. The workflow effectively disappears. A first customer cannot learn what FieldOS recommendations look like or verify prior decisions.
+**Current problems:** With zero pending recommendations, there is no route to a review history or example. The workflow effectively disappears. A first customer cannot learn what Caladrona recommendations look like or verify prior decisions.
 
 **Recommended changes:** Provide a persistent Recommendations destination with Pending, Approved, Dismissed, and Snoozed views. Explain why there are no recommendations and show when the system last evaluated the project.
 
@@ -185,7 +185,7 @@ Scores are 0-10. `Density` measures whether the amount of information is useful 
 
 ### Search
 
-**Current problems:** The query model is understandable, but loading feedback is visually vague and the returned related record exposes a raw report excerpt. It is unclear whether FieldOS has answered the question or merely found a document.
+**Current problems:** The query model is understandable, but loading feedback is visually vague and the returned related record exposes a raw report excerpt. It is unclear whether Caladrona has answered the question or merely found a document.
 
 **Recommended changes:** Separate `Answer` from `Sources`. State coverage and confidence plainly. Highlight the exact passages used, include dates, and explain when evidence is insufficient.
 
@@ -217,7 +217,7 @@ Scores are 0-10. `Density` measures whether the amount of information is useful 
 
 ## Cognitive Load Review
 
-FieldOS has consistent components but weak information editing. Repetition is the main source of load: repeated Action Item cards, repeated AI classification controls, repeated WhatsApp chat actions, and repeated timeline events. The visual system cannot create hierarchy when every record is placed in a similar bordered container.
+Caladrona has consistent components but weak information editing. Repetition is the main source of load: repeated Action Item cards, repeated AI classification controls, repeated WhatsApp chat actions, and repeated timeline events. The visual system cannot create hierarchy when every record is placed in a similar bordered container.
 
 Whitespace is generally generous, but it is sometimes used to accommodate empty or low-value states rather than to separate meaningful decisions. Typography is legible, yet too many headings share similar scale and weight. The user repeatedly has to answer, “Which of these sections is the real work?”
 
@@ -285,19 +285,19 @@ Spacing and alignment are mostly strong. Icons are consistent. Empty states are 
 
 **5.8/10**
 
-FieldOS looks credible at first glance and contains several genuinely useful workflows. It loses trust under sustained use because it exposes too much system output, does not prioritize decisions strongly enough, and does not yet scale administratively.
+Caladrona looks credible at first glance and contains several genuinely useful workflows. It loses trust under sustained use because it exposes too much system output, does not prioritize decisions strongly enough, and does not yet scale administratively.
 
 ## Recommendation
 
-**No.** I would not recommend FieldOS to a paying enterprise customer today.
+**No.** I would not recommend Caladrona to a paying enterprise customer today.
 
-I would recommend it to a carefully selected design partner under a high-touch pilot agreement. The core concept is valuable, Reports and Action Items demonstrate product potential, and the visual foundation is sound. Before charging an enterprise to depend on it, FieldOS must resolve health-state consistency, simplify the Project Command Center, rebuild Settings for scale, and make AI provenance and review history unmistakable.
+I would recommend it to a carefully selected design partner under a high-touch pilot agreement. The core concept is valuable, Reports and Action Items demonstrate product potential, and the visual foundation is sound. Before charging an enterprise to depend on it, Caladrona must resolve health-state consistency, simplify the Project Command Center, rebuild Settings for scale, and make AI provenance and review history unmistakable.
 
 ## YC Demo Day Test
 
 Investors would believe the team has built substantial technology and understands the field-operations problem. They would not yet believe the current product can be sold broadly to enterprise customers without heavy onboarding and support.
 
-What is missing is a sharp product thesis visible in every screen: FieldOS should tell a manager what changed, what matters, who owns it, and what decision is needed. Today it too often shows messages, analyses, records, and controls and asks the manager to assemble that answer. The path to enterprise credibility is not more features. It is stronger prioritization, fewer exposed mechanics, consistent operational truth, and proof that the interface remains calm at 100 projects and thousands of conversations.
+What is missing is a sharp product thesis visible in every screen: Caladrona should tell a manager what changed, what matters, who owns it, and what decision is needed. Today it too often shows messages, analyses, records, and controls and asks the manager to assemble that answer. The path to enterprise credibility is not more features. It is stronger prioritization, fewer exposed mechanics, consistent operational truth, and proof that the interface remains calm at 100 projects and thousands of conversations.
 
 ## Review Notes
 

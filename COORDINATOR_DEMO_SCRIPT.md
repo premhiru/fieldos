@@ -29,7 +29,7 @@
 
 ## Expected Notes
 
-- FieldOS recommends; humans approve.
+- Caladrona recommends; humans approve.
 - WhatsApp drafts are not sent automatically.
 - Coordinator recommendations are grounded in stored project records.
 - Operations Health shows coordinator runs, failures, pending recommendations, and approval rate.

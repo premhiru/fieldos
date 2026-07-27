@@ -1,11 +1,11 @@
 # ADR 0002: JWT Cookie Auth for MVP
 
-| Field        | Value                                               |
-| ------------ | --------------------------------------------------- |
-| Purpose      | Record the MVP authentication approach for FieldOS. |
-| Owner        | Engineering                                         |
-| Status       | Accepted                                            |
-| Last Updated | 2026-06-30                                          |
+| Field        | Value                                                 |
+| ------------ | ----------------------------------------------------- |
+| Purpose      | Record the MVP authentication approach for Caladrona. |
+| Owner        | Engineering                                           |
+| Status       | Accepted                                              |
+| Last Updated | 2026-06-30                                            |
 
 ## Table of Contents
 
@@ -18,7 +18,7 @@
 
 ## Context
 
-FieldOS needs a simple self-hostable authentication model for the first usable product slice: users, organizations, memberships, and projects.
+Caladrona needs a simple self-hostable authentication model for the first usable product slice: users, organizations, memberships, and projects.
 
 ## Decision
 
@@ -36,8 +36,8 @@ JWT cookies are simple to operate, easy to test locally, self-hostable, and stra
 
 ## Tradeoffs
 
-This approach gives FieldOS fewer third-party dependencies and a direct API-owned auth model. It also means the team owns password security, cookie settings, JWT secret management, session invalidation strategy, and future hardening.
+This approach gives Caladrona fewer third-party dependencies and a direct API-owned auth model. It also means the team owns password security, cookie settings, JWT secret management, session invalidation strategy, and future hardening.
 
 ## Review Triggers
 
-Revisit this decision when FieldOS needs SSO, SCIM, MFA, organization-level identity policies, session revocation, or enterprise audit requirements.
+Revisit this decision when Caladrona needs SSO, SCIM, MFA, organization-level identity policies, session revocation, or enterprise audit requirements.

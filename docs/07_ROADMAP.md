@@ -1,11 +1,11 @@
 # Roadmap
 
-| Field        | Value                                                                              |
-| ------------ | ---------------------------------------------------------------------------------- |
-| Purpose      | Track FieldOS delivery phases, milestones, dependencies, and sequencing decisions. |
-| Owner        | Product                                                                            |
-| Status       | Draft                                                                              |
-| Last Updated | 2026-07-08                                                                         |
+| Field        | Value                                                                                |
+| ------------ | ------------------------------------------------------------------------------------ |
+| Purpose      | Track Caladrona delivery phases, milestones, dependencies, and sequencing decisions. |
+| Owner        | Product                                                                              |
+| Status       | Draft                                                                                |
+| Last Updated | 2026-07-08                                                                           |
 
 ## Table of Contents
 

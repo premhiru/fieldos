@@ -16,13 +16,13 @@
 
 ## Context
 
-FieldOS already stores the source material that field teams need for project status: messages, evidence, transcripts, photo analysis, Action Items, classifications, milestones, and events. Task 013 needs briefs and reports, but it should not create a separate reporting silo or rely on free-form model memory.
+Caladrona already stores the source material that field teams need for project status: messages, evidence, transcripts, photo analysis, Action Items, classifications, milestones, and events. Task 013 needs briefs and reports, but it should not create a separate reporting silo or rely on free-form model memory.
 
 The product also needs evidence previews without leaking raw storage paths to the browser.
 
 ## Decision
 
-FieldOS will build Project Intelligence as a grounded, deterministic package in `packages/intelligence`.
+Caladrona will build Project Intelligence as a grounded, deterministic package in `packages/intelligence`.
 
 The API builds a `ProjectIntelligenceContext` from authorized project records. The intelligence package generates morning briefs, daily summaries, weekly progress reports, risk summaries, and pending decisions from that context. Report sections include source references so the dashboard can link back to the underlying evidence.
 
@@ -32,7 +32,7 @@ Evidence previews use a storage abstraction. `StorageProvider` defines `upload()
 
 ## Consequences
 
-- Reports stay explainable because they are grounded in stored FieldOS records.
+- Reports stay explainable because they are grounded in stored Caladrona records.
 - The MVP avoids introducing a second AI prompt surface for reporting before source quality and operator needs are clear.
 - Background report generation uses the existing worker queue and operations health patterns.
 - Evidence serving can move to S3, R2, or MinIO without changing dashboard components.

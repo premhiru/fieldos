@@ -47,7 +47,7 @@ export function OrganizationOnboarding() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Start FieldOS</CardTitle>
+        <CardTitle>Start with Caladrona</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.8fr)]">

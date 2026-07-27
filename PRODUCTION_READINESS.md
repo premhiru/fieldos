@@ -1,11 +1,11 @@
 # Production Readiness
 
-| Field        | Value                                                   |
-| ------------ | ------------------------------------------------------- |
-| Purpose      | Track production readiness for the first FieldOS pilot. |
-| Owner        | Principal Engineering                                   |
-| Status       | Active                                                  |
-| Last Updated | 2026-07-16                                              |
+| Field        | Value                                                     |
+| ------------ | --------------------------------------------------------- |
+| Purpose      | Track production readiness for the first Caladrona pilot. |
+| Owner        | Principal Engineering                                     |
+| Status       | Active                                                    |
+| Last Updated | 2026-07-16                                                |
 
 ## Table of Contents
 

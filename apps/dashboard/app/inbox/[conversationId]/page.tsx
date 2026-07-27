@@ -285,7 +285,7 @@ function AIMessagePanel({ messageId, outbound }: { messageId: string; outbound: 
 
   return (
     <div className={surfaceClass}>
-      <div className="font-medium">FieldOS summary</div>
+      <div className="font-medium">Caladrona summary</div>
 
       {classificationQuery.isLoading ? (
         <p className="mt-2">Reviewing this field update...</p>

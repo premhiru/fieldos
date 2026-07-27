@@ -3,7 +3,7 @@ import type { ClassifyMessageInput } from "../types.js";
 export const messageClassificationPromptVersion = "message-classification.v1";
 
 export const messageClassificationSystemPrompt = `
-You classify field operations messages for FieldOS.
+You classify field operations messages for Caladrona.
 Return strict JSON only. Do not wrap the JSON in markdown.
 Use only the provided unified evidence context.
 Do not invent missing details.

@@ -3027,7 +3027,7 @@ async function resetDemoWorkspace(
     const organization = await tx.organization.create({
       data: {
         isDemo: true,
-        name: "FieldOS Aviation Demo",
+        name: "Caladrona Aviation Demo",
         slug: demoSlug
       }
     });

@@ -1,6 +1,14 @@
 "use client";
 
-import { Button, Card, CardContent, CardHeader, CardTitle, PageContainer } from "@fieldos/ui";
+import {
+  BrandLockup,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  PageContainer
+} from "@fieldos/ui";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -43,10 +51,11 @@ export default function SignupPage() {
   }, []);
 
   return (
-    <PageContainer className="flex min-h-screen items-center justify-center">
+    <PageContainer className="flex min-h-screen flex-col items-center justify-center gap-8">
+      <BrandLockup />
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Create your FieldOS account</CardTitle>
+          <CardTitle>Create your Caladrona account</CardTitle>
         </CardHeader>
         <CardContent>
           <form

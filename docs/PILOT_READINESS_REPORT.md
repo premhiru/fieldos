@@ -20,7 +20,7 @@
 
 ## Summary
 
-FieldOS is ready for a controlled first customer pilot after deployment and production smoke testing. Sprint 14 adds onboarding, demo data, demo reset, feedback, notifications, product analytics, and clearer pilot-facing UX.
+Caladrona is ready for a controlled first customer pilot after deployment and production smoke testing. Sprint 14 adds onboarding, demo data, demo reset, feedback, notifications, product analytics, and clearer pilot-facing UX.
 
 AI Decision Layer v2 is suitable for a shadow pilot only. Its additive schema, bounded contexts, suppression telemetry, and one-variable rollback reduce rollout risk, but customer-visible v2 recommendations must wait for live shadow review.
 

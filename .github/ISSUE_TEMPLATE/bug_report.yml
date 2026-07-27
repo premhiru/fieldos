@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a reproducible FieldOS defect.
+description: Report a reproducible Caladrona defect.
 title: "fix: "
 labels: ["bug"]
 body:

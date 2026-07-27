@@ -49,8 +49,8 @@ export function createPasswordResetEmailSender(config: {
             from,
             html: passwordResetEmailHtml(input.resetUrl),
             idempotencyKey: input.idempotencyKey,
-            subject: "Reset your FieldOS password",
-            text: `Reset your FieldOS password using this link: ${input.resetUrl}\n\nThis link expires in one hour. If you did not request it, you can ignore this email.`,
+            subject: "Reset your Caladrona password",
+            text: `Reset your Caladrona password using this link: ${input.resetUrl}\n\nThis link expires in one hour. If you did not request it, you can ignore this email.`,
             to: input.recipient
           });
 
@@ -91,7 +91,7 @@ function delay(durationMs: number): Promise<void> {
 
 function passwordResetEmailHtml(resetUrl: string): string {
   const safeUrl = escapeHtml(resetUrl);
-  return `<p>A password reset was requested for your FieldOS account.</p><p><a href="${safeUrl}">Reset your password</a></p><p>This link expires in one hour. If you did not request it, you can ignore this email.</p>`;
+  return `<h1 style="font-family:Arial,sans-serif;font-size:22px;color:#15130d">Caladrona</h1><p>A password reset was requested for your Caladrona account.</p><p><a href="${safeUrl}" style="color:#0a7566;font-weight:600">Reset your password</a></p><p>This link expires in one hour. If you did not request it, you can ignore this email.</p>`;
 }
 
 function escapeHtml(value: string): string {

@@ -20,7 +20,7 @@ describe("HomePage", () => {
     vi.unstubAllGlobals();
   });
 
-  it("routes prospective and returning users into the FieldOS app", () => {
+  it("routes prospective and returning users into the Caladrona app", () => {
     render(React.createElement(HomePage));
 
     expect(screen.getByRole("heading", { level: 1 }).textContent).toContain("Caladrona");

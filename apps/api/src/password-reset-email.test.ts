@@ -17,7 +17,7 @@ describe("password reset email delivery", () => {
     const sender = createPasswordResetEmailSender({
       apiKey: "re_test",
       client: { emails: { send } },
-      from: "FieldOS <onboarding@resend.dev>",
+      from: "Caladrona <onboarding@resend.dev>",
       sleep
     });
 
@@ -47,7 +47,7 @@ describe("password reset email delivery", () => {
     const sender = createPasswordResetEmailSender({
       apiKey: "re_test",
       client: { emails: { send } },
-      from: "FieldOS <invalid@example.com>",
+      from: "Caladrona <invalid@example.com>",
       sleep
     });
 

@@ -18,15 +18,15 @@
 
 ## Context
 
-FieldOS needs a unified inbox for field operations. The first channel adapter will arrive later, but the core application should not be coupled to any single communication provider.
+Caladrona needs a unified inbox for field operations. The first channel adapter will arrive later, but the core application should not be coupled to any single communication provider.
 
 ## Decision
 
-Build messaging as a channel-agnostic platform. FieldOS stores all communications as conversations, participants, messages, and attachments. Channel adapters translate external events into this model.
+Build messaging as a channel-agnostic platform. Caladrona stores all communications as conversations, participants, messages, and attachments. Channel adapters translate external events into this model.
 
 ## Reason
 
-A generic messaging core keeps product workflows stable as new channels are added. Future adapters can map external identifiers, sender metadata, message bodies, and attachments into FieldOS without changing inbox, project, authorization, or message display logic.
+A generic messaging core keeps product workflows stable as new channels are added. Future adapters can map external identifiers, sender metadata, message bodies, and attachments into Caladrona without changing inbox, project, authorization, or message display logic.
 
 ## Alternatives Considered
 

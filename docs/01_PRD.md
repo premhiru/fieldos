@@ -1,11 +1,11 @@
 # Product Requirements Document
 
-| Field        | Value                                                                                |
-| ------------ | ------------------------------------------------------------------------------------ |
-| Purpose      | Capture FieldOS product requirements, scope, users, workflows, and success criteria. |
-| Owner        | Product                                                                              |
-| Status       | Draft                                                                                |
-| Last Updated | 2026-06-30                                                                           |
+| Field        | Value                                                                                  |
+| ------------ | -------------------------------------------------------------------------------------- |
+| Purpose      | Capture Caladrona product requirements, scope, users, workflows, and success criteria. |
+| Owner        | Product                                                                                |
+| Status       | Draft                                                                                  |
+| Last Updated | 2026-06-30                                                                             |
 
 ## Table of Contents
 

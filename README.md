@@ -1,11 +1,11 @@
-# FieldOS
+# Caladrona
 
-| Field        | Value                                                                                      |
-| ------------ | ------------------------------------------------------------------------------------------ |
-| Purpose      | Introduce the FieldOS engineering foundation, repository layout, and development workflow. |
-| Owner        | Founding Engineering                                                                       |
-| Status       | Active                                                                                     |
-| Last Updated | 2026-07-21                                                                                 |
+| Field        | Value                                                                                        |
+| ------------ | -------------------------------------------------------------------------------------------- |
+| Purpose      | Introduce the Caladrona engineering foundation, repository layout, and development workflow. |
+| Owner        | Founding Engineering                                                                         |
+| Status       | Active                                                                                       |
+| Last Updated | 2026-07-27                                                                                   |
 
 ## Table of Contents
 
@@ -34,13 +34,13 @@
 
 ## Overview
 
-FieldOS is the AI Operating System for Field Operations.
+Caladrona is operational intelligence for the physical world.
 
 The repository is a pnpm and Turborepo monorepo containing a Next.js dashboard, a Fastify API, a standalone Redis-backed worker, shared packages for UI, database access, authentication, messaging, AI classification, photo intelligence, cross-cutting utilities, and a Baileys-based WhatsApp adapter.
 
 ## Architecture
 
-FieldOS starts as a modular monolith with clear package boundaries. The current product slice supports JWT-cookie authentication, organization workspaces, organization memberships, projects, a channel-agnostic messaging foundation, a WhatsApp Web connector that feeds messages into the unified inbox, human-reviewed AI classification for active project messages, worker-owned photo intelligence for image attachments, and project intelligence reports grounded in timeline events, Action Items, classifications, transcripts, and evidence metadata.
+Caladrona starts as a modular monolith with clear package boundaries. The current product slice supports JWT-cookie authentication, organization workspaces, organization memberships, projects, a channel-agnostic messaging foundation, a WhatsApp Web connector that feeds messages into the unified inbox, human-reviewed AI classification for active project messages, worker-owned photo intelligence for image attachments, and project intelligence reports grounded in timeline events, Action Items, classifications, transcripts, and evidence metadata.
 
 The AI Decision Layer v2 separates bounded multi-signal extraction from recommendation decisions. Context-aware coordinators emit candidates through one deterministic gate, which records evidence, suppression reasons, semantic deduplication, cooldowns, and shadow telemetry. Production rollout is controlled by `AI_DECISION_ENGINE_MODE=legacy|shadow|v2`.
 
@@ -105,7 +105,7 @@ flowchart TD
 
 ## Design System
 
-FieldOS Design System 1.0 establishes a neutral-first operational interface, a canonical FieldOS identity, semantic status colors, shared component tokens, accessible focus behavior, reduced-motion support, and system-aware dark mode. Product principles live in [`docs/DESIGN_PRINCIPLES.md`](docs/DESIGN_PRINCIPLES.md), brand rules in [`docs/BRAND_GUIDE.md`](docs/BRAND_GUIDE.md), and implementation guidance in [`docs/VISUAL_DESIGN_SYSTEM.md`](docs/VISUAL_DESIGN_SYSTEM.md).
+Caladrona Design System 2.0 establishes a warm, operational interface, the canonical Caladrona identity, semantic status colors, shared component tokens, accessible focus behavior, reduced-motion support, and system-aware dark mode. Product principles live in [`docs/DESIGN_PRINCIPLES.md`](docs/DESIGN_PRINCIPLES.md), brand rules in [`docs/BRAND_GUIDE.md`](docs/BRAND_GUIDE.md), and implementation guidance in [`docs/VISUAL_DESIGN_SYSTEM.md`](docs/VISUAL_DESIGN_SYSTEM.md).
 
 ## Development Setup
 
@@ -178,7 +178,7 @@ Default local services:
 
 ## Deployment
 
-FieldOS uses Vercel for the dashboard and Railway for the first backend hosting target.
+Caladrona uses Vercel for the dashboard and Railway for the first backend hosting target.
 
 - Dashboard: `https://fieldos-sand.vercel.app`
 - API: `https://fieldos-api-production.up.railway.app`
@@ -205,7 +205,7 @@ pnpm db:seed
 
 ## Pilot Readiness
 
-Sprint 14 prepares FieldOS for the first controlled customer pilot. The dashboard now includes a first-run path, a resettable aviation Demo Workspace, pilot setup progress, notifications, feedback capture, mobile navigation, and lightweight product tour controls.
+Sprint 14 prepares Caladrona for the first controlled customer pilot. The dashboard now includes a first-run path, a resettable aviation Demo Workspace, pilot setup progress, notifications, feedback capture, mobile navigation, and lightweight product tour controls.
 
 Pilot documents:
 
@@ -217,11 +217,11 @@ Pilot documents:
 
 ## Product Experience
 
-FieldOS uses five primary product destinations: Dashboard, Projects, Inbox, Search, and Reports. Account security, team access, WhatsApp integrations, and role-gated operations tooling live under Settings.
+Caladrona uses five primary product destinations: Dashboard, Projects, Inbox, Search, and Reports. Account security, team access, WhatsApp integrations, and role-gated operations tooling live under Settings.
 
 The dashboard answers "What needs my attention today?" with recommendations first, followed by a compact operational summary and assigned Action Items. The Project Command Center has four stable sections: Project Brief, Recommended Actions, What's Changed, and Quick Links. Timeline, Evidence, Milestones, Reports, and Action Items remain available as focused destinations.
 
-Settings is divided into Workspace, Team, WhatsApp, Integrations, Security, and Operations views. WhatsApp chat management is progressively disclosed, searchable, filtered to active chats by default, and paginated. Customer workflows use natural confidence labels and FieldOS summaries rather than exposing provider, prompt, or processing machinery.
+Settings is divided into Workspace, Team, WhatsApp, Integrations, Security, and Operations views. WhatsApp chat management is progressively disclosed, searchable, filtered to active chats by default, and paginated. Customer workflows use natural confidence labels and Caladrona summaries rather than exposing provider, prompt, or processing machinery.
 
 See [docs/PRODUCT_EDITING_REPORT.md](./docs/PRODUCT_EDITING_REPORT.md) for the final pilot product-editing record and [docs/ui-review/UX_REVIEW.md](./docs/ui-review/UX_REVIEW.md) for the baseline critique and resolution status.
 
@@ -287,17 +287,17 @@ Project Intelligence turns existing operational evidence into read-only summarie
 - Daily Summary: completed work, open items, received evidence, risks, and decisions.
 - Weekly Progress Report: executive summary, progress, risks, pending decisions, recent evidence, and source appendix.
 - Risk Summary: high-signal risks from overdue/urgent Action Items, issue classifications, photo issues, and late milestones.
-- Pending Decisions: human decisions required before FieldOS changes project state.
+- Pending Decisions: human decisions required before Caladrona changes project state.
 
 The API exposes project-scoped intelligence endpoints and signed evidence views. The dashboard includes a Project Intelligence page with PDF and Markdown export, cached background report generation, evidence gallery access, and a reusable Evidence Viewer for images, PDFs, audio, transcripts, vision analysis, source WhatsApp messages, timeline references, and linked Action Items.
 
-Reports are grounded in stored FieldOS records. They do not invent status from model output, and generated report jobs run asynchronously through the worker-owned `REPORT_GENERATION` queue.
+Reports are grounded in stored Caladrona records. They do not invent status from model output, and generated report jobs run asynchronously through the worker-owned `REPORT_GENERATION` queue.
 
 ## AI Project Coordinators
 
 AI Project Coordinators turn stored project evidence into human-approved recommendations. The shared `ProjectState` snapshot tracks health, last activity, evidence/report timestamps, open Action Item counts, and concise summaries so coordinators do not repeatedly scan full project history.
 
-FieldOS includes five coordinators:
+Caladrona includes five coordinators:
 
 - Progress Coordinator: detects meaningful progress and recommends review.
 - Follow-up Coordinator: detects stale active WhatsApp conversations and drafts follow-up messages.
@@ -305,7 +305,7 @@ FieldOS includes five coordinators:
 - Report Coordinator: recommends weekly report generation when enough project activity exists.
 - Milestone Coordinator: detects evidence-backed milestone creation, starts, completion, delays, and date changes.
 
-Recommendations are first-class records. Users can approve, dismiss, complete, inspect details, and review WhatsApp drafts. FieldOS recommends; humans approve. WhatsApp drafts require a second explicit send action and are not sent automatically.
+Recommendations are first-class records. Users can approve, dismiss, complete, inspect details, and review WhatsApp drafts. Caladrona recommends; humans approve. WhatsApp drafts require a second explicit send action and are not sent automatically.
 
 Coordinator work is split into independently debounced queues. `PROJECT_COORDINATOR` runs the Progress, Follow-up, Inspection, and Report coordinators; `PROJECT_COORDINATOR_MILESTONE` runs AI-assisted milestone detection behind its own provider throttle. Event-triggered jobs are debounced per project and job type for 15 minutes. A protected Railway cron calls the API every four hours for baseline scans, which use a Redis lock and respect each project's 07:00-19:00 local operating window.
 
@@ -319,7 +319,7 @@ Milestones support planned and actual start/end dates, status, priority, source,
 
 ## Auth and Tenancy
 
-FieldOS uses JWT session tokens stored in HTTP-only cookies for the MVP. Passwords are hashed with bcrypt. The API owns session validation and tenant authorization.
+Caladrona uses JWT session tokens stored in HTTP-only cookies for the MVP. Passwords are hashed with bcrypt. The API owns session validation and tenant authorization.
 
 Authenticated users can change their password from Settings. Password changes and password resets increment a server-side session version, invalidating existing login cookies on every device. Forgot-password requests create one-hour, single-use reset tokens; only SHA-256 token hashes are stored. Production reset email delivery uses Resend with the verified `leesaapp.com` domain when `RESEND_API_KEY`, `EMAIL_FROM`, and `WEB_APP_URL` are configured.
 
@@ -331,7 +331,7 @@ Owners and administrators manage team invitations from Settings. Invitations exp
 
 ## Messaging
 
-FieldOS models all channel communication as conversations, participants, messages, and attachments. Messaging services are channel-agnostic. Channel adapters map external systems into the core model rather than changing the model itself.
+Caladrona models all channel communication as conversations, participants, messages, and attachments. Messaging services are channel-agnostic. Channel adapters map external systems into the core model rather than changing the model itself.
 
 Supported channel values are `WHATSAPP`, `EMAIL`, `SLACK`, `TEAMS`, and `SMS`.
 
@@ -339,21 +339,21 @@ Supported channel values are `WHATSAPP`, `EMAIL`, `SLACK`, `TEAMS`, and `SMS`.
 
 The current WhatsApp connector uses the maintained Baileys package for WhatsApp Web pairing. Accounts are created and managed from dashboard settings. QR payloads are exchanged through Redis, Baileys auth session files are stored under `.storage` locally and on a persistent Railway worker volume in production, and inbound messages are normalized into the generic messaging tables only after an admin activates the chat or group. Media evidence uses the configured `StorageProvider`, which is local in development and R2 in production.
 
-FieldOS discovers WhatsApp chat and group metadata first. Discovered, ignored, and archived chats are not shown in the Inbox and do not store message bodies or attachments. Admins must explicitly activate a chat/group before new incoming messages are ingested. A project mapping is recommended, but active unmapped chats may ingest messages so FieldOS can create human-reviewed project suggestion Action Items.
+Caladrona discovers WhatsApp chat and group metadata first. Discovered, ignored, and archived chats are not shown in the Inbox and do not store message bodies or attachments. Admins must explicitly activate a chat/group before new incoming messages are ingested. A project mapping is recommended, but active unmapped chats may ingest messages so Caladrona can create human-reviewed project suggestion Action Items.
 
-Unexpected connection loss is recorded durably and processed by the worker after a 30-second grace period. FieldOS emails the affected organization's owners and administrators once when a genuine outage persists, retries transient Resend failures with exponential backoff, and sends one recovery email when the connection returns. Initial QR pairing, worker shutdown, intentional admin disconnects, and brief reconnects do not generate alerts. Configure the worker with `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `APP_URL`; alert emails never contain authentication material or QR data.
+Unexpected connection loss is recorded durably and processed by the worker after a 30-second grace period. Caladrona emails the affected organization's owners and administrators once when a genuine outage persists, retries transient Resend failures with exponential backoff, and sends one recovery email when the connection returns. Initial QR pairing, worker shutdown, intentional admin disconnects, and brief reconnects do not generate alerts. Configure the worker with `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `APP_URL`; alert emails never contain authentication material or QR data.
 
-Use dedicated business numbers only. Do not connect personal WhatsApp accounts. FieldOS will add the official Meta WhatsApp Cloud API path for production enterprise deployments later.
+Use dedicated business numbers only. Do not connect personal WhatsApp accounts. Caladrona will add the official Meta WhatsApp Cloud API path for production enterprise deployments later.
 
 ## AI Classification
 
-FieldOS classifies only messages that already passed the WhatsApp activation gate. Classification runs asynchronously in the worker so message ingestion is never blocked by the AI provider.
+Caladrona classifies only messages that already passed the WhatsApp activation gate. Classification runs asynchronously in the worker so message ingestion is never blocked by the AI provider.
 
-The AI layer builds a `UnifiedEvidenceContext` for each message, classifies the full operational update, writes a concise summary, extracts a location when present, decides whether human action is required, and creates Action Items when review is useful. Action Items remain `PENDING` until a user accepts or ignores them; FieldOS does not automatically create operational work or reassign projects from AI output.
+The AI layer builds a `UnifiedEvidenceContext` for each message, classifies the full operational update, writes a concise summary, extracts a location when present, decides whether human action is required, and creates Action Items when review is useful. Action Items remain `PENDING` until a user accepts or ignores them; Caladrona does not automatically create operational work or reassign projects from AI output.
 
 ## Operations Health
 
-FieldOS includes a lightweight operations health page at `/admin/operations` for organization `OWNER` and `ADMIN` users. It shows worker heartbeat, job metrics, WhatsApp account status, AI queue health, search indexing health, coordinator run metrics, pending recommendations, and media/transcription queue placeholders.
+Caladrona includes a lightweight operations health page at `/admin/operations` for organization `OWNER` and `ADMIN` users. It shows worker heartbeat, job metrics, WhatsApp account status, AI queue health, search indexing health, coordinator run metrics, pending recommendations, and media/transcription queue placeholders.
 
 Background work is tracked in `ProcessingJob` rows. Search indexing is asynchronous: message, project, event, Action Item, and AI classification writes enqueue `SEARCH_INDEX` jobs, and the worker updates `SearchDocument`. Project coordinator scans use separate lightweight and milestone jobs. Search endpoints only read the index.
 
@@ -376,7 +376,7 @@ The API exposes command center data through:
 
 ## AI Search
 
-FieldOS includes grounded AI search across organization and project records. Search is powered by the `SearchDocument` index in PostgreSQL and covers projects, messages, timeline events, Action Items, and AI classifications.
+Caladrona includes grounded AI search across organization and project records. Search is powered by the `SearchDocument` index in PostgreSQL and covers projects, messages, timeline events, Action Items, and AI classifications.
 
 Search indexing is maintained by background jobs, not by search requests. If a new record does not appear immediately, check `/admin/operations` for pending or failed Search Index jobs.
 
@@ -386,13 +386,13 @@ The API exposes:
 - `POST /search/ask`
 - `POST /projects/:projectId/search/ask`
 
-Answers are grounded in retrieved FieldOS records and return cited source records. If the system cannot find enough evidence, it returns: `I could not find enough information in FieldOS to answer that.`
+Answers are grounded in retrieved Caladrona records and return cited source records. If the system cannot find enough evidence, it returns: `I could not find enough information in Caladrona to answer that.`
 
 The dashboard includes a Search page with project, source type, and date filters. Project detail pages include a scoped `Ask about this project` panel.
 
 ## Unified Evidence Processing
 
-FieldOS treats a WhatsApp update as one operational evidence package. `UnifiedEvidenceContext` is a runtime object, not a database table. It is built dynamically from the message, conversation, project, sender, attachments, and any available voice transcript before AI classification and search indexing.
+Caladrona treats a WhatsApp update as one operational evidence package. `UnifiedEvidenceContext` is a runtime object, not a database table. It is built dynamically from the message, conversation, project, sender, attachments, and any available voice transcript before AI classification and search indexing.
 
 Supported MVP evidence:
 
@@ -444,4 +444,4 @@ The API exposes:
 
 ## License
 
-FieldOS is licensed under the MIT License. See [LICENSE](./LICENSE).
+Caladrona is licensed under the MIT License. See [LICENSE](./LICENSE).

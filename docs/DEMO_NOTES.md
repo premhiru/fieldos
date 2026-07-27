@@ -1,11 +1,11 @@
-# FieldOS Demo Notes
+# Caladrona Demo Notes
 
-| Field        | Value                                             |
-| ------------ | ------------------------------------------------- |
-| Purpose      | Guide a concise product demonstration of FieldOS. |
-| Owner        | Product                                           |
-| Status       | Active                                            |
-| Last Updated | 2026-07-14                                        |
+| Field        | Value                                               |
+| ------------ | --------------------------------------------------- |
+| Purpose      | Guide a concise product demonstration of Caladrona. |
+| Owner        | Product                                             |
+| Status       | Active                                              |
+| Last Updated | 2026-07-14                                          |
 
 ## Table of Contents
 
@@ -15,7 +15,7 @@
 
 ## Presentation
 
-FieldOS should be presented as an operations command center, not as a collection of AI features. Begin with the live operational picture, move from a field message to evidence and a recommendation, then show the human approval step and resulting project timeline.
+Caladrona should be presented as an operations command center, not as a collection of AI features. Begin with the live operational picture, move from a field message to evidence and a recommendation, then show the human approval step and resulting project timeline.
 
 ## Suggested Flow
 

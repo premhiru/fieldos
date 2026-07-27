@@ -63,7 +63,7 @@ vi.mock("../../lib/queries", () => ({
   }),
   useOrganizations: () => ({
     data: {
-      organizations: [{ id: "organization-1", name: "FieldOS", role: "OWNER", slug: "fieldos" }]
+      organizations: [{ id: "organization-1", name: "Caladrona", role: "OWNER", slug: "fieldos" }]
     },
     isLoading: false
   })

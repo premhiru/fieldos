@@ -27,4 +27,4 @@ Use the Demo Workspace from the dashboard Pilot Setup panel. Reset it before eac
 
 ## Close
 
-Position FieldOS as the operating layer that turns messy field communication into searchable project intelligence, human-reviewed action, and defensible reporting.
+Position Caladrona as the operating layer that turns messy field communication into searchable project intelligence, human-reviewed action, and defensible reporting.
