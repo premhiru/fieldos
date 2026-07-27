@@ -18,9 +18,7 @@ describe("WhatsApp native operations tenancy", () => {
   });
 
   it("does not activate an expired WhatsApp invitation", async () => {
-    const transaction = vi.fn();
-    const client = {
-      $transaction: transaction,
+    const transactionClient = {
       whatsAppInvitation: {
         findUnique: vi.fn().mockResolvedValue({
           expiresAt: new Date("2026-07-20T00:00:00.000Z"),
@@ -28,12 +26,63 @@ describe("WhatsApp native operations tenancy", () => {
         })
       }
     };
+    const transaction = vi.fn((callback) => callback(transactionClient));
+    const client = {
+      $transaction: transaction
+    };
     const service = createPrismaWhatsAppNativeService(client as never);
 
     await expect(
       service.acceptInvitation({ token: "a".repeat(32), userId: "user-1" })
     ).rejects.toThrow("Invitation is invalid or expired.");
-    expect(transaction).not.toHaveBeenCalled();
+    expect(transaction).toHaveBeenCalledOnce();
+  });
+
+  it("requires the signed-in account to match an invitation's known email", async () => {
+    const transactionClient = {
+      user: { findUnique: vi.fn().mockResolvedValue({ email: "other@example.com" }) },
+      whatsAppInvitation: {
+        findUnique: vi.fn().mockResolvedValue({
+          expiresAt: new Date("2099-07-20T00:00:00.000Z"),
+          person: { email: "invitee@example.com" },
+          status: "JOINED"
+        }),
+        updateMany: vi.fn()
+      }
+    };
+    const service = createPrismaWhatsAppNativeService({
+      $transaction: vi.fn((callback) => callback(transactionClient))
+    } as never);
+
+    await expect(
+      service.acceptInvitation({ token: "b".repeat(32), userId: "user-1" })
+    ).rejects.toThrow("Sign in with the email address associated with this invitation.");
+    expect(transactionClient.whatsAppInvitation.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invitation already claimed by a concurrent request", async () => {
+    const transactionClient = {
+      person: { findFirst: vi.fn().mockResolvedValue(null) },
+      user: { findUnique: vi.fn().mockResolvedValue({ email: "invitee@example.com" }) },
+      whatsAppInvitation: {
+        findUnique: vi.fn().mockResolvedValue({
+          expiresAt: new Date("2099-07-20T00:00:00.000Z"),
+          id: "invitation-1",
+          organizationId: "org-1",
+          person: { email: "invitee@example.com" },
+          personId: "person-1",
+          status: "JOINED"
+        }),
+        updateMany: vi.fn().mockResolvedValue({ count: 0 })
+      }
+    };
+    const service = createPrismaWhatsAppNativeService({
+      $transaction: vi.fn((callback) => callback(transactionClient))
+    } as never);
+
+    await expect(
+      service.acceptInvitation({ token: "c".repeat(32), userId: "user-1" })
+    ).rejects.toThrow("Invitation is invalid or expired.");
   });
 });
 

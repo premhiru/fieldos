@@ -86,12 +86,14 @@ export class BaileysWhatsAppSessionManager {
       options.rootStoragePath,
       options.mediaStorageProvider
     );
+    this.beforeControlReply = options.beforeControlReply ?? (() => Promise.resolve());
     this.pollIntervalMs = options.pollIntervalMs ?? 10_000;
     this.controlMessageHandler = options.controlMessageHandler;
     this.participantSyncEnabled = options.participantSyncEnabled ?? false;
     this.participantSyncService = new WhatsAppParticipantSyncService(prisma);
   }
 
+  private readonly beforeControlReply: () => Promise<void>;
   private readonly pollIntervalMs: number;
 
   async start(): Promise<void> {
@@ -306,7 +308,13 @@ export class BaileysWhatsAppSessionManager {
         pushName: null
       };
     });
-    return this.participantSyncService.syncGroup(mapping.id, participants);
+    const expectedParticipantCount = (metadata as unknown as { size?: number }).size;
+    return this.participantSyncService.syncGroup(mapping.id, participants, {
+      authoritative:
+        typeof expectedParticipantCount === "number" &&
+        expectedParticipantCount > 0 &&
+        expectedParticipantCount === participants.length
+    });
   }
 
   private async reconcileSessions(): Promise<void> {
@@ -925,6 +933,7 @@ export class BaileysWhatsAppSessionManager {
       });
       if (control.handled) {
         if (control.replyText) {
+          await this.beforeControlReply();
           await socket.sendMessage(chatJid, { text: control.replyText }, { quoted: rawMessage });
         }
         return;

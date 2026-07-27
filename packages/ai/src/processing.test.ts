@@ -424,33 +424,60 @@ class FakePrisma {
       }
     },
     processingJob: {
-      upsert: async ({
-        create,
-        update,
-        where
+      create: async ({
+        data
       }: {
-        create: { sourceId: string; sourceType: string; status: string; type: string };
-        update: Record<string, unknown>;
-        where: { type_sourceType_sourceId: { sourceId: string; sourceType: string; type: string } };
+        data: { sourceId: string; sourceType: string; status: string; type: string };
       }) => {
-        const existing = this.processingJobs.find(
-          (job) =>
-            job.sourceId === where.type_sourceType_sourceId.sourceId &&
-            job.sourceType === where.type_sourceType_sourceId.sourceType &&
-            job.type === where.type_sourceType_sourceId.type
-        );
-
-        if (existing) {
-          Object.assign(existing, update);
-          return existing;
-        }
-
         const job = {
-          ...create,
+          ...data,
           id: `job_${this.processingJobs.length + 1}`
         };
         this.processingJobs.push(job);
         return job;
+      },
+      findUnique: async ({
+        where
+      }: {
+        where: { type_sourceType_sourceId: { sourceId: string; sourceType: string; type: string } };
+      }) =>
+        this.processingJobs.find(
+          (job) =>
+            job.sourceId === where.type_sourceType_sourceId.sourceId &&
+            job.sourceType === where.type_sourceType_sourceId.sourceType &&
+            job.type === where.type_sourceType_sourceId.type
+        ) ?? null,
+      findUniqueOrThrow: async ({
+        where
+      }: {
+        where: { type_sourceType_sourceId: { sourceId: string; sourceType: string; type: string } };
+      }) => {
+        const job = this.processingJobs.find(
+          (candidate) =>
+            candidate.sourceId === where.type_sourceType_sourceId.sourceId &&
+            candidate.sourceType === where.type_sourceType_sourceId.sourceType &&
+            candidate.type === where.type_sourceType_sourceId.type
+        );
+        if (!job) throw new Error("processing job missing");
+        return job;
+      },
+      updateMany: async ({
+        data,
+        where
+      }: {
+        data: Record<string, unknown>;
+        where: { sourceId: string; sourceType: string; type: string };
+      }) => {
+        const job = this.processingJobs.find(
+          (candidate) =>
+            candidate.sourceId === where.sourceId &&
+            candidate.sourceType === where.sourceType &&
+            candidate.type === where.type &&
+            candidate.status !== "RUNNING"
+        );
+        if (!job) return { count: 0 };
+        Object.assign(job, data);
+        return { count: 1 };
       }
     },
     project: {

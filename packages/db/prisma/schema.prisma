@@ -931,7 +931,8 @@ model PersonIdentity {
   whatsappAccount          WhatsAppAccount            @relation(fields: [whatsappAccountId], references: [id], onDelete: Cascade)
   groupParticipants        WhatsAppGroupParticipant[]
   identityReviews          IdentityReview[]
-  recommendationDeliveries RecommendationDelivery[]
+  recommendationDeliveries RecommendationDelivery[]   @relation("RecommendationDeliveryRecipient")
+  confirmationDeliveries   RecommendationDelivery[]   @relation("RecommendationDeliveryConfirmationActor")
   recommendationResponses  RecommendationResponse[]
   whatsAppInvitations      WhatsAppInvitation[]
   auditEvents              WhatsAppOperationAudit[]
@@ -1001,7 +1002,7 @@ model IdentityReview {
   personIdentity    PersonIdentity       @relation(fields: [personIdentityId], references: [id], onDelete: Cascade)
   suggestedPerson   Person?              @relation("IdentityReviewSuggestedPerson", fields: [suggestedPersonId], references: [id], onDelete: SetNull)
 
-  @@unique([personIdentityId, status])
+  @@index([personIdentityId, status])
   @@index([organizationId, status, createdAt])
   @@index([suggestedPersonId])
 }
@@ -1043,39 +1044,43 @@ model WhatsAppRecommendationApprover {
 }
 
 model RecommendationDelivery {
-  id                    String                       @id @default(cuid())
-  organizationId        String
-  projectId             String
-  recommendationId      String
-  recipientKey          String
-  recipientPersonId     String?
-  recipientIdentityId   String?
-  whatsappAccountId     String
-  whatsappChatMappingId String?
-  destinationJid        String
-  outboundMessageId     String?
-  quotedMessageKey      String?
-  deliveryStatus        RecommendationDeliveryStatus @default(PENDING)
-  impact                RecommendationImpact         @default(STANDARD)
-  deliveredAt           DateTime?
-  readAt                DateTime?
-  respondedAt           DateTime?
-  expiresAt             DateTime
-  confirmationExpiresAt DateTime?
-  attemptCount          Int                          @default(0)
-  lastAttemptAt         DateTime?
-  failureReason         String?
-  createdAt             DateTime                     @default(now())
-  updatedAt             DateTime                     @updatedAt
-  organization          Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  project               Project                      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  recommendation        Recommendation               @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
-  recipientPerson       Person?                      @relation(fields: [recipientPersonId], references: [id], onDelete: SetNull)
-  recipientIdentity     PersonIdentity?              @relation(fields: [recipientIdentityId], references: [id], onDelete: SetNull)
-  whatsappAccount       WhatsAppAccount              @relation(fields: [whatsappAccountId], references: [id], onDelete: Cascade)
-  whatsappChatMapping   WhatsAppChatMapping?         @relation(fields: [whatsappChatMappingId], references: [id], onDelete: SetNull)
-  responses             RecommendationResponse[]
-  auditEvents           WhatsAppOperationAudit[]
+  id                          String                       @id @default(cuid())
+  organizationId              String
+  projectId                   String
+  recommendationId            String
+  recipientKey                String
+  recipientPersonId           String?
+  recipientIdentityId         String?
+  whatsappAccountId           String
+  whatsappChatMappingId       String?
+  destinationJid              String
+  outboundMessageId           String?
+  quotedMessageKey            String?
+  deliveryStatus              RecommendationDeliveryStatus @default(PENDING)
+  impact                      RecommendationImpact         @default(STANDARD)
+  deliveredAt                 DateTime?
+  readAt                      DateTime?
+  respondedAt                 DateTime?
+  expiresAt                   DateTime
+  confirmationExpiresAt       DateTime?
+  confirmationActorIdentityId String?
+  sendClaimedAt               DateTime?
+  sendClaimToken              String?
+  attemptCount                Int                          @default(0)
+  lastAttemptAt               DateTime?
+  failureReason               String?
+  createdAt                   DateTime                     @default(now())
+  updatedAt                   DateTime                     @updatedAt
+  organization                Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project                     Project                      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  recommendation              Recommendation               @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
+  recipientPerson             Person?                      @relation(fields: [recipientPersonId], references: [id], onDelete: SetNull)
+  recipientIdentity           PersonIdentity?              @relation("RecommendationDeliveryRecipient", fields: [recipientIdentityId], references: [id], onDelete: SetNull)
+  confirmationActorIdentity   PersonIdentity?              @relation("RecommendationDeliveryConfirmationActor", fields: [confirmationActorIdentityId], references: [id], onDelete: SetNull)
+  whatsappAccount             WhatsAppAccount              @relation(fields: [whatsappAccountId], references: [id], onDelete: Cascade)
+  whatsappChatMapping         WhatsAppChatMapping?         @relation(fields: [whatsappChatMappingId], references: [id], onDelete: SetNull)
+  responses                   RecommendationResponse[]
+  auditEvents                 WhatsAppOperationAudit[]
 
   @@unique([recommendationId, recipientKey])
   @@index([organizationId, deliveryStatus, createdAt])
@@ -1083,6 +1088,8 @@ model RecommendationDelivery {
   @@index([outboundMessageId])
   @@index([quotedMessageKey])
   @@index([recipientIdentityId, deliveryStatus, expiresAt])
+  @@index([confirmationActorIdentityId, deliveryStatus])
+  @@index([deliveryStatus, sendClaimedAt])
 }
 
 model RecommendationResponse {
@@ -1126,6 +1133,8 @@ model WhatsAppInvitation {
   acceptedAt          DateTime?
   expiresAt           DateTime
   failureReason       String?
+  attemptCount        Int                      @default(0)
+  lastAttemptAt       DateTime?
   createdAt           DateTime                 @default(now())
   updatedAt           DateTime                 @updatedAt
   organization        Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -1301,6 +1310,7 @@ enum RecommendationImpact {
 enum RecommendationDeliveryStatus {
   PENDING
   QUEUED
+  SENDING
   SENT
   DELIVERED
   READ
@@ -1342,6 +1352,7 @@ enum RecommendationResponseOutcome {
 enum WhatsAppInvitationStatus {
   PENDING
   QUEUED
+  SENDING
   SENT
   JOINED
   ACTIVATED

@@ -34,11 +34,11 @@ The recipient must have a confirmed WhatsApp identity, linked FieldOS user, acti
 5. Reply to the original message with `DETAILS`, then `APPROVE`.
 6. Verify the existing coordinator side effect, response record, and audit events.
 7. Replay the same inbound message and verify no duplicate action.
-8. Test an unauthorized sender and an unquoted approval.
+8. Test an unauthorized sender and verify unquoted approval text produces no command side effect.
 
 ## Failed Sends
 
-Check account status, worker heartbeat, failed `WHATSAPP_RECOMMENDATION_DELIVERY` jobs, delivery attempt count, and the safe failure reason. Reconnect the account before retrying a failed delivery. Do not edit provider IDs or mark a delivery sent manually.
+Check account status, worker heartbeat, failed `WHATSAPP_RECOMMENDATION_DELIVERY` jobs, delivery attempt count, and the safe failure reason. Reconnect the account before retrying a failed delivery. The API accepts retries only for `FAILED` deliveries. An interrupted send may have an unknown provider result; confirm that the recipient did not receive it before retrying. Do not edit provider IDs or mark a delivery sent manually.
 
 ## Reconnect Handling
 

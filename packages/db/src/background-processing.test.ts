@@ -19,12 +19,13 @@ describe("project coordinator job queueing", () => {
     const recentLightweightJob = createJob("PROJECT_COORDINATOR");
     const prisma = {
       processingJob: {
+        create: vi.fn().mockResolvedValue(createJob("PROJECT_COORDINATOR_MILESTONE")),
         findFirst: vi
           .fn()
           .mockImplementation(({ where }) =>
             Promise.resolve(where.type === "PROJECT_COORDINATOR" ? recentLightweightJob : null)
           ),
-        upsert: vi.fn().mockResolvedValue(createJob("PROJECT_COORDINATOR_MILESTONE"))
+        findUnique: vi.fn().mockResolvedValue(null)
       }
     };
 
@@ -36,10 +37,10 @@ describe("project coordinator job queueing", () => {
 
     expect(queued).toBe(1);
     expect(prisma.processingJob.findFirst).toHaveBeenCalledTimes(2);
-    expect(prisma.processingJob.upsert).toHaveBeenCalledOnce();
-    expect(prisma.processingJob.upsert).toHaveBeenCalledWith(
+    expect(prisma.processingJob.create).toHaveBeenCalledOnce();
+    expect(prisma.processingJob.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        create: expect.objectContaining({ type: "PROJECT_COORDINATOR_MILESTONE" })
+        data: expect.objectContaining({ type: "PROJECT_COORDINATOR_MILESTONE" })
       })
     );
   });
@@ -47,8 +48,9 @@ describe("project coordinator job queueing", () => {
   it("queues both coordinator job types when the debounce window is clear", async () => {
     const prisma = {
       processingJob: {
+        create: vi.fn().mockImplementation(({ data }) => Promise.resolve(createJob(data.type))),
         findFirst: vi.fn().mockResolvedValue(null),
-        upsert: vi.fn().mockImplementation(({ create }) => Promise.resolve(createJob(create.type)))
+        findUnique: vi.fn().mockResolvedValue(null)
       }
     };
 
@@ -59,7 +61,7 @@ describe("project coordinator job queueing", () => {
     });
 
     expect(queued).toBe(2);
-    expect(prisma.processingJob.upsert).toHaveBeenCalledTimes(2);
+    expect(prisma.processingJob.create).toHaveBeenCalledTimes(2);
   });
 
   it("debounces a requeued job whose original creation time is outside the window", async () => {
@@ -73,7 +75,8 @@ describe("project coordinator job queueing", () => {
     const prisma = {
       processingJob: {
         findFirst: vi.fn().mockResolvedValue(requeuedJob),
-        upsert: vi.fn()
+        findUnique: vi.fn(),
+        create: vi.fn()
       }
     };
 
@@ -83,7 +86,7 @@ describe("project coordinator job queueing", () => {
       sourceId: "project_1"
     });
 
-    expect(prisma.processingJob.upsert).not.toHaveBeenCalled();
+    expect(prisma.processingJob.create).not.toHaveBeenCalled();
   });
 });
 

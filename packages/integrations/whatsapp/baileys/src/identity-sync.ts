@@ -28,7 +28,8 @@ export class WhatsAppParticipantSyncService {
 
   async syncGroup(
     mappingId: string,
-    participants: WhatsAppGroupParticipantSnapshot[]
+    participants: WhatsAppGroupParticipantSnapshot[],
+    options: { authoritative?: boolean } = {}
   ): Promise<ParticipantSyncSummary> {
     const mapping = await this.prisma.whatsAppChatMapping.findUnique({
       include: { whatsappAccount: true },
@@ -69,6 +70,14 @@ export class WhatsAppParticipantSyncService {
       summary.matchedPeople += resolution.matchedPerson ? 1 : 0;
       summary.needsReview += resolution.needsReview ? 1 : 0;
 
+      const existingGroupParticipant = await this.prisma.whatsAppGroupParticipant.findUnique({
+        where: {
+          whatsappChatMappingId_personIdentityId: {
+            personIdentityId: resolution.identity.id,
+            whatsappChatMappingId: mapping.id
+          }
+        }
+      });
       await this.prisma.$transaction(async (tx) => {
         await tx.whatsAppGroupParticipant.upsert({
           create: {
@@ -116,31 +125,40 @@ export class WhatsAppParticipantSyncService {
             }
           }
         });
-        await tx.whatsAppOperationAudit.create({
-          data: {
-            eventType: "PARTICIPANT_DISCOVERED",
-            metadata: { isGroupAdmin: participant.isAdmin },
-            organizationId: mapping.organizationId,
-            personIdentityId: resolution.identity.id,
-            projectId: mapping.projectId,
-            reasonCode: resolution.createdPerson
-              ? "NEW_CONTACT"
-              : resolution.matchedPerson
-                ? "DETERMINISTIC_MATCH"
-                : "KNOWN_IDENTITY"
-          }
-        });
+        if (!existingGroupParticipant || existingGroupParticipant.participantStatus !== "ACTIVE") {
+          await tx.whatsAppOperationAudit.create({
+            data: {
+              eventType: "PARTICIPANT_DISCOVERED",
+              metadata: { isGroupAdmin: participant.isAdmin },
+              organizationId: mapping.organizationId,
+              personIdentityId: resolution.identity.id,
+              projectId: mapping.projectId,
+              reasonCode: resolution.createdPerson
+                ? "NEW_CONTACT"
+                : resolution.matchedPerson
+                  ? "DETERMINISTIC_MATCH"
+                  : "KNOWN_IDENTITY"
+            }
+          });
+        }
       });
     }
 
-    const removed = await this.prisma.whatsAppGroupParticipant.findMany({
-      include: { personIdentity: true },
-      where: {
-        participantStatus: "ACTIVE",
-        personIdentityId: seenIdentityIds.size ? { notIn: [...seenIdentityIds] } : undefined,
-        whatsappChatMappingId: mapping.id
-      }
-    });
+    const snapshotIsComplete =
+      options.authoritative === true &&
+      participants.length > 0 &&
+      seenIdentityIds.size > 0 &&
+      summary.ignored === 0;
+    const removed = snapshotIsComplete
+      ? await this.prisma.whatsAppGroupParticipant.findMany({
+          include: { personIdentity: true },
+          where: {
+            participantStatus: "ACTIVE",
+            personIdentityId: { notIn: [...seenIdentityIds] },
+            whatsappChatMappingId: mapping.id
+          }
+        })
+      : [];
 
     for (const participant of removed) {
       await this.prisma.$transaction(async (tx) => {
@@ -194,6 +212,7 @@ export class WhatsAppParticipantSyncService {
     phoneNumber: string | null;
     pushName: string | null;
     whatsappAccountId: string;
+    retryOnConflict?: boolean;
   }): Promise<{
     createdPerson: boolean;
     identity: PersonIdentity;
@@ -221,6 +240,12 @@ export class WhatsAppParticipantSyncService {
         (identity) => identity.personId !== selectedIdentity.personId
       );
       const hasConflict = Boolean(conflicting);
+      const jidOwnedByAnotherIdentity = existing.some(
+        (identity) => identity.id !== selectedIdentity.id && identity.jid === input.jid
+      );
+      const lidOwnedByAnotherIdentity = existing.some(
+        (identity) => identity.id !== selectedIdentity.id && identity.lid === input.lid
+      );
       const needsReview = hasConflict || selectedIdentity.verificationStatus !== "CONFIRMED";
       const identity = await this.prisma.personIdentity.update({
         data: hasConflict
@@ -233,7 +258,15 @@ export class WhatsAppParticipantSyncService {
             }
           : {
               displayName: input.displayName ?? undefined,
+              jid:
+                selectedIdentity.jid ??
+                (jidOwnedByAnotherIdentity ? undefined : input.jid) ??
+                undefined,
               lastSeenAt: this.now(),
+              lid:
+                selectedIdentity.lid ??
+                (lidOwnedByAnotherIdentity ? undefined : input.lid) ??
+                undefined,
               metadata: input.metadata as Prisma.InputJsonValue | undefined,
               phoneNumber: input.phoneNumber ?? undefined,
               pushName: input.pushName ?? undefined
@@ -261,31 +294,45 @@ export class WhatsAppParticipantSyncService {
         })
       : null;
     const createdPerson = !confirmedPhoneMatch;
-    const person = confirmedPhoneMatch
-      ? await this.prisma.person.findUniqueOrThrow({ where: { id: confirmedPhoneMatch.personId } })
-      : await this.prisma.person.create({
+    let identity: PersonIdentity;
+    try {
+      identity = await this.prisma.$transaction(async (tx) => {
+        const person = confirmedPhoneMatch
+          ? await tx.person.findUniqueOrThrow({ where: { id: confirmedPhoneMatch.personId } })
+          : await tx.person.create({
+              data: {
+                displayName: input.displayName ?? input.phoneNumber ?? "WhatsApp contact",
+                organizationId: input.organizationId,
+                phoneNumber: input.phoneNumber,
+                type: "UNKNOWN"
+              }
+            });
+        return tx.personIdentity.create({
           data: {
-            displayName: input.displayName ?? input.phoneNumber ?? "WhatsApp contact",
+            displayName: input.displayName,
+            jid: input.jid,
+            lastSeenAt: this.now(),
+            lid: input.lid,
+            metadata: input.metadata as Prisma.InputJsonValue | undefined,
             organizationId: input.organizationId,
+            personId: person.id,
             phoneNumber: input.phoneNumber,
-            type: "UNKNOWN"
+            pushName: input.pushName,
+            verificationStatus: confirmedPhoneMatch ? "CONFIRMED" : "OBSERVED",
+            whatsappAccountId: input.whatsappAccountId
           }
         });
-    const identity = await this.prisma.personIdentity.create({
-      data: {
-        displayName: input.displayName,
-        jid: input.jid,
-        lastSeenAt: this.now(),
-        lid: input.lid,
-        metadata: input.metadata as Prisma.InputJsonValue | undefined,
-        organizationId: input.organizationId,
-        personId: person.id,
-        phoneNumber: input.phoneNumber,
-        pushName: input.pushName,
-        verificationStatus: confirmedPhoneMatch ? "CONFIRMED" : "OBSERVED",
-        whatsappAccountId: input.whatsappAccountId
+      });
+    } catch (error) {
+      if (
+        input.retryOnConflict !== false &&
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        return this.resolveIdentity({ ...input, retryOnConflict: false });
       }
-    });
+      throw error;
+    }
     if (createdPerson) {
       await this.ensureIdentityReview(identity.id, input.organizationId, "MANUAL_REVIEW");
     }
@@ -302,11 +349,26 @@ export class WhatsAppParticipantSyncService {
     organizationId: string,
     reason: "JID_LID_CONFLICT" | "MANUAL_REVIEW"
   ): Promise<void> {
-    await this.prisma.identityReview.upsert({
-      create: { organizationId, personIdentityId, reason, status: "PENDING" },
-      update: { reason },
-      where: { personIdentityId_status: { personIdentityId, status: "PENDING" } }
+    const existing = await this.prisma.identityReview.findFirst({
+      where: { personIdentityId, status: "PENDING" }
     });
+    if (existing) {
+      await this.prisma.identityReview.update({ data: { reason }, where: { id: existing.id } });
+      return;
+    }
+    try {
+      await this.prisma.identityReview.create({
+        data: { organizationId, personIdentityId, reason, status: "PENDING" }
+      });
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
+        throw error;
+      }
+      await this.prisma.identityReview.updateMany({
+        data: { reason },
+        where: { personIdentityId, status: "PENDING" }
+      });
+    }
   }
 }
 

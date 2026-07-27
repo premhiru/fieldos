@@ -11,6 +11,7 @@ import { AppShell } from "../../../../components/app-shell";
 import { AuthGuard } from "../../../../components/auth-guard";
 import {
   api,
+  type MembershipRole,
   type ProjectPerson,
   type RecommendationType,
   type WhatsAppRecommendationRoutingMode
@@ -57,13 +58,16 @@ export default function ProjectPeoplePage() {
 function ProjectPeople() {
   const { projectId } = useParams<{ projectId: string }>();
   const queryClient = useQueryClient();
-  const organizations = useOrganizations();
-  const organization = organizations.data?.organizations[0] ?? null;
-  const [filter, setFilter] = React.useState<(typeof filters)[number]>("all");
   const projectQuery = useQuery({
     queryFn: () => api.getProject(projectId),
     queryKey: ["project", projectId]
   });
+  const organizations = useOrganizations();
+  const organization =
+    organizations.data?.organizations.find(
+      (item) => item.id === projectQuery.data?.project.organizationId
+    ) ?? null;
+  const [filter, setFilter] = React.useState<(typeof filters)[number]>("all");
   const peopleQuery = useQuery({
     queryFn: () => api.listProjectPeople(projectId, filter),
     queryKey: ["project-people", projectId, filter]
@@ -107,9 +111,9 @@ function ProjectPeople() {
     mutationFn: () =>
       api.updateWhatsAppRecommendationSetting(projectId, {
         allowedRecommendationTypes: allowedTypes,
-        dailyProjectLimit: 10,
-        dailyRecipientLimit: 5,
-        deliveryCooldownMinutes: 30,
+        dailyProjectLimit: settingQuery.data?.setting?.dailyProjectLimit ?? 10,
+        dailyRecipientLimit: settingQuery.data?.setting?.dailyRecipientLimit ?? 5,
+        deliveryCooldownMinutes: settingQuery.data?.setting?.deliveryCooldownMinutes ?? 30,
         enabled,
         groupApprovalsEnabled,
         namedApproverPersonIds: approvers,
@@ -142,8 +146,8 @@ function ProjectPeople() {
     onSuccess: refresh
   });
   const invite = useMutation({
-    mutationFn: (personId: string) =>
-      api.createWhatsAppInvitation(projectId, { personId, role: "MEMBER" }),
+    mutationFn: ({ personId, role }: { personId: string; role: MembershipRole }) =>
+      api.createWhatsAppInvitation(projectId, { personId, role }),
     onSuccess: refresh
   });
   const ignoreReview = useMutation({
@@ -381,6 +385,7 @@ function ProjectPeople() {
                 actions={{ ignoreReview, invite, mergeReview, updateParticipant, updatePerson }}
                 admin={isAdmin}
                 allPeople={allPeopleQuery.data?.people ?? []}
+                canInviteAdmin={organization?.role === "OWNER"}
                 key={participant.id}
                 participant={participant}
               />
@@ -394,7 +399,10 @@ function ProjectPeople() {
 
 interface PersonRowActions {
   ignoreReview: { mutate(id: string): void };
-  invite: { isPending: boolean; mutate(id: string): void };
+  invite: {
+    isPending: boolean;
+    mutate(input: { personId: string; role: MembershipRole }): void;
+  };
   mergeReview: { mutate(input: { reviewId: string; targetPersonId: string }): void };
   updateParticipant: {
     mutate(input: { body: Record<string, unknown>; participantId: string }): void;
@@ -406,16 +414,19 @@ function PersonRow({
   actions,
   admin,
   allPeople,
+  canInviteAdmin,
   participant
 }: {
   actions: PersonRowActions;
   admin: boolean;
   allPeople: ProjectPerson[];
+  canInviteAdmin: boolean;
   participant: ProjectPerson;
 }) {
   const person = participant.person;
   const review = person.identityReviews[0];
   const invitation = person.whatsAppInvitations[0];
+  const [inviteRole, setInviteRole] = React.useState<MembershipRole>("MEMBER");
   return (
     <div className="grid gap-4 py-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
       <div>
@@ -434,8 +445,13 @@ function PersonRow({
         </p>
         <p className="mt-1 text-xs text-[var(--text-secondary)]">
           Last seen {new Date(participant.lastSeenAt).toLocaleString()}{" "}
-          {invitation ? `| Invitation ${invitation.status.toLowerCase()}` : ""}
+          {invitation ? `| ${invitationStatusLabel(invitation.status)}` : ""}
         </p>
+        {invitation?.failureReason ? (
+          <p className="mt-1 text-xs text-[var(--status-critical-text)]">
+            Invitation delivery failed: {invitation.failureReason}
+          </p>
+        ) : null}
       </div>
       {admin ? (
         <div className="flex flex-wrap gap-2">
@@ -459,9 +475,19 @@ function PersonRow({
           </select>
           {!person.userId ? (
             <>
+              <select
+                aria-label={`Invitation role for ${person.displayName}`}
+                className="h-10 rounded-md border border-[var(--border-subtle)] bg-[var(--surface)] px-2 text-sm text-[var(--text-primary)]"
+                onChange={(event) => setInviteRole(event.target.value as MembershipRole)}
+                value={inviteRole}
+              >
+                <option value="MEMBER">Member</option>
+                <option value="VIEWER">Viewer</option>
+                {canInviteAdmin ? <option value="ADMIN">Administrator</option> : null}
+              </select>
               <Button
                 disabled={actions.invite.isPending}
-                onClick={() => actions.invite.mutate(person.id)}
+                onClick={() => actions.invite.mutate({ personId: person.id, role: inviteRole })}
                 variant="secondary"
               >
                 <Send className="size-4" /> WhatsApp invite
@@ -487,9 +513,10 @@ function PersonRow({
           {participant.participantStatus === "ACTIVE" ? (
             <Button
               onClick={() =>
+                window.confirm(`Deactivate ${person.displayName} for this project?`) &&
                 actions.updateParticipant.mutate({
-                  participantId: participant.id,
-                  body: { status: "INACTIVE" }
+                  body: { status: "INACTIVE" },
+                  participantId: participant.id
                 })
               }
               variant="ghost"
@@ -505,10 +532,21 @@ function PersonRow({
                 defaultValue=""
                 onChange={(event) => {
                   if (event.target.value) {
-                    actions.mergeReview.mutate({
-                      reviewId: review.id,
-                      targetPersonId: event.target.value
-                    });
+                    const target = allPeople.find(
+                      (item) => item.person.id === event.target.value
+                    )?.person;
+                    if (
+                      target &&
+                      window.confirm(
+                        `Merge ${person.displayName} into ${target.displayName}? This cannot be undone.`
+                      )
+                    ) {
+                      actions.mergeReview.mutate({
+                        reviewId: review.id,
+                        targetPersonId: event.target.value
+                      });
+                    }
+                    event.target.value = "";
                   }
                 }}
               >
@@ -521,7 +559,13 @@ function PersonRow({
                     </option>
                   ))}
               </select>
-              <Button onClick={() => actions.ignoreReview.mutate(review.id)} variant="ghost">
+              <Button
+                onClick={() =>
+                  window.confirm(`Ignore the WhatsApp identity for ${person.displayName}?`) &&
+                  actions.ignoreReview.mutate(review.id)
+                }
+                variant="ghost"
+              >
                 Ignore identity
               </Button>
             </>
@@ -530,6 +574,29 @@ function PersonRow({
       ) : null}
     </div>
   );
+}
+
+function invitationStatusLabel(status: string): string {
+  switch (status) {
+    case "PENDING":
+    case "QUEUED":
+    case "SENDING":
+      return "Invitation being sent";
+    case "SENT":
+      return "Invitation sent";
+    case "JOINED":
+      return "Invitation confirmed";
+    case "ACTIVATED":
+      return "Invitation accepted";
+    case "EXPIRED":
+      return "Invitation expired";
+    case "REVOKED":
+      return "Invitation revoked";
+    case "FAILED":
+      return "Invitation failed";
+    default:
+      return "Invitation status unavailable";
+  }
 }
 
 function label(value: string) {

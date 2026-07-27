@@ -12,7 +12,7 @@ describe("ProjectCoordinatorRuntime", () => {
     const queued = await runtime.queueScheduledScan();
 
     expect(queued).toBe(2);
-    expect(prisma.processingJob.upsert).toHaveBeenCalledTimes(2);
+    expect(prisma.processingJob.create).toHaveBeenCalledTimes(2);
   });
 
   it("skips scheduled scans outside a project's local operating hours", async () => {
@@ -33,7 +33,7 @@ describe("ProjectCoordinatorRuntime", () => {
     const queued = await runtime.queueScheduledScan();
 
     expect(queued).toBe(0);
-    expect(prisma.processingJob.upsert).not.toHaveBeenCalled();
+    expect(prisma.processingJob.create).not.toHaveBeenCalled();
   });
 
   it("runs lightweight coordinators without milestone detection", async () => {
@@ -425,8 +425,16 @@ function createPrismaStub() {
       findMany: vi.fn().mockResolvedValue([])
     },
     processingJob: {
+      create: vi.fn().mockImplementation(({ data }) =>
+        Promise.resolve({
+          ...data,
+          attempts: 0,
+          id: `job_${data.type}`,
+          status: "PENDING"
+        })
+      ),
       findFirst: vi.fn().mockResolvedValue(null),
-      upsert: vi.fn()
+      findUnique: vi.fn().mockResolvedValue(null)
     },
     project: {
       findMany: vi.fn().mockResolvedValue([project]),
@@ -453,7 +461,8 @@ function createPrismaStub() {
       findFirst: vi.fn().mockResolvedValue(null),
       findMany: vi.fn().mockResolvedValue([]),
       findUnique: vi.fn().mockResolvedValue(null),
-      update: vi.fn().mockResolvedValue({})
+      update: vi.fn().mockResolvedValue({}),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 })
     },
     whatsAppChatMapping: {
       findUnique: vi.fn().mockResolvedValue(null)

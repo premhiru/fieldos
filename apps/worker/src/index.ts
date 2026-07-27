@@ -95,10 +95,15 @@ const storageProvider = createStorageProvider({
   storage: workerEnv
 });
 const whatsappNativeOperations: { current?: WhatsAppNativeOperationsService } = {};
+const whatsAppOutboundThrottle = new ProviderRequestThrottle(
+  workerEnv.WHATSAPP_OUTBOUND_MIN_INTERVAL_MS,
+  "WhatsApp outbound message"
+);
 const whatsappSessionManager = new BaileysWhatsAppSessionManager(
   prisma,
   new RedisWhatsAppQrStore(redis),
   {
+    beforeControlReply: () => whatsAppOutboundThrottle.wait(),
     controlMessageHandler: {
       handle: (input) =>
         whatsappNativeOperations.current?.handle(input) ?? Promise.resolve({ handled: false })
@@ -167,10 +172,6 @@ const coordinatorRuntime = new ProjectCoordinatorRuntime(prisma, {
     provider: textAIProvider.provider
   })
 });
-const whatsAppOutboundThrottle = new ProviderRequestThrottle(
-  workerEnv.WHATSAPP_OUTBOUND_MIN_INTERVAL_MS,
-  "WhatsApp outbound message"
-);
 whatsappNativeOperations.current = new WhatsAppNativeOperationsService(prisma, coordinatorRuntime, {
   appUrl: workerEnv.APP_URL,
   deliveryEnabled: workerEnv.WHATSAPP_RECOMMENDATION_DELIVERY_ENABLED,
@@ -482,7 +483,12 @@ async function processClaimedJob(
         error instanceof WhatsAppOperationDeferredError
           ? error.retryAfterMs
           : Math.min(5_000 * 2 ** Math.max(job.attempts - 1, 0), 5 * 60_000);
-      await deferProcessingJob(prisma, { errorMessage, job, retryAfterMs });
+      await deferProcessingJob(prisma, {
+        consumeAttempt: !(error instanceof WhatsAppOperationDeferredError),
+        errorMessage,
+        job,
+        retryAfterMs
+      });
       logger.warn(
         {
           correlationId: job.correlationId,

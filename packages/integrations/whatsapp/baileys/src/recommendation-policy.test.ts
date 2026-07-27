@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  isGroupSafeRecommendation,
   isSensitiveRecommendation,
   isWithinQuietHours,
   recommendationImpact,
@@ -25,6 +26,28 @@ describe("WhatsApp recommendation policy", () => {
     ).toBe(true);
   });
 
+  it("allows only explicitly safe, non-sensitive actions in groups", () => {
+    const base = {
+      description: "Review the latest site photo.",
+      reason: "New evidence is available.",
+      title: "Review site evidence",
+      type: "GENERAL" as const
+    };
+    expect(isGroupSafeRecommendation({ ...base, proposedActionType: "REVIEW_EVIDENCE" })).toBe(
+      true
+    );
+    expect(isGroupSafeRecommendation({ ...base, proposedActionType: "CREATE_ACTION_ITEM" })).toBe(
+      false
+    );
+    expect(
+      isGroupSafeRecommendation({
+        ...base,
+        description: "Review confidential contract evidence.",
+        proposedActionType: "REVIEW_EVIDENCE"
+      })
+    ).toBe(false);
+  });
+
   it("requires explicit allowed types and respects urgent-only settings", () => {
     const setting = {
       allowedRecommendationTypes: ["INSPECTION"],
@@ -47,5 +70,18 @@ describe("WhatsApp recommendation policy", () => {
     };
     expect(isWithinQuietHours(setting, new Date("2026-07-24T15:00:00.000Z"))).toBe(true);
     expect(isWithinQuietHours(setting, new Date("2026-07-24T04:00:00.000Z"))).toBe(false);
+  });
+
+  it("holds low-priority recommendations instead of sending them individually", () => {
+    expect(
+      settingAllowsRecommendation(
+        {
+          allowedRecommendationTypes: ["INSPECTION"],
+          enabled: true,
+          sendUrgentOnly: false
+        },
+        { priority: "LOW", type: "INSPECTION" }
+      )
+    ).toBe(false);
   });
 });

@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import {
-  isSensitiveRecommendation,
+  isGroupSafeRecommendation,
   isWithinQuietHours,
   parseWhatsAppRecommendationCommand,
   recommendationExpiresAt,
@@ -14,11 +14,12 @@ import {
 } from "@fieldos/baileys-whatsapp";
 import type { ProjectCoordinatorRuntime } from "@fieldos/coordinators";
 import {
-  type Prisma,
+  Prisma,
   type PrismaClient,
   type Recommendation,
   type RecommendationDelivery,
-  type RecommendationResponseCommand
+  type RecommendationResponseCommand,
+  type WhatsAppRecommendationSetting
 } from "@fieldos/db";
 import { createLogger } from "@fieldos/shared";
 
@@ -81,7 +82,7 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
       !setting ||
       !settingAllowsRecommendation(setting, recommendation) ||
       (recommendation.snoozedUntil && recommendation.snoozedUntil > this.now()) ||
-      (setting.routingMode === "PROJECT_GROUP" && isSensitiveRecommendation(recommendation))
+      (setting.routingMode === "PROJECT_GROUP" && !isGroupSafeRecommendation(recommendation))
     ) {
       return 0;
     }
@@ -89,7 +90,7 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
     if (isWithinQuietHours(setting, this.now()) && recommendation.priority !== "URGENT") {
       throw new WhatsAppOperationDeferredError(
         "Recommendation delivery deferred by project quiet hours.",
-        30 * 60 * 1000
+        millisecondsUntilQuietHoursEnd(setting, this.now())
       );
     }
 
@@ -97,8 +98,7 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
     let sentCount = 0;
     let deferredRetryMs = 0;
     for (const recipient of recipients) {
-      const dailyStart = new Date(this.now());
-      dailyStart.setUTCHours(0, 0, 0, 0);
+      const dailyStart = startOfLocalDay(this.now(), setting.timezone);
       const cooldownStart = new Date(
         this.now().getTime() - setting.deliveryCooldownMinutes * 60 * 1000
       );
@@ -118,7 +118,7 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
           }
         }),
         this.prisma.recommendationDelivery.findFirst({
-          select: { id: true },
+          select: { createdAt: true, id: true },
           where: {
             createdAt: { gte: cooldownStart },
             projectId: recommendation.projectId,
@@ -132,13 +132,21 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
         recipientCount >= setting.dailyRecipientLimit ||
         projectCount >= setting.dailyProjectLimit
       ) {
-        deferredRetryMs = Math.max(deferredRetryMs, 60 * 60 * 1000);
+        deferredRetryMs = Math.max(
+          deferredRetryMs,
+          millisecondsUntilNextLocalDay(this.now(), setting.timezone)
+        );
         continue;
       }
       if (recentDelivery) {
         deferredRetryMs = Math.max(
           deferredRetryMs,
-          Math.max(setting.deliveryCooldownMinutes * 60 * 1000, 60_000)
+          Math.max(
+            recentDelivery.createdAt.getTime() +
+              setting.deliveryCooldownMinutes * 60 * 1000 -
+              this.now().getTime(),
+            60_000
+          )
         );
         continue;
       }
@@ -167,7 +175,45 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
           }
         }
       });
-      if (delivery.outboundMessageId || delivery.deliveryStatus === "RESPONDED") continue;
+      if (
+        delivery.outboundMessageId ||
+        ["SENT", "DELIVERED", "READ", "RESPONDED", "SUPERSEDED", "CANCELLED"].includes(
+          delivery.deliveryStatus
+        )
+      ) {
+        continue;
+      }
+      if (delivery.deliveryStatus === "SENDING") {
+        const staleAt = new Date(this.now().getTime() - 10 * 60 * 1000);
+        if (delivery.sendClaimedAt && delivery.sendClaimedAt <= staleAt) {
+          await this.prisma.recommendationDelivery.updateMany({
+            data: {
+              deliveryStatus: "FAILED",
+              failureReason:
+                "Delivery result is unknown after worker interruption; manual retry is required.",
+              sendClaimToken: null
+            },
+            where: { deliveryStatus: "SENDING", id: delivery.id }
+          });
+        }
+        continue;
+      }
+
+      const sendClaimToken = randomBytes(16).toString("hex");
+      const claimed = await this.prisma.recommendationDelivery.updateMany({
+        data: {
+          deliveryStatus: "SENDING",
+          lastAttemptAt: this.now(),
+          sendClaimedAt: this.now(),
+          sendClaimToken
+        },
+        where: {
+          deliveryStatus: { in: ["PENDING", "QUEUED", "FAILED"] },
+          id: delivery.id,
+          outboundMessageId: null
+        }
+      });
+      if (claimed.count === 0) continue;
 
       try {
         const result = await this.options.sendText({
@@ -185,9 +231,10 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
               failureReason: null,
               lastAttemptAt: this.now(),
               outboundMessageId: result.externalMessageId,
-              quotedMessageKey: result.externalMessageId
+              quotedMessageKey: result.externalMessageId,
+              sendClaimToken: null
             },
-            where: { id: delivery.id }
+            where: { id: delivery.id, sendClaimToken }
           }),
           this.audit({
             deliveryId: delivery.id,
@@ -207,9 +254,10 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
               attemptCount: { increment: 1 },
               deliveryStatus: "FAILED",
               failureReason,
-              lastAttemptAt: this.now()
+              lastAttemptAt: this.now(),
+              sendClaimToken: null
             },
-            where: { id: delivery.id }
+            where: { id: delivery.id, sendClaimToken }
           }),
           this.audit({
             deliveryId: delivery.id,
@@ -238,7 +286,24 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
       include: { person: true, personIdentity: true, project: true },
       where: { id: invitationId }
     });
-    if (!invitation || !["PENDING", "QUEUED", "FAILED"].includes(invitation.status)) return;
+    if (!invitation) return;
+    if (invitation.status === "SENDING") {
+      if (
+        invitation.lastAttemptAt &&
+        invitation.lastAttemptAt <= new Date(this.now().getTime() - 10 * 60 * 1000)
+      ) {
+        await this.prisma.whatsAppInvitation.updateMany({
+          data: {
+            failureReason:
+              "Delivery result is unknown after worker interruption; create a new invitation.",
+            status: "FAILED"
+          },
+          where: { id: invitation.id, status: "SENDING" }
+        });
+      }
+      return;
+    }
+    if (!["PENDING", "QUEUED", "FAILED"].includes(invitation.status)) return;
     const destinationJid = invitation.personIdentity.jid ?? invitation.personIdentity.lid;
     if (!destinationJid || invitation.expiresAt <= this.now()) {
       await this.prisma.whatsAppInvitation.update({
@@ -247,26 +312,59 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
       });
       return;
     }
-    const result = await this.options.sendText({
-      destinationJid,
-      organizationId: invitation.organizationId,
-      text: `${invitation.person.displayName}, you have been invited to join ${invitation.project.name} in FieldOS.\n\nReply JOIN to continue.\n\nThis invitation expires ${formatDate(invitation.expiresAt, invitation.project.timezone)}.`,
-      whatsappAccountId: invitation.whatsappAccountId
+    const claimed = await this.prisma.whatsAppInvitation.updateMany({
+      data: {
+        attemptCount: { increment: 1 },
+        failureReason: null,
+        lastAttemptAt: this.now(),
+        status: "SENDING"
+      },
+      where: { id: invitation.id, status: { in: ["PENDING", "QUEUED", "FAILED"] } }
     });
-    await this.prisma.$transaction([
-      this.prisma.whatsAppInvitation.update({
-        data: { failureReason: null, outboundMessageId: result.externalMessageId, status: "SENT" },
-        where: { id: invitation.id }
-      }),
-      this.audit({
-        actorPersonId: invitation.personId,
-        eventType: "INVITATION_SENT",
+    if (claimed.count === 0) return;
+    try {
+      const result = await this.options.sendText({
+        destinationJid,
         organizationId: invitation.organizationId,
-        personIdentityId: invitation.personIdentityId,
-        projectId: invitation.projectId,
-        providerMessageId: result.externalMessageId
-      })
-    ]);
+        text: `${invitation.person.displayName}, you have been invited to join ${invitation.project.name} in FieldOS.\n\nReply JOIN to continue.\n\nThis invitation expires ${formatDate(invitation.expiresAt, invitation.project.timezone)}.`,
+        whatsappAccountId: invitation.whatsappAccountId
+      });
+      await this.prisma.$transaction([
+        this.prisma.whatsAppInvitation.update({
+          data: {
+            failureReason: null,
+            outboundMessageId: result.externalMessageId,
+            status: "SENT"
+          },
+          where: { id: invitation.id, status: "SENDING" }
+        }),
+        this.audit({
+          actorPersonId: invitation.personId,
+          eventType: "INVITATION_SENT",
+          organizationId: invitation.organizationId,
+          personIdentityId: invitation.personIdentityId,
+          projectId: invitation.projectId,
+          providerMessageId: result.externalMessageId
+        })
+      ]);
+    } catch (error) {
+      const failureReason = error instanceof Error ? error.message.slice(0, 500) : "Send failed";
+      await this.prisma.$transaction([
+        this.prisma.whatsAppInvitation.updateMany({
+          data: { failureReason, status: "FAILED" },
+          where: { id: invitation.id, status: "SENDING" }
+        }),
+        this.audit({
+          actorPersonId: invitation.personId,
+          eventType: "INVITATION_DELIVERY_FAILED",
+          organizationId: invitation.organizationId,
+          personIdentityId: invitation.personIdentityId,
+          projectId: invitation.projectId,
+          reasonCode: "BAILEYS_SEND_FAILED"
+        })
+      ]);
+      throw error;
+    }
   }
 
   async handle(
@@ -274,7 +372,10 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
   ): Promise<{ handled: boolean; replyText?: string }> {
     const command = parseWhatsAppRecommendationCommand(input.body);
     if (!command) return { handled: false };
-    if (!this.options.replyEnabled) return { handled: true };
+    if (!this.options.replyEnabled) return { handled: false };
+    if (!input.quotedMessageId && !["CONFIRM", "CANCEL", "JOIN", "REASON"].includes(command.type)) {
+      return { handled: false };
+    }
     if (command.type === "JOIN") return this.handleJoin(input);
 
     const identity = await this.resolveSenderIdentity(input);
@@ -293,7 +394,7 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
       };
     }
 
-    if (command.type === "REASON") return this.handleReason(input, identity.id, command.reason);
+    if (command.type === "REASON") return this.handleReason(input, identity, command.reason);
     const delivery = await this.resolveDelivery(input, identity.id, command);
     if (!delivery) {
       await this.audit({
@@ -469,21 +570,42 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
       };
     }
     if (command.type === "REJECT") {
-      await this.coordinatorRuntime.dismissRecommendation({
-        dismissReason: "Rejected via WhatsApp",
-        recommendationId: delivery.recommendationId,
-        userId
+      const applied = await this.prisma.$transaction(async (tx) => {
+        const rejected = await tx.recommendation.updateMany({
+          data: {
+            dismissedAt: this.now(),
+            dismissedByUserId: userId,
+            dismissReason: "Rejected via WhatsApp",
+            status: "DISMISSED"
+          },
+          where: { id: delivery.recommendationId, status: "PENDING" }
+        });
+        if (rejected.count === 0) return false;
+        await this.completeAppliedResponse(
+          tx,
+          delivery,
+          identity.id,
+          input.inboundMessageId,
+          command,
+          userId
+        );
+        return true;
       });
-      await this.finishDeliveries(delivery.recommendationId, delivery.id, "RESPONDED");
-      await this.recordResponse(
-        delivery,
-        identity.id,
-        input.inboundMessageId,
-        command,
-        "APPLIED",
-        null,
-        userId
-      );
+      if (!applied) {
+        await this.recordResponse(
+          delivery,
+          identity.id,
+          input.inboundMessageId,
+          command,
+          "NOOP",
+          "NOT_PENDING",
+          userId
+        );
+        return {
+          handled: true,
+          replyText: "This recommendation was already actioned. No rejection was applied."
+        };
+      }
       return {
         handled: true,
         replyText: "Recommendation rejected.\n\nYou may reply with:\nREASON: <your reason>"
@@ -511,7 +633,11 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
           userId,
           [
             this.prisma.recommendationDelivery.update({
-              data: { confirmationExpiresAt, deliveryStatus: "AWAITING_CONFIRMATION" },
+              data: {
+                confirmationActorIdentityId: identity.id,
+                confirmationExpiresAt,
+                deliveryStatus: "AWAITING_CONFIRMATION"
+              },
               where: { id: delivery.id }
             })
           ]
@@ -527,6 +653,7 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
       if (
         command.reference !== recommendationReference(delivery.recommendationId) ||
         delivery.deliveryStatus !== "AWAITING_CONFIRMATION" ||
+        delivery.confirmationActorIdentityId !== identity.id ||
         !delivery.confirmationExpiresAt ||
         delivery.confirmationExpiresAt <= this.now()
       ) {
@@ -547,6 +674,24 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
       return this.approve(input, identity.id, userId, delivery, command);
     }
     if (command.type === "CANCEL") {
+      if (
+        delivery.deliveryStatus !== "AWAITING_CONFIRMATION" ||
+        delivery.confirmationActorIdentityId !== identity.id
+      ) {
+        await this.recordResponse(
+          delivery,
+          identity.id,
+          input.inboundMessageId,
+          command,
+          "DENIED",
+          "WRONG_CONFIRMATION_ACTOR",
+          userId
+        );
+        return {
+          handled: true,
+          replyText: "Only the person who started this approval can cancel it."
+        };
+      }
       await this.recordResponse(
         delivery,
         identity.id,
@@ -557,7 +702,11 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
         userId,
         [
           this.prisma.recommendationDelivery.update({
-            data: { confirmationExpiresAt: null, deliveryStatus: "SENT" },
+            data: {
+              confirmationActorIdentityId: null,
+              confirmationExpiresAt: null,
+              deliveryStatus: "SENT"
+            },
             where: { id: delivery.id }
           })
         ]
@@ -575,19 +724,36 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
     command: WhatsAppRecommendationCommand
   ): Promise<{ handled: true; replyText: string }> {
     const result = await this.coordinatorRuntime.approveRecommendation({
+      onApplied: (tx) =>
+        this.completeAppliedResponse(
+          tx,
+          delivery,
+          identityId,
+          input.inboundMessageId,
+          command,
+          userId
+        ),
       recommendationId: delivery.recommendationId,
       userId
     });
-    await this.finishDeliveries(delivery.recommendationId, delivery.id, "RESPONDED");
-    await this.recordResponse(
-      delivery,
-      identityId,
-      input.inboundMessageId,
-      command,
-      "APPLIED",
-      null,
-      userId
-    );
+    if (
+      result.applied === false ||
+      !["APPROVED", "COMPLETED"].includes(result.recommendation.status)
+    ) {
+      await this.recordResponse(
+        delivery,
+        identityId,
+        input.inboundMessageId,
+        command,
+        "NOOP",
+        "NOT_PENDING",
+        userId
+      );
+      return {
+        handled: true,
+        replyText: "This recommendation was already actioned. No approval was applied."
+      };
+    }
     const detail = result.actionItemId
       ? "An Action Item was created."
       : result.draft
@@ -620,25 +786,29 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
     if (!invitation)
       return { handled: true, replyText: "This invitation is invalid or has expired." };
     const token = randomBytes(32).toString("base64url");
-    await this.prisma.$transaction([
-      this.prisma.whatsAppInvitation.update({
-        data: {
-          activationTokenHash: createHash("sha256").update(token).digest("hex"),
-          joinConfirmedAt: this.now(),
-          status: "JOINED"
-        },
-        where: { id: invitation.id }
-      }),
-      this.audit({
-        actorPersonId: invitation.personId,
-        command: "JOIN",
-        eventType: "INVITATION_JOIN_CONFIRMED",
-        organizationId: invitation.organizationId,
-        personIdentityId: invitation.personIdentityId,
-        projectId: invitation.projectId,
-        providerMessageId: input.inboundMessageId
-      })
-    ]);
+    const claimed = await this.prisma.whatsAppInvitation.updateMany({
+      data: {
+        activationTokenHash: createHash("sha256").update(token).digest("hex"),
+        joinConfirmedAt: this.now(),
+        status: "JOINED"
+      },
+      where: { activationTokenHash: null, id: invitation.id, status: "SENT" }
+    });
+    if (claimed.count === 0) {
+      return {
+        handled: true,
+        replyText: "This invitation was already confirmed. Use the most recent secure link."
+      };
+    }
+    await this.audit({
+      actorPersonId: invitation.personId,
+      command: "JOIN",
+      eventType: "INVITATION_JOIN_CONFIRMED",
+      organizationId: invitation.organizationId,
+      personIdentityId: invitation.personIdentityId,
+      projectId: invitation.projectId,
+      providerMessageId: input.inboundMessageId
+    });
     return {
       handled: true,
       replyText: `Continue securely in FieldOS:\n${this.options.appUrl}/whatsapp-invite#token=${token}\n\nThis single-use link expires ${formatDate(invitation.expiresAt, invitation.project.timezone)}.`
@@ -647,36 +817,62 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
 
   private async handleReason(
     input: WhatsAppControlMessageInput,
-    identityId: string,
+    identity: NonNullable<
+      Awaited<ReturnType<WhatsAppNativeOperationsService["resolveSenderIdentity"]>>
+    >,
     reason: string
   ) {
     const response = await this.prisma.recommendationResponse.findFirst({
-      include: { delivery: true },
       orderBy: { createdAt: "desc" },
       where: {
-        actorIdentityId: identityId,
+        actorIdentityId: identity.id,
         command: "REJECT",
-        createdAt: { gte: new Date(this.now().getTime() - 60 * 60 * 1000) }
+        createdAt: { gte: new Date(this.now().getTime() - 60 * 60 * 1000) },
+        delivery: { whatsappAccountId: input.accountId },
+        organizationId: input.organizationId,
+        outcome: "APPLIED"
       }
     });
     if (!response)
       return { handled: true, replyText: "I could not find a recent rejection for this reason." };
-    await this.prisma.recommendation.update({
-      data: { dismissReason: reason },
-      where: { id: response.recommendationId }
-    });
-    await this.prisma.recommendationResponse.create({
-      data: {
-        actorIdentityId: identityId,
-        actorUserId: response.actorUserId,
-        command: "REASON",
-        deliveryId: response.deliveryId,
-        inboundMessageId: input.inboundMessageId,
-        organizationId: response.organizationId,
-        outcome: "APPLIED",
-        projectId: response.projectId,
-        recommendationId: response.recommendationId
-      }
+    await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.recommendation.updateMany({
+        data: { dismissReason: reason },
+        where: {
+          dismissedByUserId: response.actorUserId,
+          id: response.recommendationId,
+          status: "DISMISSED"
+        }
+      });
+      if (updated.count === 0) throw new Error("Rejected recommendation is no longer actionable.");
+      await tx.recommendationResponse.create({
+        data: {
+          actorIdentityId: identity.id,
+          actorUserId: response.actorUserId,
+          command: "REASON",
+          deliveryId: response.deliveryId,
+          inboundMessageId: input.inboundMessageId,
+          organizationId: response.organizationId,
+          outcome: "APPLIED",
+          projectId: response.projectId,
+          recommendationId: response.recommendationId
+        }
+      });
+      await tx.whatsAppOperationAudit.create({
+        data: {
+          actorPersonId: identity.personId,
+          actorUserId: response.actorUserId,
+          authorizationResult: "AUTHORIZED",
+          command: "REASON",
+          deliveryId: response.deliveryId,
+          eventType: "RECOMMENDATION_REJECTION_REASON_RECORDED",
+          organizationId: response.organizationId,
+          personIdentityId: identity.id,
+          projectId: response.projectId,
+          providerMessageId: input.inboundMessageId,
+          recommendationId: response.recommendationId
+        }
+      });
     });
     return { handled: true, replyText: "Reason recorded." };
   }
@@ -714,6 +910,7 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
         take: 2,
         where: {
           organizationId: input.organizationId,
+          destinationJid: input.chatJid,
           whatsappAccountId: input.accountId,
           OR: [
             { recipientIdentityId: identityId },
@@ -731,6 +928,7 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
       where: input.quotedMessageId
         ? {
             organizationId: input.organizationId,
+            destinationJid: input.chatJid,
             outboundMessageId: input.quotedMessageId,
             whatsappAccountId: input.accountId
           }
@@ -769,26 +967,26 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
         }
       }
     });
-    return membership && (membership.allProjects || membership.projectAccess.length > 0)
+    return membership &&
+      ["OWNER", "ADMIN"].includes(membership.role) &&
+      (membership.allProjects || membership.projectAccess.length > 0)
       ? { allowed: true, reason: null }
-      : { allowed: false, reason: "PROJECT_ACCESS_DENIED" };
+      : { allowed: false, reason: "PROJECT_APPROVAL_PERMISSION_DENIED" };
   }
 
   private async resolveRecipients(
     recommendation: Recommendation,
     setting: Prisma.WhatsAppRecommendationSettingGetPayload<{ include: { namedApprovers: true } }>
   ) {
-    const account = await this.prisma.whatsAppAccount.findFirst({
-      where: { organizationId: recommendation.organizationId, status: "CONNECTED" }
-    });
-    if (!account || setting.routingMode === "PLATFORM_ONLY") return [];
+    if (setting.routingMode === "PLATFORM_ONLY") return [];
     if (setting.routingMode === "PROJECT_GROUP") {
       const mapping = await this.prisma.whatsAppChatMapping.findFirst({
+        orderBy: [{ activatedAt: "desc" }, { updatedAt: "desc" }],
         where: {
           isGroup: true,
           projectId: recommendation.projectId,
           status: "ACTIVE",
-          whatsappAccountId: account.id
+          whatsappAccount: { status: "CONNECTED" }
         }
       });
       return mapping
@@ -798,7 +996,7 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
               recipientIdentityId: null,
               recipientKey: `group:${mapping.id}`,
               recipientPersonId: null,
-              whatsappAccountId: account.id,
+              whatsappAccountId: mapping.whatsappAccountId,
               whatsappChatMappingId: mapping.id
             }
           ]
@@ -818,11 +1016,22 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
               }
             }
           : {
-              identities: { some: { isConnectedAccountOwner: true, whatsappAccountId: account.id } }
+              identities: {
+                some: {
+                  isConnectedAccountOwner: true,
+                  whatsappAccount: { status: "CONNECTED" }
+                }
+              }
             };
     const people = await this.prisma.person.findMany({
       include: {
-        identities: { where: { verificationStatus: "CONFIRMED", whatsappAccountId: account.id } },
+        identities: {
+          orderBy: { lastSeenAt: "desc" },
+          where: {
+            verificationStatus: "CONFIRMED",
+            whatsappAccount: { status: "CONNECTED" }
+          }
+        },
         user: {
           include: {
             memberships: {
@@ -839,30 +1048,28 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
         userId: { not: null }
       }
     });
-    return people.flatMap((person) =>
-      person.identities.flatMap((identity) => {
-        const membership = person.user?.memberships[0];
-        const hasAccess =
-          membership &&
-          (membership.allProjects ||
-            membership.projectAccess.some(
-              (access) => access.projectId === recommendation.projectId
-            ));
-        const destinationJid = identity.jid ?? identity.lid;
-        return hasAccess && destinationJid
-          ? [
-              {
-                destinationJid,
-                recipientIdentityId: identity.id,
-                recipientKey: `identity:${identity.id}`,
-                recipientPersonId: person.id,
-                whatsappAccountId: account.id,
-                whatsappChatMappingId: null
-              }
-            ]
-          : [];
-      })
-    );
+    return people.flatMap((person) => {
+      const identity = person.identities[0];
+      if (!identity) return [];
+      const membership = person.user?.memberships[0];
+      const hasAccess =
+        membership &&
+        (membership.allProjects ||
+          membership.projectAccess.some((access) => access.projectId === recommendation.projectId));
+      const destinationJid = identity.jid ?? identity.lid;
+      return hasAccess && destinationJid
+        ? [
+            {
+              destinationJid,
+              recipientIdentityId: identity.id,
+              recipientKey: `identity:${identity.id}`,
+              recipientPersonId: person.id,
+              whatsappAccountId: identity.whatsappAccountId,
+              whatsappChatMappingId: null
+            }
+          ]
+        : [];
+    });
   }
 
   private async recordResponse(
@@ -879,26 +1086,93 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
       select: { personId: true },
       where: { id: identityId }
     });
-    await this.prisma.$transaction([
-      ...operations,
-      this.prisma.recommendationResponse.create({
-        data: {
-          actorIdentityId: identityId,
+    try {
+      await this.prisma.$transaction([
+        ...operations,
+        this.prisma.recommendationResponse.create({
+          data: {
+            actorIdentityId: identityId,
+            actorUserId: userId,
+            command: responseCommand(command),
+            deliveryId: delivery.id,
+            inboundMessageId,
+            organizationId: delivery.organizationId,
+            outcome,
+            projectId: delivery.projectId,
+            reasonCode,
+            recommendationId: delivery.recommendationId
+          }
+        }),
+        this.audit({
+          actorPersonId: actorIdentity?.personId ?? null,
           actorUserId: userId,
-          command: responseCommand(command),
+          authorizationResult: outcome === "DENIED" ? "DENIED" : "AUTHORIZED",
+          command: command.type,
           deliveryId: delivery.id,
-          inboundMessageId,
+          eventType: "RECOMMENDATION_RESPONSE_RECEIVED",
           organizationId: delivery.organizationId,
-          outcome,
+          personIdentityId: identityId,
           projectId: delivery.projectId,
+          providerMessageId: inboundMessageId,
           reasonCode,
           recommendationId: delivery.recommendationId
-        }
-      }),
-      this.audit({
-        actorPersonId: actorIdentity?.personId ?? null,
+        })
+      ]);
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return;
+      throw error;
+    }
+  }
+
+  private async completeAppliedResponse(
+    transaction: Prisma.TransactionClient,
+    delivery: DeliveryWithContext,
+    identityId: string,
+    inboundMessageId: string,
+    command: WhatsAppRecommendationCommand,
+    userId: string
+  ): Promise<void> {
+    const identity = await transaction.personIdentity.findUniqueOrThrow({
+      select: { personId: true },
+      where: { id: identityId }
+    });
+    await transaction.recommendationDelivery.update({
+      data: {
+        confirmationActorIdentityId: null,
+        confirmationExpiresAt: null,
+        deliveryStatus: "RESPONDED",
+        respondedAt: this.now()
+      },
+      where: { id: delivery.id }
+    });
+    await transaction.recommendationDelivery.updateMany({
+      data: { deliveryStatus: "SUPERSEDED" },
+      where: {
+        deliveryStatus: {
+          in: ["PENDING", "QUEUED", "SENT", "DELIVERED", "READ", "AWAITING_CONFIRMATION"]
+        },
+        id: { not: delivery.id },
+        recommendationId: delivery.recommendationId
+      }
+    });
+    await transaction.recommendationResponse.create({
+      data: {
+        actorIdentityId: identityId,
         actorUserId: userId,
-        authorizationResult: outcome === "DENIED" ? "DENIED" : "AUTHORIZED",
+        command: responseCommand(command),
+        deliveryId: delivery.id,
+        inboundMessageId,
+        organizationId: delivery.organizationId,
+        outcome: "APPLIED",
+        projectId: delivery.projectId,
+        recommendationId: delivery.recommendationId
+      }
+    });
+    await transaction.whatsAppOperationAudit.create({
+      data: {
+        actorPersonId: identity.personId,
+        actorUserId: userId,
+        authorizationResult: "AUTHORIZED",
         command: command.type,
         deliveryId: delivery.id,
         eventType: "RECOMMENDATION_RESPONSE_RECEIVED",
@@ -906,33 +1180,9 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
         personIdentityId: identityId,
         projectId: delivery.projectId,
         providerMessageId: inboundMessageId,
-        reasonCode,
         recommendationId: delivery.recommendationId
-      })
-    ]);
-  }
-
-  private async finishDeliveries(
-    recommendationId: string,
-    activeDeliveryId: string,
-    activeStatus: "RESPONDED"
-  ) {
-    await this.prisma.$transaction([
-      this.prisma.recommendationDelivery.update({
-        data: { deliveryStatus: activeStatus, respondedAt: this.now() },
-        where: { id: activeDeliveryId }
-      }),
-      this.prisma.recommendationDelivery.updateMany({
-        data: { deliveryStatus: "SUPERSEDED" },
-        where: {
-          id: { not: activeDeliveryId },
-          recommendationId,
-          deliveryStatus: {
-            in: ["PENDING", "QUEUED", "SENT", "DELIVERED", "READ", "AWAITING_CONFIRMATION"]
-          }
-        }
-      })
-    ]);
+      }
+    });
   }
 
   private async expireDelivery(delivery: RecommendationDelivery) {
@@ -974,4 +1224,50 @@ function formatDate(date: Date, timezone: string): string {
     timeStyle: "short",
     timeZone: timezone
   }).format(date);
+}
+
+function localDateKey(date: Date, timezone: string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: timezone,
+    year: "numeric"
+  }).format(date);
+}
+
+function startOfLocalDay(now: Date, timezone: string): Date {
+  const key = localDateKey(now, timezone);
+  let upper = now.getTime();
+  let lower = upper - 60 * 60 * 1000;
+  while (localDateKey(new Date(lower), timezone) === key) lower -= 60 * 60 * 1000;
+  while (upper - lower > 1_000) {
+    const middle = Math.floor((upper + lower) / 2);
+    if (localDateKey(new Date(middle), timezone) === key) upper = middle;
+    else lower = middle;
+  }
+  return new Date(upper);
+}
+
+function millisecondsUntilNextLocalDay(now: Date, timezone: string): number {
+  const key = localDateKey(now, timezone);
+  let lower = now.getTime();
+  let upper = lower + 60 * 60 * 1000;
+  while (localDateKey(new Date(upper), timezone) === key) upper += 60 * 60 * 1000;
+  while (upper - lower > 1_000) {
+    const middle = Math.floor((upper + lower) / 2);
+    if (localDateKey(new Date(middle), timezone) === key) lower = middle;
+    else upper = middle;
+  }
+  return Math.max(upper - now.getTime() + 60_000, 60_000);
+}
+
+function millisecondsUntilQuietHoursEnd(
+  setting: Pick<WhatsAppRecommendationSetting, "quietHoursEnd" | "quietHoursStart" | "timezone">,
+  now: Date
+): number {
+  for (let minutes = 5; minutes <= 26 * 60; minutes += 5) {
+    const candidate = new Date(now.getTime() + minutes * 60_000);
+    if (!isWithinQuietHours(setting, candidate)) return minutes * 60_000 + 60_000;
+  }
+  return 26 * 60 * 60 * 1000;
 }

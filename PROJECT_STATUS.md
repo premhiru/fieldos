@@ -23,6 +23,14 @@ WhatsApp-native operations dark launch and controlled demo validation.
 
 ## Completed Tasks
 
+- WhatsApp-native operations hardening review.
+  - Made recommendation approval, rejection, side effects, responses, and audit records concurrency-safe and transactional; high-impact confirmation is bound to the initiating identity.
+  - Added atomic outbound send claims, unknown-result handling, failed-only manual retry, shared reply throttling, and policy deferrals that do not exhaust job attempts.
+  - Prevented partial group snapshots from removing participants, stabilized JID/LID identity enrichment, and backfilled platform people, project participation, and unambiguous connected-account ownership.
+  - Made invitation creation and activation atomic, limited each person/project to one active invitation, enforced known-email matching, and removed bearer tokens from request URLs.
+  - Tightened owner/admin and QR/audit authorization, added API and authentication rate limits, reduced production request-log noise, and removed raw provider identifiers from dashboard API responses.
+  - Added focused regression coverage for queue claims, sender-bound confirmation, authoritative participant removal, identity linking, group-safe routing, invitation identity, and concurrent token claims.
+
 - WhatsApp-native recommendations and project participant discovery.
   - Added private recommendation routing, deterministic quoted replies, high-impact confirmation, idempotent delivery/response records, bounded retries, rate controls, and immutable security auditing.
   - Added organization-scoped people, account-scoped WhatsApp identities, project participants, identity review, participant synchronization, and secure WhatsApp invitation activation without automatic access grants.
@@ -394,6 +402,7 @@ WhatsApp-native operations dark launch and controlled demo validation.
 
 ## In-Progress Tasks
 
+- Apply and verify migration `20260724120000_whatsapp_native_hardening` in a disposable PostgreSQL replay, then deploy the reviewed branch with all WhatsApp-native rollout flags still disabled.
 - Real connected test-number validation for recommendation delivery, unauthorized replies, group membership changes, and WhatsApp invitation activation.
 
 - Monitor customer-visible v2 decisions, recommendation acceptance, suppression reasons, and extraction quality with pilot traffic.
@@ -436,6 +445,8 @@ WhatsApp-native operations dark launch and controlled demo validation.
 - AI Decision Layer v2 is customer-visible in production. Its recommendation gates passed the labelled evaluation, but 88.37% primary-category accuracy and weaker secondary-signal extraction still require pilot monitoring; `legacy` remains the immediate rollback mode.
 - Operations job metrics retain historical failures indefinitely, so the all-time failed count can look unhealthy after recovery. Recent failures, queue depth, coordinator runs, and worker heartbeat are the authoritative current-health signals until the API exposes separate time windows.
 - The stale `Demo airport operations line` WhatsApp account remains in `PENDING_QR` and produces recurring pairing timeout logs. Removing or resetting it requires an explicit administrator decision because it is production account data.
+- Low-priority WhatsApp recommendations remain platform-only until a true digest/batch format is designed; they are not sent as misleading one-item batches.
+- Participant removal is intentionally conservative: incomplete provider metadata can leave a stale participant active until a later complete snapshot confirms removal.
 
 ## Upcoming Milestones
 
@@ -487,6 +498,12 @@ WhatsApp-native operations dark launch and controlled demo validation.
 - AI Decision Layer v2 promotion decision: enable `v2` after the provider-backed recommendation gates passed, retain `legacy` for immediate rollback, and treat category and secondary-signal quality as monitored limitations rather than recommendation blockers.
 
 ## Deployment Status
+
+- WhatsApp-native hardening is implemented on `agent/whatsapp-native-operations` but is not deployed yet.
+  - Prisma schema validation plus repository-wide formatting, lint, typecheck, tests, and production build pass.
+  - A disposable PostgreSQL migration replay remains pending because the local Docker Linux engine was unavailable during final validation.
+  - Migration `20260724120000_whatsapp_native_hardening` remains pending production application.
+  - Existing WhatsApp-native feature flags remain disabled; no new outbound behavior has been enabled.
 
 - WhatsApp-native operations were dark-deployed from draft pull request 2 on 2026-07-24.
   - Production migration `20260724090000_whatsapp_native_operations` applied successfully after a fresh all-migration replay and no-drift check.

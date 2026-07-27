@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import {
+  Prisma,
   prisma,
   queueWhatsAppGroupParticipantSyncJob,
   queueWhatsAppInvitationDeliveryJob,
@@ -10,6 +11,7 @@ import {
   type PersonType,
   type PrismaClient,
   type RecommendationType,
+  type WhatsAppInvitation,
   type WhatsAppRecommendationRoutingMode
 } from "@fieldos/db";
 
@@ -190,7 +192,15 @@ export function createPrismaWhatsAppNativeService(
 
     async listDeliveries(recommendationId, organizationId) {
       return client.recommendationDelivery.findMany({
-        include: { recipientPerson: { select: { displayName: true, id: true } }, responses: true },
+        select: {
+          attemptCount: true,
+          deliveredAt: true,
+          deliveryStatus: true,
+          failureReason: true,
+          id: true,
+          recipientPerson: { select: { displayName: true, id: true } },
+          respondedAt: true
+        },
         orderBy: { createdAt: "desc" },
         where: { organizationId, recommendationId }
       });
@@ -201,23 +211,36 @@ export function createPrismaWhatsAppNativeService(
         where: { id: deliveryId, organizationId }
       });
       if (!delivery) throw new WhatsAppNativeServiceError("NOT_FOUND", "Delivery not found.");
-      await client.recommendationDelivery.update({
-        data: { deliveryStatus: "QUEUED", failureReason: null },
-        where: { id: delivery.id }
-      });
-      await queueWhatsAppRecommendationDeliveryJob(client, {
-        organizationId,
-        projectId: delivery.projectId,
-        sourceId: delivery.recommendationId
-      });
-      await client.whatsAppOperationAudit.create({
-        data: {
-          deliveryId: delivery.id,
-          eventType: "RECOMMENDATION_DELIVERY_RETRY_QUEUED",
+      await client.$transaction(async (tx) => {
+        const reset = await tx.recommendationDelivery.updateMany({
+          data: {
+            deliveryStatus: "QUEUED",
+            failureReason: null,
+            sendClaimedAt: null,
+            sendClaimToken: null
+          },
+          where: { deliveryStatus: "FAILED", id: delivery.id, organizationId }
+        });
+        if (reset.count === 0) {
+          throw new WhatsAppNativeServiceError(
+            "INVALID_STATE",
+            "Only failed deliveries can be retried."
+          );
+        }
+        await queueWhatsAppRecommendationDeliveryJob(tx, {
           organizationId,
           projectId: delivery.projectId,
-          recommendationId: delivery.recommendationId
-        }
+          sourceId: delivery.recommendationId
+        });
+        await tx.whatsAppOperationAudit.create({
+          data: {
+            deliveryId: delivery.id,
+            eventType: "RECOMMENDATION_DELIVERY_RETRY_QUEUED",
+            organizationId,
+            projectId: delivery.projectId,
+            recommendationId: delivery.recommendationId
+          }
+        });
       });
     },
 
@@ -226,24 +249,29 @@ export function createPrismaWhatsAppNativeService(
         where: { id: deliveryId, organizationId }
       });
       if (!delivery) throw new WhatsAppNativeServiceError("NOT_FOUND", "Delivery not found.");
-      const result = await client.recommendationDelivery.updateMany({
-        data: { deliveryStatus: "CANCELLED" },
-        where: {
-          deliveryStatus: { in: ["PENDING", "QUEUED", "FAILED", "SENT", "AWAITING_CONFIRMATION"] },
-          id: deliveryId,
-          organizationId
+      await client.$transaction(async (tx) => {
+        const result = await tx.recommendationDelivery.updateMany({
+          data: { deliveryStatus: "CANCELLED" },
+          where: {
+            deliveryStatus: {
+              in: ["PENDING", "QUEUED", "FAILED", "SENT", "AWAITING_CONFIRMATION"]
+            },
+            id: deliveryId,
+            organizationId
+          }
+        });
+        if (result.count === 0) {
+          throw new WhatsAppNativeServiceError("INVALID_STATE", "Delivery cannot be cancelled.");
         }
-      });
-      if (result.count === 0)
-        throw new WhatsAppNativeServiceError("INVALID_STATE", "Delivery cannot be cancelled.");
-      await client.whatsAppOperationAudit.create({
-        data: {
-          deliveryId: delivery.id,
-          eventType: "RECOMMENDATION_DELIVERY_CANCELLED",
-          organizationId,
-          projectId: delivery.projectId,
-          recommendationId: delivery.recommendationId
-        }
+        await tx.whatsAppOperationAudit.create({
+          data: {
+            deliveryId: delivery.id,
+            eventType: "RECOMMENDATION_DELIVERY_CANCELLED",
+            organizationId,
+            projectId: delivery.projectId,
+            recommendationId: delivery.recommendationId
+          }
+        });
       });
     },
 
@@ -293,7 +321,7 @@ export function createPrismaWhatsAppNativeService(
     async listPeople(input) {
       await requireProject(client, input.projectId, input.organizationId);
       const filter = input.filter;
-      return client.projectParticipant.findMany({
+      const participants = await client.projectParticipant.findMany({
         include: {
           person: {
             include: {
@@ -331,7 +359,7 @@ export function createPrismaWhatsAppNativeService(
                   whatsAppInvitations: {
                     some: {
                       projectId: input.projectId,
-                      status: { in: ["PENDING", "QUEUED", "SENT", "JOINED"] }
+                      status: { in: ["PENDING", "QUEUED", "SENDING", "SENT", "JOINED"] }
                     }
                   }
                 }
@@ -343,6 +371,41 @@ export function createPrismaWhatsAppNativeService(
             : {})
         }
       });
+      return participants.map((participant) => ({
+        id: participant.id,
+        lastSeenAt: participant.lastSeenAt,
+        participantStatus: participant.participantStatus,
+        person: {
+          company: participant.person.company,
+          displayName: participant.person.displayName,
+          id: participant.person.id,
+          identities: participant.person.identities.map((identity) => ({
+            groupParticipants: identity.groupParticipants.map((groupParticipant) => ({
+              isGroupAdmin: groupParticipant.isGroupAdmin,
+              participantStatus: groupParticipant.participantStatus
+            })),
+            id: identity.id,
+            lastSeenAt: identity.lastSeenAt,
+            verificationStatus: identity.verificationStatus
+          })),
+          identityReviews: participant.person.identityReviews.map((review) => ({
+            id: review.id,
+            reason: review.reason,
+            status: review.status
+          })),
+          roleTitle: participant.person.roleTitle,
+          status: participant.person.status,
+          type: participant.person.type,
+          userId: participant.person.userId,
+          whatsAppInvitations: participant.person.whatsAppInvitations.map((invitation) => ({
+            expiresAt: invitation.expiresAt,
+            failureReason: invitation.failureReason,
+            id: invitation.id,
+            status: invitation.status
+          }))
+        },
+        role: participant.role
+      }));
     },
 
     async mergeIdentity(input) {
@@ -355,15 +418,28 @@ export function createPrismaWhatsAppNativeService(
       });
       if (!review || !target)
         throw new WhatsAppNativeServiceError("NOT_FOUND", "Identity review not found.");
+      if (review.personIdentity.personId === target.id) {
+        throw new WhatsAppNativeServiceError("CONFLICT", "A person cannot be merged into itself.");
+      }
+      if (target.status !== "ACTIVE" || target.mergedIntoPersonId) {
+        throw new WhatsAppNativeServiceError("INVALID_STATE", "Select an active person as target.");
+      }
       const sourceParticipants = await client.projectParticipant.findMany({
         where: { personId: review.personIdentity.personId }
       });
       await client.$transaction(async (tx) => {
+        await tx.personIdentity.updateMany({
+          data: { personId: target.id },
+          where: { personId: review.personIdentity.personId }
+        });
         await tx.personIdentity.update({
-          data: { personId: target.id, verificationStatus: "CONFIRMED" },
+          data: { verificationStatus: "CONFIRMED" },
           where: { id: review.personIdentityId }
         });
         for (const participant of sourceParticipants) {
+          const targetParticipant = await tx.projectParticipant.findUnique({
+            where: { projectId_personId: { personId: target.id, projectId: participant.projectId } }
+          });
           await tx.projectParticipant.upsert({
             create: {
               firstSeenAt: participant.firstSeenAt,
@@ -377,10 +453,21 @@ export function createPrismaWhatsAppNativeService(
               source: participant.source
             },
             update: {
-              lastSeenAt: participant.lastSeenAt,
-              participantStatus: participant.participantStatus,
-              removedAt: participant.removedAt,
-              role: participant.role
+              lastSeenAt:
+                targetParticipant && targetParticipant.lastSeenAt > participant.lastSeenAt
+                  ? targetParticipant.lastSeenAt
+                  : participant.lastSeenAt,
+              participantStatus:
+                targetParticipant?.participantStatus === "ACTIVE" ||
+                participant.participantStatus === "ACTIVE"
+                  ? "ACTIVE"
+                  : "INACTIVE",
+              removedAt:
+                targetParticipant?.participantStatus === "ACTIVE" ||
+                participant.participantStatus === "ACTIVE"
+                  ? null
+                  : participant.removedAt,
+              role: targetParticipant?.role ?? participant.role
             },
             where: { projectId_personId: { personId: target.id, projectId: participant.projectId } }
           });
@@ -470,14 +557,23 @@ export function createPrismaWhatsAppNativeService(
 
     async createInvitation(input) {
       await requireProject(client, input.projectId, input.organizationId);
-      const existingInvitation = await client.whatsAppInvitation.findFirst({
-        orderBy: { createdAt: "desc" },
+      await client.whatsAppInvitation.updateMany({
+        data: { status: "EXPIRED" },
         where: {
-          expiresAt: { gt: new Date() },
+          expiresAt: { lte: new Date() },
           organizationId: input.organizationId,
           personId: input.personId,
           projectId: input.projectId,
-          status: { in: ["PENDING", "QUEUED", "SENT", "JOINED"] }
+          status: { in: ["PENDING", "QUEUED", "SENDING", "SENT", "JOINED"] }
+        }
+      });
+      const existingInvitation = await client.whatsAppInvitation.findFirst({
+        orderBy: { createdAt: "desc" },
+        where: {
+          organizationId: input.organizationId,
+          personId: input.personId,
+          projectId: input.projectId,
+          status: { in: ["PENDING", "QUEUED", "SENDING", "SENT", "JOINED"] }
         }
       });
       if (existingInvitation) {
@@ -504,34 +600,55 @@ export function createPrismaWhatsAppNativeService(
         }));
       if (!identity)
         throw new WhatsAppNativeServiceError("NOT_FOUND", "WhatsApp identity not found.");
-      const invitation = await client.whatsAppInvitation.create({
-        data: {
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-          invitedByUserId: input.invitedByUserId,
-          organizationId: input.organizationId,
-          personId: input.personId,
-          personIdentityId: identity.id,
-          projectId: input.projectId,
-          role: input.role,
-          status: "QUEUED",
-          whatsappAccountId: identity.whatsappAccountId
+      let invitation: WhatsAppInvitation;
+      try {
+        invitation = await client.$transaction(async (tx) => {
+          const createdInvitation = await tx.whatsAppInvitation.create({
+            data: {
+              expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+              invitedByUserId: input.invitedByUserId,
+              organizationId: input.organizationId,
+              personId: input.personId,
+              personIdentityId: identity.id,
+              projectId: input.projectId,
+              role: input.role,
+              status: "QUEUED",
+              whatsappAccountId: identity.whatsappAccountId
+            }
+          });
+          await queueWhatsAppInvitationDeliveryJob(tx, {
+            organizationId: input.organizationId,
+            projectId: input.projectId,
+            sourceId: createdInvitation.id
+          });
+          await tx.whatsAppOperationAudit.create({
+            data: {
+              actorPersonId: input.personId,
+              actorUserId: input.invitedByUserId,
+              eventType: "INVITATION_QUEUED",
+              organizationId: input.organizationId,
+              personIdentityId: identity.id,
+              projectId: input.projectId
+            }
+          });
+          return createdInvitation;
+        });
+      } catch (error) {
+        if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
+          throw error;
         }
-      });
-      await queueWhatsAppInvitationDeliveryJob(client, {
-        organizationId: input.organizationId,
-        projectId: input.projectId,
-        sourceId: invitation.id
-      });
-      await client.whatsAppOperationAudit.create({
-        data: {
-          actorPersonId: input.personId,
-          actorUserId: input.invitedByUserId,
-          eventType: "INVITATION_QUEUED",
-          organizationId: input.organizationId,
-          personIdentityId: identity.id,
-          projectId: input.projectId
-        }
-      });
+        const concurrentInvitation = await client.whatsAppInvitation.findFirst({
+          orderBy: { createdAt: "desc" },
+          where: {
+            organizationId: input.organizationId,
+            personId: input.personId,
+            projectId: input.projectId,
+            status: { in: ["PENDING", "QUEUED", "SENDING", "SENT", "JOINED"] }
+          }
+        });
+        if (!concurrentInvitation) throw error;
+        return { id: concurrentInvitation.id, status: concurrentInvitation.status };
+      }
       return { id: invitation.id, status: invitation.status };
     },
 
@@ -552,21 +669,50 @@ export function createPrismaWhatsAppNativeService(
     },
 
     async acceptInvitation(input) {
-      const invitation = await client.whatsAppInvitation.findUnique({
-        include: { person: true },
-        where: { activationTokenHash: hashToken(input.token) }
-      });
-      if (!invitation || invitation.status !== "JOINED" || invitation.expiresAt <= new Date())
-        throw new WhatsAppNativeServiceError("EXPIRED", "Invitation is invalid or expired.");
-      const existingPerson = await client.person.findFirst({
-        where: { organizationId: invitation.organizationId, userId: input.userId }
-      });
-      if (existingPerson && existingPerson.id !== invitation.personId)
-        throw new WhatsAppNativeServiceError(
-          "CONFLICT",
-          "This account is already linked to another person."
-        );
-      await client.$transaction(async (tx) => {
+      const tokenHash = hashToken(input.token);
+      return client.$transaction(async (tx) => {
+        const invitation = await tx.whatsAppInvitation.findUnique({
+          include: { person: true },
+          where: { activationTokenHash: tokenHash }
+        });
+        if (!invitation || invitation.status !== "JOINED" || invitation.expiresAt <= new Date()) {
+          throw new WhatsAppNativeServiceError("EXPIRED", "Invitation is invalid or expired.");
+        }
+        const user = await tx.user.findUnique({
+          select: { email: true },
+          where: { id: input.userId }
+        });
+        if (!user) throw new WhatsAppNativeServiceError("NOT_FOUND", "User not found.");
+        if (
+          invitation.person.email &&
+          invitation.person.email.toLowerCase() !== user.email.toLowerCase()
+        ) {
+          throw new WhatsAppNativeServiceError(
+            "CONFLICT",
+            "Sign in with the email address associated with this invitation."
+          );
+        }
+        const existingPerson = await tx.person.findFirst({
+          where: { organizationId: invitation.organizationId, userId: input.userId }
+        });
+        if (existingPerson && existingPerson.id !== invitation.personId) {
+          throw new WhatsAppNativeServiceError(
+            "CONFLICT",
+            "This account is already linked to another person."
+          );
+        }
+        const claim = await tx.whatsAppInvitation.updateMany({
+          data: { acceptedAt: new Date(), activationTokenHash: null, status: "ACTIVATED" },
+          where: {
+            activationTokenHash: tokenHash,
+            expiresAt: { gt: new Date() },
+            id: invitation.id,
+            status: "JOINED"
+          }
+        });
+        if (claim.count !== 1) {
+          throw new WhatsAppNativeServiceError("EXPIRED", "Invitation is invalid or expired.");
+        }
         const membership = await tx.membership.upsert({
           create: {
             allProjects: false,
@@ -589,17 +735,19 @@ export function createPrismaWhatsAppNativeService(
             membershipId_projectId: { membershipId: membership.id, projectId: invitation.projectId }
           }
         });
-        await tx.person.update({
-          data: { userId: input.userId },
-          where: { id: invitation.personId }
+        const linkedPerson = await tx.person.updateMany({
+          data: { email: invitation.person.email ?? user.email, userId: input.userId },
+          where: { id: invitation.personId, userId: null }
         });
+        if (linkedPerson.count === 0 && invitation.person.userId !== input.userId) {
+          throw new WhatsAppNativeServiceError(
+            "CONFLICT",
+            "This WhatsApp identity is already linked to another account."
+          );
+        }
         await tx.personIdentity.update({
           data: { verificationStatus: "CONFIRMED" },
           where: { id: invitation.personIdentityId }
-        });
-        await tx.whatsAppInvitation.update({
-          data: { acceptedAt: new Date(), activationTokenHash: null, status: "ACTIVATED" },
-          where: { id: invitation.id }
         });
         await tx.whatsAppOperationAudit.create({
           data: {
@@ -621,8 +769,8 @@ export function createPrismaWhatsAppNativeService(
             projectId: invitation.projectId
           }
         });
+        return { organizationId: invitation.organizationId, projectId: invitation.projectId };
       });
-      return { organizationId: invitation.organizationId, projectId: invitation.projectId };
     },
 
     async listAudits(recommendationId, organizationId) {
