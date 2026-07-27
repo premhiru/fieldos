@@ -1008,7 +1008,12 @@ export interface ProjectPerson {
       groupParticipants: Array<{ isGroupAdmin: boolean; participantStatus: "ACTIVE" | "INACTIVE" }>;
     }>;
     identityReviews: Array<{ id: string; reason: string; status: string }>;
-    whatsAppInvitations: Array<{ id: string; status: string; expiresAt: string }>;
+    whatsAppInvitations: Array<{
+      expiresAt: string;
+      failureReason: string | null;
+      id: string;
+      status: string;
+    }>;
   };
 }
 
@@ -1667,7 +1672,10 @@ export const api = {
         projectName: string;
         status: string;
       };
-    }>(`/whatsapp-invitations/activate?token=${encodeURIComponent(token)}`),
+    }>("/whatsapp-invitations/preview", {
+      body: JSON.stringify({ token }),
+      method: "POST"
+    }),
   acceptWhatsAppInvitation: (token: string) =>
     apiRequest<{ activation: { organizationId: string; projectId: string } }>(
       "/whatsapp-invitations/activate",

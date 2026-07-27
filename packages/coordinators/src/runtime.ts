@@ -797,6 +797,7 @@ export class ProjectCoordinatorRuntime {
 
   async approveMilestoneRecommendation(input: {
     edits?: MilestoneRecommendationEdit;
+    onApplied?: (transaction: Prisma.TransactionClient) => Promise<void>;
     recommendationId: string;
     userId: string;
   }): Promise<MilestoneApprovalResult> {
@@ -819,7 +820,7 @@ export class ProjectCoordinatorRuntime {
         }
       });
       if (!milestone) throw new Error("Milestone recommendation has already been processed.");
-      return { milestone, recommendation };
+      return { applied: false as const, milestone, recommendation };
     }
 
     const payload = milestonePayload(recommendation.proposedActionPayload);
@@ -848,6 +849,33 @@ export class ProjectCoordinatorRuntime {
     };
 
     const result = await this.prisma.$transaction(async (tx) => {
+      const claim = await tx.recommendation.updateMany({
+        data: {
+          approvedAt: this.now(),
+          approvedByUserId: input.userId,
+          status: "APPROVED"
+        },
+        where: { id: recommendation.id, status: "PENDING" }
+      });
+      if (claim.count === 0) {
+        const processedRecommendation = await tx.recommendation.findUniqueOrThrow({
+          where: { id: recommendation.id }
+        });
+        const processedPayload = milestonePayload(processedRecommendation.proposedActionPayload);
+        const milestone = await tx.milestone.findFirst({
+          where: {
+            OR: [
+              { sourceRecommendationId: recommendation.id },
+              ...(processedPayload.targetMilestoneId
+                ? [{ id: processedPayload.targetMilestoneId }]
+                : [])
+            ]
+          }
+        });
+        if (!milestone) throw new Error("Milestone recommendation is already being processed.");
+        return { applied: false as const, milestone, recommendation: processedRecommendation };
+      }
+
       const milestone =
         recommendation.proposedActionType === "CREATE_MILESTONE"
           ? await tx.milestone.create({
@@ -882,7 +910,7 @@ export class ProjectCoordinatorRuntime {
           },
           status: "COMPLETED"
         },
-        where: { id: recommendation.id }
+        where: { id: recommendation.id, status: "APPROVED" }
       });
       const event = await tx.event.create({
         data: {
@@ -902,6 +930,7 @@ export class ProjectCoordinatorRuntime {
         sourceId: event.id,
         sourceType: "TIMELINE_EVENT"
       });
+      await input.onApplied?.(tx);
       return { milestone, recommendation: completedRecommendation };
     });
     await this.rebuildProjectState(recommendation.projectId);
@@ -952,6 +981,7 @@ export class ProjectCoordinatorRuntime {
   }
 
   async approveRecommendation(input: {
+    onApplied?: (transaction: Prisma.TransactionClient) => Promise<void>;
     recommendationId: string;
     userId: string;
   }): Promise<RecommendationApprovalResult> {
@@ -967,6 +997,7 @@ export class ProjectCoordinatorRuntime {
 
     if (recommendation.status !== "PENDING") {
       return {
+        applied: false,
         recommendation
       };
     }
@@ -976,48 +1007,69 @@ export class ProjectCoordinatorRuntime {
         case "CREATE_MILESTONE":
         case "UPDATE_MILESTONE":
         case "COMPLETE_MILESTONE":
-        case "START_MILESTONE": {
+        case "START_MILESTONE":
           return this.approveMilestoneRecommendation(input);
-        }
-        case "SEND_WHATSAPP_MESSAGE_DRAFT":
-        case "REQUEST_PROGRESS_UPDATE": {
-          const draft = await this.createDraftForRecommendation(recommendation, input.userId);
-          const updated = await this.markRecommendationApproved(recommendation.id, input.userId);
-          return { draft, recommendation: updated };
-        }
-        case "CREATE_ACTION_ITEM":
-        case "SCHEDULE_INSPECTION_REMINDER": {
-          const actionItemId = await this.createActionItemForRecommendation(
-            recommendation,
-            input.userId
-          );
-          const updated = await this.markRecommendationApproved(recommendation.id, input.userId);
-          return { actionItemId, recommendation: updated };
-        }
-        case "GENERATE_REPORT": {
-          const report = await this.queueReportForRecommendation(recommendation);
-          const updated = await this.markRecommendationApproved(recommendation.id, input.userId);
-          return { recommendation: updated, reportId: report.id };
-        }
-        case "MARK_PROGRESS_REVIEWED": {
-          const updated = await this.prisma.recommendation.update({
-            data: {
-              approvedAt: this.now(),
-              approvedByUserId: input.userId,
-              completedAt: this.now(),
-              status: "COMPLETED"
-            },
-            where: {
-              id: recommendation.id
-            }
-          });
-          return { recommendation: updated };
-        }
-        case "REVIEW_EVIDENCE": {
-          const updated = await this.markRecommendationApproved(recommendation.id, input.userId);
-          return { recommendation: updated };
-        }
       }
+
+      return this.prisma.$transaction(async (tx) => {
+        const current = await tx.recommendation.findUnique({
+          where: { id: recommendation.id }
+        });
+        if (!current) throw new Error("Recommendation not found.");
+        if (current.status !== "PENDING") {
+          return { applied: false as const, recommendation: current };
+        }
+
+        switch (current.proposedActionType) {
+          case "SEND_WHATSAPP_MESSAGE_DRAFT":
+          case "REQUEST_PROGRESS_UPDATE": {
+            const draft = await this.createDraftForRecommendation(tx, current, input.userId);
+            const updated = await this.markRecommendationApproved(tx, current.id, input.userId);
+            await input.onApplied?.(tx);
+            return { draft, recommendation: updated };
+          }
+          case "CREATE_ACTION_ITEM":
+          case "SCHEDULE_INSPECTION_REMINDER": {
+            const actionItemId = await this.createActionItemForRecommendation(
+              tx,
+              current,
+              input.userId
+            );
+            const updated = await this.markRecommendationApproved(tx, current.id, input.userId);
+            await input.onApplied?.(tx);
+            return { actionItemId, recommendation: updated };
+          }
+          case "GENERATE_REPORT": {
+            const report = await this.queueReportForRecommendation(tx, current);
+            const updated = await this.markRecommendationApproved(tx, current.id, input.userId);
+            await input.onApplied?.(tx);
+            return { recommendation: updated, reportId: report.id };
+          }
+          case "MARK_PROGRESS_REVIEWED": {
+            const updated = await tx.recommendation.update({
+              data: {
+                approvedAt: this.now(),
+                approvedByUserId: input.userId,
+                completedAt: this.now(),
+                status: "COMPLETED"
+              },
+              where: {
+                id: current.id,
+                status: "PENDING"
+              }
+            });
+            await input.onApplied?.(tx);
+            return { recommendation: updated };
+          }
+          case "REVIEW_EVIDENCE": {
+            const updated = await this.markRecommendationApproved(tx, current.id, input.userId);
+            await input.onApplied?.(tx);
+            return { recommendation: updated };
+          }
+          default:
+            throw new Error(`Unsupported recommendation action: ${current.proposedActionType}`);
+        }
+      });
     })();
 
     await queueProjectCoordinatorJobs(this.prisma, {
@@ -1034,16 +1086,24 @@ export class ProjectCoordinatorRuntime {
     recommendationId: string;
     userId: string;
   }): Promise<Recommendation> {
-    return this.prisma.recommendation.update({
-      data: {
-        dismissedAt: this.now(),
-        dismissedByUserId: input.userId,
-        dismissReason: input.dismissReason ?? null,
-        status: "DISMISSED"
-      },
-      where: {
-        id: input.recommendationId
-      }
+    return this.prisma.$transaction(async (tx) => {
+      await tx.recommendation.updateMany({
+        data: {
+          dismissedAt: this.now(),
+          dismissedByUserId: input.userId,
+          dismissReason: input.dismissReason ?? null,
+          status: "DISMISSED"
+        },
+        where: {
+          id: input.recommendationId,
+          status: "PENDING"
+        }
+      });
+      const recommendation = await tx.recommendation.findUnique({
+        where: { id: input.recommendationId }
+      });
+      if (!recommendation) throw new Error("Recommendation not found.");
+      return recommendation;
     });
   }
 
@@ -1956,33 +2016,36 @@ export class ProjectCoordinatorRuntime {
   }
 
   private async markRecommendationApproved(
+    client: Prisma.TransactionClient,
     recommendationId: string,
     userId: string
   ): Promise<Recommendation> {
-    return this.prisma.recommendation.update({
+    return client.recommendation.update({
       data: {
         approvedAt: this.now(),
         approvedByUserId: userId,
         status: "APPROVED"
       },
       where: {
-        id: recommendationId
+        id: recommendationId,
+        status: "PENDING"
       }
     });
   }
 
   private async createDraftForRecommendation(
+    client: Prisma.TransactionClient,
     recommendation: Recommendation,
     userId: string
   ): Promise<WhatsAppDraft> {
     const payload = getPayloadObject(recommendation.proposedActionPayload);
     const conversationId = getStringPayload(payload, "conversationId");
     const selectedConversation = conversationId
-      ? await this.prisma.conversation.findUnique({ where: { id: conversationId } })
+      ? await client.conversation.findUnique({ where: { id: conversationId } })
       : null;
     const fallbackConversation =
       selectedConversation ??
-      (await this.prisma.conversation.findFirst({
+      (await client.conversation.findFirst({
         orderBy: {
           lastMessageAt: "desc"
         },
@@ -1998,7 +2061,7 @@ export class ProjectCoordinatorRuntime {
       getStringPayload(payload, "whatsappAccountId") ??
       (fallbackConversation
         ? ((
-            await this.prisma.whatsAppChatMapping.findUnique({
+            await client.whatsAppChatMapping.findUnique({
               where: {
                 conversationId: fallbackConversation.id
               }
@@ -2006,7 +2069,7 @@ export class ProjectCoordinatorRuntime {
           )?.whatsappAccountId ?? null)
         : null);
 
-    return this.prisma.whatsAppDraft.create({
+    return client.whatsAppDraft.create({
       data: {
         approvedByUserId: userId,
         conversationId: fallbackConversation?.id ?? null,
@@ -2023,10 +2086,11 @@ export class ProjectCoordinatorRuntime {
   }
 
   private async createActionItemForRecommendation(
+    client: Prisma.TransactionClient,
     recommendation: Recommendation,
     userId: string
   ): Promise<string> {
-    const message = await this.prisma.message.findFirst({
+    const message = await client.message.findFirst({
       orderBy: {
         occurredAt: "desc"
       },
@@ -2041,7 +2105,7 @@ export class ProjectCoordinatorRuntime {
       throw new Error("Cannot create Action Item without a source message.");
     }
 
-    const actionItem = await this.prisma.actionItem.create({
+    const actionItem = await client.actionItem.create({
       data: {
         acceptedAt: this.now(),
         acceptedByUserId: userId,
@@ -2061,24 +2125,25 @@ export class ProjectCoordinatorRuntime {
     return actionItem.id;
   }
 
-  private async queueReportForRecommendation(recommendation: Recommendation) {
-    return this.prisma.$transaction(async (tx) => {
-      const report = await tx.projectReport.create({
-        data: {
-          organizationId: recommendation.organizationId,
-          projectId: recommendation.projectId,
-          status: "PENDING",
-          title: recommendation.title,
-          type: "WEEKLY_PROGRESS"
-        }
-      });
-      await queueReportGenerationJob(tx, {
+  private async queueReportForRecommendation(
+    client: Prisma.TransactionClient,
+    recommendation: Recommendation
+  ) {
+    const report = await client.projectReport.create({
+      data: {
         organizationId: recommendation.organizationId,
         projectId: recommendation.projectId,
-        sourceId: report.id
-      });
-      return report;
+        status: "PENDING",
+        title: recommendation.title,
+        type: "WEEKLY_PROGRESS"
+      }
     });
+    await queueReportGenerationJob(client, {
+      organizationId: recommendation.organizationId,
+      projectId: recommendation.projectId,
+      sourceId: report.id
+    });
+    return report;
   }
 
   private async requireProject(projectId: string): Promise<Project> {

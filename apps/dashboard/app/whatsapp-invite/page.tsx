@@ -73,8 +73,8 @@ export default function WhatsAppInvitationPage() {
                       onChange={(event) => setAcceptedTerms(event.target.checked)}
                       type="checkbox"
                     />{" "}
-                    I confirm this is my invitation and accept the FieldOS terms that apply to this
-                    workspace.
+                    I confirm this invitation was sent to my WhatsApp account and authorize FieldOS
+                    to link that identity to this signed-in account.
                   </label>
                   <Button
                     className="w-full"

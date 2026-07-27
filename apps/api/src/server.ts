@@ -1,5 +1,6 @@
 import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
+import rateLimit from "@fastify/rate-limit";
 import { RedisWhatsAppQrStore, type WhatsAppQrStore } from "@fieldos/baileys-whatsapp/qr-store";
 import { ProjectCoordinatorRuntime, QueuedWhatsAppDraftSender } from "@fieldos/coordinators";
 import { Prisma, prisma } from "@fieldos/db";
@@ -243,12 +244,19 @@ export function buildServer(options: BuildServerOptions = {}) {
           }
         });
   const server = fastify({
+    disableRequestLogging: true,
     logger: {
       level: process.env.LOG_LEVEL ?? "info"
-    }
+    },
+    trustProxy: true
   });
 
   server.register(cookie);
+  server.register(rateLimit, {
+    global: true,
+    max: 300,
+    timeWindow: "1 minute"
+  });
   server.register(cors, {
     credentials: true,
     origin: apiEnv.CORS_ORIGIN
@@ -398,43 +406,51 @@ export function buildServer(options: BuildServerOptions = {}) {
     }
   });
 
-  server.post("/auth/signup", async (request, reply) => {
-    const body = signupSchema.parse(request.body);
-    const email = normalizeEmail(body.email);
-    const existingUser = await repository.findUserByEmail(email);
+  server.post(
+    "/auth/signup",
+    { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const body = signupSchema.parse(request.body);
+      const email = normalizeEmail(body.email);
+      const existingUser = await repository.findUserByEmail(email);
 
-    if (existingUser) {
-      throw conflict("A user with this email already exists.");
+      if (existingUser) {
+        throw conflict("A user with this email already exists.");
+      }
+
+      const user = await repository.createUser({
+        email,
+        name: body.name.trim(),
+        passwordHash: await hashPassword(body.password)
+      });
+
+      setAuthCookie(reply, { ...user, sessionVersion: 0 });
+
+      return {
+        user
+      };
     }
+  );
 
-    const user = await repository.createUser({
-      email,
-      name: body.name.trim(),
-      passwordHash: await hashPassword(body.password)
-    });
+  server.post(
+    "/auth/login",
+    { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const body = loginSchema.parse(request.body);
+      const user = await repository.findUserByEmail(normalizeEmail(body.email));
 
-    setAuthCookie(reply, { ...user, sessionVersion: 0 });
+      if (!user || !(await verifyPassword(body.password, user.passwordHash))) {
+        throw unauthorized("Invalid email or password.");
+      }
 
-    return {
-      user
-    };
-  });
+      const safeUser = toSafeUser(user);
+      setAuthCookie(reply, user);
 
-  server.post("/auth/login", async (request, reply) => {
-    const body = loginSchema.parse(request.body);
-    const user = await repository.findUserByEmail(normalizeEmail(body.email));
-
-    if (!user || !(await verifyPassword(body.password, user.passwordHash))) {
-      throw unauthorized("Invalid email or password.");
+      return {
+        user: safeUser
+      };
     }
-
-    const safeUser = toSafeUser(user);
-    setAuthCookie(reply, user);
-
-    return {
-      user: safeUser
-    };
-  });
+  );
 
   server.post("/auth/logout", async (_request, reply) => {
     reply.clearCookie(AUTH_COOKIE_NAME, getCookieBaseOptions());
@@ -466,72 +482,83 @@ export function buildServer(options: BuildServerOptions = {}) {
     return { ok: true };
   });
 
-  server.post("/auth/forgot-password", async (request) => {
-    const body = forgotPasswordSchema.parse(request.body);
-    const user = await repository.findUserByEmail(normalizeEmail(body.email));
-    let developmentResetUrl: string | undefined;
+  server.post(
+    "/auth/forgot-password",
+    { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } },
+    async (request) => {
+      const body = forgotPasswordSchema.parse(request.body);
+      const user = await repository.findUserByEmail(normalizeEmail(body.email));
+      let developmentResetUrl: string | undefined;
 
-    if (user) {
-      const token = randomBytes(32).toString("base64url");
-      const tokenHash = hashResetToken(token);
-      const resetUrl = `${apiEnv.WEB_APP_URL}/reset-password?token=${encodeURIComponent(token)}`;
-      developmentResetUrl = resetUrl;
-      await repository.createPasswordResetToken({
-        expiresAt: new Date(Date.now() + passwordResetDurationMs),
-        tokenHash,
-        userId: user.id
-      });
-
-      try {
-        const delivery = await passwordResetEmailSender.send({
-          idempotencyKey: `password-reset/${tokenHash}`,
-          recipient: user.email,
-          resetUrl
+      if (user) {
+        const token = randomBytes(32).toString("base64url");
+        const tokenHash = hashResetToken(token);
+        const resetUrl = `${apiEnv.WEB_APP_URL}/reset-password?token=${encodeURIComponent(token)}`;
+        developmentResetUrl = resetUrl;
+        await repository.createPasswordResetToken({
+          expiresAt: new Date(Date.now() + passwordResetDurationMs),
+          tokenHash,
+          userId: user.id
         });
 
-        if (delivery === "NOT_CONFIGURED") {
-          server.log.warn({ userId: user.id }, "password reset email delivery is not configured");
-        }
-      } catch (error) {
-        if (error instanceof PasswordResetEmailDeliveryError) {
-          server.log.error(
-            {
-              providerCode: error.providerCode,
-              statusCode: error.statusCode,
-              userId: user.id
-            },
-            "password reset email delivery failed"
-          );
-        } else {
-          server.log.error({ err: error, userId: user.id }, "password reset email delivery failed");
+        try {
+          const delivery = await passwordResetEmailSender.send({
+            idempotencyKey: `password-reset/${tokenHash}`,
+            recipient: user.email,
+            resetUrl
+          });
+
+          if (delivery === "NOT_CONFIGURED") {
+            server.log.warn({ userId: user.id }, "password reset email delivery is not configured");
+          }
+        } catch (error) {
+          if (error instanceof PasswordResetEmailDeliveryError) {
+            server.log.error(
+              {
+                providerCode: error.providerCode,
+                statusCode: error.statusCode,
+                userId: user.id
+              },
+              "password reset email delivery failed"
+            );
+          } else {
+            server.log.error(
+              { err: error, userId: user.id },
+              "password reset email delivery failed"
+            );
+          }
         }
       }
+
+      return {
+        ...(apiEnv.NODE_ENV === "development" && developmentResetUrl
+          ? { resetUrl: developmentResetUrl }
+          : {}),
+        message: "If an account exists for that email, a password reset link has been sent.",
+        ok: true
+      };
     }
+  );
 
-    return {
-      ...(apiEnv.NODE_ENV === "development" && developmentResetUrl
-        ? { resetUrl: developmentResetUrl }
-        : {}),
-      message: "If an account exists for that email, a password reset link has been sent.",
-      ok: true
-    };
-  });
+  server.post(
+    "/auth/reset-password",
+    { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const body = resetPasswordSchema.parse(request.body);
+      const reset = await repository.resetPasswordWithToken({
+        now: new Date(),
+        passwordHash: await hashPassword(body.newPassword),
+        tokenHash: hashResetToken(body.token)
+      });
 
-  server.post("/auth/reset-password", async (request, reply) => {
-    const body = resetPasswordSchema.parse(request.body);
-    const reset = await repository.resetPasswordWithToken({
-      now: new Date(),
-      passwordHash: await hashPassword(body.newPassword),
-      tokenHash: hashResetToken(body.token)
-    });
+      if (!reset) {
+        throw badRequest("This password reset link is invalid or has expired.");
+      }
 
-    if (!reset) {
-      throw badRequest("This password reset link is invalid or has expired.");
+      reply.clearCookie(AUTH_COOKIE_NAME, getCookieBaseOptions());
+      return { ok: true };
     }
-
-    reply.clearCookie(AUTH_COOKIE_NAME, getCookieBaseOptions());
-    return { ok: true };
-  });
+  );
 
   server.get("/organizations", { preHandler: requireAuth }, async (request) => ({
     organizations: await repository.listOrganizations(requireCurrentUser(request).id)
@@ -1369,7 +1396,9 @@ export function buildServer(options: BuildServerOptions = {}) {
     { preHandler: requireAuth },
     async (request) => {
       const { id } = recommendationParamsSchema.parse(request.params);
-      const recommendation = await requireRecommendationAccess(requireCurrentUser(request).id, id);
+      const user = requireCurrentUser(request);
+      const recommendation = await requireRecommendationAccess(user.id, id);
+      await requireAdminOrganizationMembership(user.id, recommendation.organizationId);
       return { audit: await whatsAppNativeService.listAudits(id, recommendation.organizationId) };
     }
   );
@@ -1498,22 +1527,33 @@ export function buildServer(options: BuildServerOptions = {}) {
     }
   );
 
-  server.get("/whatsapp-invitations/activate", async (request) => {
-    const { token } = whatsappInvitationTokenSchema.parse(request.query);
-    const invitation = await whatsAppNativeService.getInvitation(token);
-    if (!invitation) throw notFound("Invitation not found.");
-    return { invitation };
-  });
+  server.post(
+    "/whatsapp-invitations/preview",
+    { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
+    async (request) => {
+      const { token } = whatsappInvitationTokenSchema.parse(request.body);
+      const invitation = await whatsAppNativeService.getInvitation(token);
+      if (!invitation) throw notFound("Invitation not found.");
+      return { invitation };
+    }
+  );
 
-  server.post("/whatsapp-invitations/activate", { preHandler: requireAuth }, async (request) => {
-    const { token } = acceptWhatsAppInvitationSchema.parse(request.body);
-    return {
-      activation: await whatsAppNativeService.acceptInvitation({
-        token,
-        userId: requireCurrentUser(request).id
-      })
-    };
-  });
+  server.post(
+    "/whatsapp-invitations/activate",
+    {
+      config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
+      preHandler: requireAuth
+    },
+    async (request) => {
+      const { token } = acceptWhatsAppInvitationSchema.parse(request.body);
+      return {
+        activation: await whatsAppNativeService.acceptInvitation({
+          token,
+          userId: requireCurrentUser(request).id
+        })
+      };
+    }
+  );
 
   server.get("/whatsapp/drafts", { preHandler: requireAuth }, async (request) => {
     const query = whatsappDraftsQuerySchema.parse(request.query);
@@ -2177,7 +2217,9 @@ export function buildServer(options: BuildServerOptions = {}) {
 
   server.get("/whatsapp/accounts/:id/qr", { preHandler: requireAuth }, async (request) => {
     const params = whatsappAccountParamsSchema.parse(request.params);
-    const account = await requireWhatsAppAccountAccess(requireCurrentUser(request).id, params.id);
+    const user = requireCurrentUser(request);
+    const account = await requireWhatsAppAccountAccess(user.id, params.id);
+    await requireWritableOrganizationRole(user.id, account.organizationId);
 
     return {
       qr: await qrStore.get(account.id),

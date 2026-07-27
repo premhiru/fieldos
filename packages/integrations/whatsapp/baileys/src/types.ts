@@ -67,6 +67,7 @@ export interface NormalizedWhatsAppMessage {
 }
 
 export interface BaileysSessionManagerOptions {
+  beforeControlReply?: () => Promise<void>;
   controlMessageHandler?: WhatsAppControlMessageHandler;
   mediaStorageProvider?: StorageProvider;
   participantSyncEnabled?: boolean;

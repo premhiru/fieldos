@@ -13,7 +13,8 @@ const highImpactActions = new Set([
 ]);
 const lowImpactActions = new Set(["MARK_PROGRESS_REVIEWED", "REVIEW_EVIDENCE"]);
 const sensitivePattern =
-  /personnel|disciplin|performance concern|safety investigation|commercial|pricing|variation|confidential|security|account credential/i;
+  /personnel|disciplin|performance concern|salary|payroll|injur|medical|claim|dispute|safety investigation|commercial|pricing|variation|contract|confidential|security|password|credential|access code|bank|payment/i;
+const groupSafeActions = new Set(["MARK_PROGRESS_REVIEWED", "REVIEW_EVIDENCE"]);
 
 export function recommendationImpact(
   action: Recommendation["proposedActionType"]
@@ -28,6 +29,18 @@ export function isSensitiveRecommendation(
 ): boolean {
   return sensitivePattern.test(
     `${recommendation.title} ${recommendation.description} ${recommendation.reason}`
+  );
+}
+
+export function isGroupSafeRecommendation(
+  recommendation: Pick<
+    Recommendation,
+    "description" | "proposedActionType" | "reason" | "title" | "type"
+  >
+): boolean {
+  return (
+    groupSafeActions.has(recommendation.proposedActionType) &&
+    !isSensitiveRecommendation(recommendation)
   );
 }
 
@@ -46,7 +59,11 @@ export function settingAllowsRecommendation(
   >,
   recommendation: Pick<Recommendation, "priority" | "type">
 ): boolean {
-  if (!setting.enabled || (setting.sendUrgentOnly && recommendation.priority !== "URGENT")) {
+  if (
+    !setting.enabled ||
+    recommendation.priority === "LOW" ||
+    (setting.sendUrgentOnly && recommendation.priority !== "URGENT")
+  ) {
     return false;
   }
 

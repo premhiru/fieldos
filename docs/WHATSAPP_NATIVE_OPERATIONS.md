@@ -68,11 +68,11 @@ Project settings combine an environment kill switch with project opt-in. Routing
 
 ## Reply Protocol
 
-Commands are case-insensitive but exact: `APPROVE`, `REJECT`, `DETAILS`, three bounded `SNOOZE` forms, `CONFIRM REC-*`, `CANCEL REC-*`, `REASON:`, and invitation `JOIN`. Natural language is never approval. Recommendation correlation uses the quoted Baileys outbound message key; the visible reference is supporting context only. Unquoted approval is intercepted and rejected as ambiguous, so it cannot enter classification or trigger an action.
+Commands are case-insensitive but exact: `APPROVE`, `REJECT`, `DETAILS`, three bounded `SNOOZE` forms, `CONFIRM REC-*`, `CANCEL REC-*`, `REASON:`, and invitation `JOIN`. Natural language is never approval. Recommendation correlation uses the quoted Baileys outbound message key; the visible reference is supporting context only. Unquoted approval-like text remains in the ordinary inbound pipeline and cannot trigger an action. Only reference-bound `CONFIRM` or `CANCEL`, a sender-scoped `REASON`, and quoted `JOIN` may be handled without quoting the recommendation delivery.
 
 ## Authorization Model
 
-A state-changing reply requires a confirmed identity, linked Person and FieldOS user, active organization membership, project access, correct addressed recipient, pending unexpired recommendation, and the configured group-approval policy where applicable. Group replies are limited to explicitly selected named approvers even when group approval is enabled. Named approvers still need platform access. WhatsApp group-admin status is metadata only and never grants FieldOS permission.
+A state-changing reply requires a confirmed identity, linked Person and FieldOS user, owner or administrator organization role, project access, correct addressed recipient, pending unexpired recommendation, and the configured group-approval policy where applicable. Group replies are limited to explicitly selected named approvers even when group approval is enabled. Named approvers still need platform access. WhatsApp group-admin status is metadata only and never grants FieldOS permission.
 
 ## High-Impact Confirmation
 
@@ -84,11 +84,11 @@ Actions are classified as low, standard, or high impact. Completing/starting/upd
 
 ## Participant Synchronization
 
-Activating an active project group queues a metadata sync, and `group-participants.update` queues subsequent syncs. Exact account JID/LID matches are reused; only confirmed exact phone identities may match across provider identifiers. Display names never auto-merge. Removal marks group and project participation inactive while preserving people, messages, evidence, membership, and other access routes.
+Activating an active project group queues a metadata sync, and `group-participants.update` queues subsequent syncs. Exact account JID/LID matches are reused; only confirmed exact phone identities may match across provider identifiers. Display names never auto-merge. Removal is permitted only from a non-empty, complete provider snapshot with no ignored identifiers. Partial or unavailable metadata can add or refresh participants but cannot deactivate anyone. Confirmed removals mark group and project participation inactive while preserving people, messages, evidence, membership, and other access routes.
 
 ## Invitation Flow
 
-Admins can invite a discovered contact through WhatsApp while email invitations remain unchanged. `JOIN` must quote the invitation and creates only a random, hashed, single-use activation token. It does not create membership. The recipient must sign in or create a password-backed account, confirm the invitation and terms, then the API atomically links identity, membership, and scoped project access.
+Admins can invite a discovered contact through WhatsApp while email invitations remain unchanged. Only one active invitation may exist for a person and project. `JOIN` must quote the invitation and creates only a random, hashed, single-use activation token bound to that sender identity. It does not create membership. The recipient must sign in or create a password-backed account; when the contact has a known email, the signed-in email must match. The API atomically consumes the token and links identity, membership, and scoped project access.
 
 ## JID and LID Handling
 
@@ -96,7 +96,7 @@ JIDs and LIDs are stored independently and scoped to the connected account. Phon
 
 ## Delivery Reliability
 
-Delivery has an idempotency key of recommendation plus recipient. The persisted Baileys key correlates replies. Jobs retry with bounded exponential backoff, temporal controls defer safely, and failed records remain visible. A global outbound throttle protects the session. Baileys read/delivery receipts are not fabricated; `SENT` means the socket returned a message key.
+Delivery has an idempotency key of recommendation plus recipient and an atomic send claim. The persisted Baileys key correlates replies. Jobs retry with bounded exponential backoff; quiet-hour, cooldown, and daily-limit deferrals do not consume attempts. Failed records remain visible and only failed records can be manually retried. If a worker stops after the provider send but before persistence, the delivery is marked as an unknown result and requires manual review rather than an automatic duplicate send. One outbound throttle covers recommendations, invitations, and command replies. Baileys read/delivery receipts are not fabricated; `SENT` means the socket returned a message key.
 
 ## Audit Model
 
@@ -104,15 +104,16 @@ Delivery has an idempotency key of recommendation plus recipient. The persisted 
 
 ## Security Model
 
-The design denies unverified, forwarded, unquoted, replayed, expired, superseded, cross-project, and mismatched-identity actions. Group approval is off by default and independently authorizes the sender. Discovery never creates a user. Activation tokens are hashed, expiring, scoped, and consumed once. Every outbound capability has an environment kill switch.
+The design denies unverified, forwarded, replayed, expired, superseded, cross-project, and mismatched-identity actions. Approval and rejection require a quoted delivery; high-impact confirmation is sender-bound. Group approval is off by default and independently authorizes the sender. Discovery never creates a user. Activation tokens are hashed, expiring, scoped, identity-confirmed, and consumed once. QR retrieval, response audits, and write operations are administrator-only. Every outbound capability has an environment kill switch.
 
 ## Failure Modes
 
 - Disconnected account: delivery retries and remains failed/observable after bounded attempts.
-- Metadata unavailable: participant sync retries without deleting existing people.
+- Metadata unavailable or partial: participant sync preserves existing people and does not infer removals.
 - Ambiguous identity: a review item is created and authorization remains denied.
 - Missing recipient: the recommendation remains available in FieldOS.
 - Quiet hours or limits: work is deferred; urgent policy can bypass quiet hours.
+- Unknown result after worker interruption: no automatic resend; inspect the provider/account state and retry only when safe.
 - Baileys identifier changes: no authorization transfer without deterministic resolution.
 
 ## Rollout Plan

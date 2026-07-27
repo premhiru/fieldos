@@ -143,6 +143,7 @@ export interface MilestoneRecommendationView extends RecommendationWithProject {
 }
 
 export interface MilestoneApprovalResult {
+  applied?: false;
   milestone: Milestone;
   recommendation: Recommendation;
 }
@@ -184,6 +185,7 @@ export type DraftSendResult =
 
 export interface RecommendationApprovalResult {
   actionItemId?: string;
+  applied?: false;
   draft?: WhatsAppDraft;
   milestone?: Milestone;
   recommendation: Recommendation;

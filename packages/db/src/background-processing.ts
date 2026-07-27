@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 
-import type {
+import {
   Prisma,
-  PrismaClient,
-  ProcessingJob,
-  ProcessingJobType,
-  SearchDocumentSourceType,
-  WorkerStatus
+  type PrismaClient,
+  type ProcessingJob,
+  type ProcessingJobType,
+  type SearchDocumentSourceType,
+  type WorkerStatus
 } from "@prisma/client";
 
 import {
@@ -42,19 +42,40 @@ export async function queueProcessingJob(
 ): Promise<ProcessingJob> {
   const correlationId = input.correlationId ?? randomUUID();
 
-  return prisma.processingJob.upsert({
-    create: {
-      correlationId,
-      maxAttempts: input.maxAttempts ?? 3,
-      nextRunAt: input.nextRunAt ?? null,
-      organizationId: input.organizationId,
-      projectId: input.projectId ?? null,
-      sourceId: input.sourceId,
-      sourceType: input.sourceType,
-      status: "PENDING",
-      type: input.type
-    },
-    update: {
+  const key = {
+    sourceId: input.sourceId,
+    sourceType: input.sourceType,
+    type: input.type
+  };
+  const existing = await prisma.processingJob.findUnique({
+    where: { type_sourceType_sourceId: key }
+  });
+  if (existing?.status === "RUNNING") return existing;
+
+  if (!existing) {
+    try {
+      return await prisma.processingJob.create({
+        data: {
+          correlationId,
+          maxAttempts: input.maxAttempts ?? 3,
+          nextRunAt: input.nextRunAt ?? null,
+          organizationId: input.organizationId,
+          projectId: input.projectId ?? null,
+          sourceId: input.sourceId,
+          sourceType: input.sourceType,
+          status: "PENDING",
+          type: input.type
+        }
+      });
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
+        throw error;
+      }
+    }
+  }
+
+  await prisma.processingJob.updateMany({
+    data: {
       attempts: 0,
       completedAt: null,
       errorMessage: null,
@@ -69,12 +90,12 @@ export async function queueProcessingJob(
       status: "PENDING"
     },
     where: {
-      type_sourceType_sourceId: {
-        sourceId: input.sourceId,
-        sourceType: input.sourceType,
-        type: input.type
-      }
+      ...key,
+      status: { not: "RUNNING" }
     }
+  });
+  return prisma.processingJob.findUniqueOrThrow({
+    where: { type_sourceType_sourceId: key }
   });
 }
 
@@ -414,6 +435,7 @@ export async function markProcessingJobFailed(
 export async function deferProcessingJob(
   prisma: PrismaClient | Prisma.TransactionClient,
   input: {
+    consumeAttempt?: boolean;
     errorMessage: string;
     job: Pick<ProcessingJob, "attempts" | "id" | "maxAttempts">;
     minimumMaxAttempts?: number;
@@ -421,11 +443,13 @@ export async function deferProcessingJob(
   }
 ): Promise<void> {
   const maxAttempts = Math.max(input.job.maxAttempts, input.minimumMaxAttempts ?? 0);
-  const exhausted = input.job.attempts >= maxAttempts;
+  const consumeAttempt = input.consumeAttempt !== false;
+  const exhausted = consumeAttempt && input.job.attempts >= maxAttempts;
 
   await prisma.processingJob.update({
     data: {
       errorMessage: input.errorMessage,
+      attempts: consumeAttempt ? undefined : { decrement: 1 },
       failedAt: exhausted ? new Date() : null,
       maxAttempts,
       nextRunAt: exhausted ? null : new Date(Date.now() + input.retryAfterMs),

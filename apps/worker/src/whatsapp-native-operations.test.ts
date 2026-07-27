@@ -57,7 +57,7 @@ describe("WhatsApp recommendation response security", () => {
       body: "APPROVE REC-1842",
       quotedMessageId: null
     });
-    expect(result.replyText).toContain("reply directly");
+    expect(result).toEqual({ handled: false });
     expect(coordinator.approveRecommendation).not.toHaveBeenCalled();
   });
 
@@ -68,7 +68,9 @@ describe("WhatsApp recommendation response security", () => {
       {
         $transaction: vi.fn().mockResolvedValue([]),
         membership: {
-          findUnique: vi.fn().mockResolvedValue({ allProjects: true, projectAccess: [] })
+          findUnique: vi
+            .fn()
+            .mockResolvedValue({ allProjects: true, projectAccess: [], role: "OWNER" })
         },
         personIdentity: {
           findFirst: vi.fn().mockResolvedValue(buildIdentity()),
@@ -92,6 +94,55 @@ describe("WhatsApp recommendation response security", () => {
 
     const result = await service.handle(baseInput);
     expect(result.replyText).toContain("CONFIRM REC-");
+    expect(coordinator.approveRecommendation).not.toHaveBeenCalled();
+  });
+
+  it("rejects a high-impact confirmation from anyone other than its initiating sender", async () => {
+    const coordinator = { approveRecommendation: vi.fn() };
+    const delivery = buildDelivery({
+      confirmationActorIdentityId: "identity-original",
+      confirmationExpiresAt: new Date("2099-07-30T00:00:00.000Z"),
+      deliveryStatus: "AWAITING_CONFIRMATION",
+      recommendation: {
+        decisionCandidate: { evidenceSummary: "Evidence", status: "CREATED" },
+        description: "Description",
+        id: "cmr12345678",
+        status: "PENDING",
+        title: "Complete milestone"
+      },
+      recommendationId: "cmr12345678",
+      recipientIdentity: { id: "identity-1", person: { userId: "user-1" } },
+      recipientIdentityId: "identity-1"
+    });
+    const service = createService(
+      {
+        $transaction: vi.fn().mockResolvedValue([]),
+        membership: {
+          findUnique: vi
+            .fn()
+            .mockResolvedValue({ allProjects: true, projectAccess: [], role: "OWNER" })
+        },
+        personIdentity: {
+          findFirst: vi.fn().mockResolvedValue(buildIdentity()),
+          findUnique: vi.fn().mockResolvedValue({ personId: "person-1" })
+        },
+        recommendationDelivery: { findMany: vi.fn().mockResolvedValue([delivery]) },
+        recommendationResponse: {
+          create: vi.fn().mockResolvedValue({}),
+          findUnique: vi.fn().mockResolvedValue(null)
+        },
+        whatsAppOperationAudit: { create: vi.fn().mockResolvedValue({}) }
+      },
+      coordinator
+    );
+
+    const result = await service.handle({
+      ...baseInput,
+      body: "CONFIRM REC-12345678",
+      quotedMessageId: null
+    });
+
+    expect(result.replyText).toContain("invalid or has expired");
     expect(coordinator.approveRecommendation).not.toHaveBeenCalled();
   });
 
