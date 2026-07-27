@@ -23,6 +23,13 @@ Caladrona public website launch, pilot onboarding, and AI Decision Layer v2 qual
 
 ## Completed Tasks
 
+- Recommendation priority triage and bulk dismissal.
+  - Added All, High, and Medium recommendation views to the operations dashboard, with High selected by default to reduce review noise.
+  - Included urgent recommendations in the High view so the default filter never hides the most important work.
+  - Added confirmation-protected bulk dismissal for the active High or Medium view.
+  - Added an authenticated, tenant-scoped bulk API operation that authorizes every recommendation and dismisses pending records atomically.
+  - Added dashboard, API authorization, and coordinator runtime coverage and completed repository-wide lint, typecheck, tests, and build validation.
+
 - Caladrona public landing page launch.
   - Integrated the supplied Caladrona landing experience into the existing Next.js dashboard application as the public `/` route.
   - Moved the authenticated operations workspace to `/dashboard` and updated successful login, signup, desktop, and mobile navigation paths.
@@ -486,6 +493,12 @@ Caladrona public website launch, pilot onboarding, and AI Decision Layer v2 qual
 - AI Decision Layer v2 promotion decision: enable `v2` after the provider-backed recommendation gates passed, retain `legacy` for immediate rollback, and treat category and secondary-signal quality as monitored limitations rather than recommendation blockers.
 
 ## Deployment Status
+
+- Recommendation priority triage deployed on 2026-07-27 from commit `5d8598d`.
+  - Railway API deployment `2ad4409a-5b37-40e4-aba0-9b2ccc502fb5` completed successfully and is running in production.
+  - Vercel production deployment `dpl_9njajE3m8iqx7EM3PXCPJjV596Yw` is Ready and aliased to `https://www.caladrona.com` and `https://fieldos-sand.vercel.app`.
+  - Production HTTP checks passed for API health, the public landing page, and both dashboard aliases.
+  - No database migration or worker deployment was required.
 
 - Caladrona public landing page deployed on 2026-07-27 from commit `aa760d5`.
   - Vercel production deployment `https://fieldos-q7gqr9wy4-premhirus-projects.vercel.app` completed successfully and is aliased to `https://www.caladrona.com`.
