@@ -5,7 +5,7 @@
 | Purpose      | Track FieldOS milestone progress, task completion, technical debt, architecture decisions, and deployment readiness. |
 | Owner        | Founding Engineering                                                                                                 |
 | Status       | Active                                                                                                               |
-| Last Updated | 2026-07-21                                                                                                           |
+| Last Updated | 2026-07-27                                                                                                           |
 
 ## Table of Contents
 
@@ -19,9 +19,16 @@
 
 ## Current Milestone
 
-AI Decision Layer v2 production observation and pilot quality monitoring.
+Caladrona public website launch, pilot onboarding, and AI Decision Layer v2 quality monitoring.
 
 ## Completed Tasks
+
+- Caladrona public landing page launch.
+  - Integrated the supplied Caladrona landing experience into the existing Next.js dashboard application as the public `/` route.
+  - Moved the authenticated operations workspace to `/dashboard` and updated successful login, signup, desktop, and mobile navigation paths.
+  - Connected primary calls to action to `/signup` and retained `/login` for existing users.
+  - Added focused landing-route coverage and completed desktop and mobile visual verification.
+  - Completed repository-wide lint, typecheck, tests, and build validation and deployed the dashboard to Vercel production.
 
 - Media library deletion.
   - Added owner/admin deletion controls to Project Evidence photo cards with explicit confirmation, pending feedback, and quiet retry guidance.
@@ -479,6 +486,12 @@ AI Decision Layer v2 production observation and pilot quality monitoring.
 - AI Decision Layer v2 promotion decision: enable `v2` after the provider-backed recommendation gates passed, retain `legacy` for immediate rollback, and treat category and secondary-signal quality as monitored limitations rather than recommendation blockers.
 
 ## Deployment Status
+
+- Caladrona public landing page deployed on 2026-07-27 from commit `aa760d5`.
+  - Vercel production deployment `https://fieldos-q7gqr9wy4-premhirus-projects.vercel.app` completed successfully and is aliased to `https://www.caladrona.com`.
+  - The existing `https://fieldos-sand.vercel.app` alias also serves the new public landing page.
+  - Production checks returned HTTP 200 for `/`, `/signup`, `/login`, and `/dashboard`; the live landing markup contains the signup and login routes.
+  - No Railway services or backend configuration changed for this frontend-only release.
 
 - Media library deletion deployed on 2026-07-21 from commit `e0dd57f`.
   - Vercel production deployment `dpl_EYMEMj2M9zejhNiVWPLnXRjbszZZ` is Ready and aliased to `https://fieldos-sand.vercel.app`.
