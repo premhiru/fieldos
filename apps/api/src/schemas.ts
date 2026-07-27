@@ -1,5 +1,20 @@
 import { z } from "zod";
 
+const timeOfDaySchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+const timezoneSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(100)
+  .refine((timezone) => {
+    try {
+      new Intl.DateTimeFormat("en-US", { timeZone: timezone }).format();
+      return true;
+    } catch {
+      return false;
+    }
+  }, "Invalid IANA timezone.");
+
 export const organizationParamsSchema = z.object({
   organizationId: z.string().min(1)
 });
@@ -236,6 +251,82 @@ export const updateWhatsAppChatMappingSchema = z.object({
 
 export const activateWhatsAppChatMappingSchema = z.object({
   projectId: z.string().trim().min(1).nullable()
+});
+
+export const whatsappRecommendationSettingSchema = z
+  .object({
+    allowedRecommendationTypes: z
+      .array(
+        z.enum([
+          "PROGRESS_UPDATE",
+          "FOLLOW_UP",
+          "INSPECTION",
+          "REPORT",
+          "RISK",
+          "MISSING_UPDATE",
+          "APPROVAL_REQUIRED",
+          "CLIENT_UPDATE",
+          "SUPPLIER_DELAY",
+          "GENERAL",
+          "CREATE_MILESTONE",
+          "UPDATE_MILESTONE",
+          "COMPLETE_MILESTONE",
+          "START_MILESTONE",
+          "DELAY_MILESTONE"
+        ])
+      )
+      .max(20),
+    dailyProjectLimit: z.number().int().min(1).max(50).default(10),
+    dailyRecipientLimit: z.number().int().min(1).max(20).default(5),
+    deliveryCooldownMinutes: z.number().int().min(0).max(1440).default(30),
+    enabled: z.boolean(),
+    groupApprovalsEnabled: z.boolean().default(false),
+    namedApproverPersonIds: z.array(z.string().min(1)).max(20).default([]),
+    quietHoursEnd: timeOfDaySchema.nullable(),
+    quietHoursStart: timeOfDaySchema.nullable(),
+    requireSecondConfirmationForHighImpact: z.boolean().default(true),
+    routingMode: z.enum([
+      "PRIVATE_PROJECT_MANAGER",
+      "PRIVATE_NAMED_APPROVERS",
+      "PRIVATE_CONNECTED_ACCOUNT_OWNER",
+      "PROJECT_GROUP",
+      "PLATFORM_ONLY"
+    ]),
+    sendUrgentOnly: z.boolean().default(true),
+    timezone: timezoneSchema
+  })
+  .refine(
+    (setting) => Boolean(setting.quietHoursStart) === Boolean(setting.quietHoursEnd),
+    "Quiet-hours start and end must both be provided."
+  );
+
+export const projectPeopleQuerySchema = z.object({
+  filter: z
+    .enum(["all", "platform", "whatsapp", "external", "review", "invited", "inactive"])
+    .default("all")
+});
+
+export const updatePersonSchema = z.object({
+  company: z.string().trim().max(160).nullable().optional(),
+  displayName: z.string().trim().min(1).max(160).optional(),
+  roleTitle: z.string().trim().max(160).nullable().optional(),
+  status: z.enum(["ACTIVE", "INACTIVE", "MERGED", "IGNORED"]).optional(),
+  type: z.enum(["INTERNAL", "EXTERNAL", "UNKNOWN"]).optional()
+});
+
+export const updateProjectParticipantSchema = z.object({
+  role: z.string().trim().max(100).nullable().optional(),
+  status: z.enum(["ACTIVE", "INACTIVE"]).optional()
+});
+
+export const identityMergeSchema = z.object({ targetPersonId: z.string().min(1) });
+export const createWhatsAppInvitationSchema = z.object({
+  personId: z.string().min(1),
+  role: teamRoleSchema.default("MEMBER")
+});
+export const whatsappInvitationTokenSchema = z.object({ token: z.string().min(32).max(500) });
+export const acceptWhatsAppInvitationSchema = whatsappInvitationTokenSchema.extend({
+  acceptTerms: z.literal(true)
 });
 
 export const createOrganizationSchema = z.object({

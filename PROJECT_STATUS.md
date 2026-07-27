@@ -5,7 +5,7 @@
 | Purpose      | Track FieldOS milestone progress, task completion, technical debt, architecture decisions, and deployment readiness. |
 | Owner        | Founding Engineering                                                                                                 |
 | Status       | Active                                                                                                               |
-| Last Updated | 2026-07-21                                                                                                           |
+| Last Updated | 2026-07-24                                                                                                           |
 
 ## Table of Contents
 
@@ -19,9 +19,23 @@
 
 ## Current Milestone
 
-AI Decision Layer v2 production observation and pilot quality monitoring.
+WhatsApp-native operations dark launch and controlled demo validation.
 
 ## Completed Tasks
+
+- WhatsApp-native operations hardening review.
+  - Made recommendation approval, rejection, side effects, responses, and audit records concurrency-safe and transactional; high-impact confirmation is bound to the initiating identity.
+  - Added atomic outbound send claims, unknown-result handling, failed-only manual retry, shared reply throttling, and policy deferrals that do not exhaust job attempts.
+  - Prevented partial group snapshots from removing participants, stabilized JID/LID identity enrichment, and backfilled platform people, project participation, and unambiguous connected-account ownership.
+  - Made invitation creation and activation atomic, limited each person/project to one active invitation, enforced known-email matching, and removed bearer tokens from request URLs.
+  - Tightened owner/admin and QR/audit authorization, added API and authentication rate limits, reduced production request-log noise, and removed raw provider identifiers from dashboard API responses.
+  - Added focused regression coverage for queue claims, sender-bound confirmation, authoritative participant removal, identity linking, group-safe routing, invitation identity, and concurrent token claims.
+
+- WhatsApp-native recommendations and project participant discovery.
+  - Added private recommendation routing, deterministic quoted replies, high-impact confirmation, idempotent delivery/response records, bounded retries, rate controls, and immutable security auditing.
+  - Added organization-scoped people, account-scoped WhatsApp identities, project participants, identity review, participant synchronization, and secure WhatsApp invitation activation without automatic access grants.
+  - Added project People administration, recommendation delivery visibility, rollout flags, migration, threat-model tests, architecture documentation, and an operator runbook.
+  - Validated all migrations in an isolated populated PostgreSQL database and deployed the additive migration, API, and worker dark with all four feature flags disabled pending real test-account validation.
 
 - Media library deletion.
   - Added owner/admin deletion controls to Project Evidence photo cards with explicit confirmation, pending feedback, and quiet retry guidance.
@@ -388,6 +402,9 @@ AI Decision Layer v2 production observation and pilot quality monitoring.
 
 ## In-Progress Tasks
 
+- Apply and verify migration `20260724120000_whatsapp_native_hardening` in a disposable PostgreSQL replay, then deploy the reviewed branch with all WhatsApp-native rollout flags still disabled.
+- Real connected test-number validation for recommendation delivery, unauthorized replies, group membership changes, and WhatsApp invitation activation.
+
 - Monitor customer-visible v2 decisions, recommendation acceptance, suppression reasons, and extraction quality with pilot traffic.
 - Confirm the first post-promotion inbound classification persists a `V2` decision; no new inbound message arrived during the deployment verification window.
 
@@ -428,6 +445,8 @@ AI Decision Layer v2 production observation and pilot quality monitoring.
 - AI Decision Layer v2 is customer-visible in production. Its recommendation gates passed the labelled evaluation, but 88.37% primary-category accuracy and weaker secondary-signal extraction still require pilot monitoring; `legacy` remains the immediate rollback mode.
 - Operations job metrics retain historical failures indefinitely, so the all-time failed count can look unhealthy after recovery. Recent failures, queue depth, coordinator runs, and worker heartbeat are the authoritative current-health signals until the API exposes separate time windows.
 - The stale `Demo airport operations line` WhatsApp account remains in `PENDING_QR` and produces recurring pairing timeout logs. Removing or resetting it requires an explicit administrator decision because it is production account data.
+- Low-priority WhatsApp recommendations remain platform-only until a true digest/batch format is designed; they are not sent as misleading one-item batches.
+- Participant removal is intentionally conservative: incomplete provider metadata can leave a stale participant active until a later complete snapshot confirms removal.
 
 ## Upcoming Milestones
 
@@ -479,6 +498,20 @@ AI Decision Layer v2 production observation and pilot quality monitoring.
 - AI Decision Layer v2 promotion decision: enable `v2` after the provider-backed recommendation gates passed, retain `legacy` for immediate rollback, and treat category and secondary-signal quality as monitored limitations rather than recommendation blockers.
 
 ## Deployment Status
+
+- WhatsApp-native hardening is implemented on `agent/whatsapp-native-operations` but is not deployed yet.
+  - Prisma schema validation plus repository-wide formatting, lint, typecheck, tests, and production build pass.
+  - A disposable PostgreSQL migration replay remains pending because the local Docker Linux engine was unavailable during final validation.
+  - Migration `20260724120000_whatsapp_native_hardening` remains pending production application.
+  - Existing WhatsApp-native feature flags remain disabled; no new outbound behavior has been enabled.
+
+- WhatsApp-native operations were dark-deployed from draft pull request 2 on 2026-07-24.
+  - Production migration `20260724090000_whatsapp_native_operations` applied successfully after a fresh all-migration replay and no-drift check.
+  - Railway API deployment `80341c1c-3240-4e20-b13c-49640aa85a83` and worker deployment `133cb012-dcb3-4759-b26d-60957ccca7fd` completed successfully.
+  - API health returns `{"status":"ok"}`; the worker retained its persistent volume, reached its job-waiting state, and reconnected the existing WhatsApp session.
+  - Recommendation delivery, recommendation replies, participant sync, and WhatsApp invitations are explicitly disabled on both Railway services. Post-deploy logs show zero WhatsApp-native deliveries, invitations, or participant-sync jobs processed.
+  - Vercel preview deployment `dpl_H9eHnXXJTTWDFrb8vs9gvyPckPmE` is Ready at `https://fieldos-8vigi8mpl-premhirus-projects.vercel.app`. Vercel's authenticated protection bypass verified the FieldOS login page; direct anonymous browser smoke is blocked by preview SSO as intended.
+  - Draft pull request 2 remains unmerged. Real-device testing with a designated non-production WhatsApp account and group is still required before enabling any flag.
 
 - Media library deletion deployed on 2026-07-21 from commit `e0dd57f`.
   - Vercel production deployment `dpl_EYMEMj2M9zejhNiVWPLnXRjbszZZ` is Ready and aliased to `https://fieldos-sand.vercel.app`.

@@ -5,7 +5,7 @@
 | Purpose      | Introduce the FieldOS engineering foundation, repository layout, and development workflow. |
 | Owner        | Founding Engineering                                                                       |
 | Status       | Active                                                                                     |
-| Last Updated | 2026-07-21                                                                                 |
+| Last Updated | 2026-07-24                                                                                 |
 
 ## Table of Contents
 
@@ -21,6 +21,7 @@
 - [Photo Intelligence](#photo-intelligence)
 - [Project Intelligence and Reporting](#project-intelligence-and-reporting)
 - [AI Project Coordinators](#ai-project-coordinators)
+- [WhatsApp-Native Operations](#whatsapp-native-operations)
 - [Milestone Intelligence](#milestone-intelligence)
 - [Pilot Readiness](#pilot-readiness)
 - [Product Experience](#product-experience)
@@ -43,6 +44,10 @@ The repository is a pnpm and Turborepo monorepo containing a Next.js dashboard, 
 FieldOS starts as a modular monolith with clear package boundaries. The current product slice supports JWT-cookie authentication, organization workspaces, organization memberships, projects, a channel-agnostic messaging foundation, a WhatsApp Web connector that feeds messages into the unified inbox, human-reviewed AI classification for active project messages, worker-owned photo intelligence for image attachments, and project intelligence reports grounded in timeline events, Action Items, classifications, transcripts, and evidence metadata.
 
 The AI Decision Layer v2 separates bounded multi-signal extraction from recommendation decisions. Context-aware coordinators emit candidates through one deterministic gate, which records evidence, suppression reasons, semantic deduplication, cooldowns, and shadow telemetry. Production rollout is controlled by `AI_DECISION_ENGINE_MODE=legacy|shadow|v2`.
+
+## WhatsApp-Native Operations
+
+FieldOS can use WhatsApp as an additional operational interface while keeping FieldOS as the system of record. Selected v2-gated recommendations can be routed privately to verified, project-authorized users and actioned only through exact quoted commands. Group discovery creates contacts and project participation, never authenticated access. All behavior is dark-launched behind four default-off environment kill switches. See [the architecture](docs/WHATSAPP_NATIVE_OPERATIONS.md) and [operator runbook](docs/WHATSAPP_RECOMMENDATION_RUNBOOK.md).
 
 ```mermaid
 flowchart TD

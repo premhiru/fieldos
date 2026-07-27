@@ -5,11 +5,12 @@
 | Purpose      | Capture demo steps and verification notes for FieldOS changes. |
 | Owner        | Product Engineering                                            |
 | Status       | Active                                                         |
-| Last Updated | 2026-07-18                                                     |
+| Last Updated | 2026-07-24                                                     |
 
 ## Table of Contents
 
 - [Final Pilot Product Editing](#final-pilot-product-editing)
+- [WhatsApp-Native Operations](#whatsapp-native-operations)
 - [AI Decision Layer v2](#ai-decision-layer-v2)
 - [UX Refactoring Sprint](#ux-refactoring-sprint)
 - [Milestone Intelligence](#milestone-intelligence)
@@ -20,6 +21,10 @@
 - [Task 012: Photo Intelligence](#task-012-photo-intelligence)
 - [Task 011: Unified Evidence Processing](#task-011-unified-evidence-processing)
 - [Task 010B: Operations Health](#task-010b-operations-health)
+
+## WhatsApp-Native Operations
+
+The code and migration are prepared, but all rollout flags remain disabled. Use only a dedicated test number and demo project. Validate participant sync before private delivery, then quoted `DETAILS`, quoted `APPROVE`, replay protection, an unauthorized sender, high-impact confirmation, and invitation activation. Do not demonstrate project-group delivery with external participants or customer data.
 
 ## Final Pilot Product Editing
 

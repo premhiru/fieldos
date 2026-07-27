@@ -5,13 +5,20 @@
 | Purpose      | Track notable FieldOS product and platform work. |
 | Owner        | Engineering                                      |
 | Status       | Active                                           |
-| Last Updated | 2026-07-21                                       |
+| Last Updated | 2026-07-24                                       |
 
 ## Table of Contents
 
 - [Unreleased](#unreleased)
 
 ## Unreleased
+
+### WhatsApp-Native Operations
+
+- Added project-controlled private recommendation delivery through Baileys with persisted outbound correlation, deterministic reply commands, authorization, high-impact confirmation, idempotency, throttling, retry, and audit history.
+- Added Person, provider identity, project participant, identity review, recommendation delivery/response, and WhatsApp invitation persistence.
+- Added participant synchronization from group metadata and participant events without granting organization membership or project access.
+- Added a project People view, delivery settings and status, secure invitation activation, feature flags, migration validation, tests, architecture documentation, and an operations runbook.
 
 ### AI Decision Layer v2
 
