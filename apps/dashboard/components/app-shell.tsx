@@ -29,7 +29,7 @@ interface NavigationItem {
 }
 
 const primaryNavigation: NavigationItem[] = [
-  { href: "/", icon: LayoutDashboard, label: "Dashboard" },
+  { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/projects", icon: FolderKanban, label: "Projects" },
   { href: "/inbox", icon: Inbox, label: "Inbox" },
   { href: "/search", icon: Search, label: "Search" },
@@ -58,7 +58,7 @@ export function AppShell({ children }: Readonly<{ children: React.ReactNode }>) 
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 border-r border-[var(--border-default)] bg-[var(--surface)] px-4 py-5 md:flex md:flex-col">
         <Link
           className="rounded-md px-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
-          href="/"
+          href="/dashboard"
         >
           <BrandLockup />
         </Link>
@@ -92,7 +92,7 @@ export function AppShell({ children }: Readonly<{ children: React.ReactNode }>) 
         <div className="flex items-center justify-between gap-3">
           <Link
             className="rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
-            href="/"
+            href="/dashboard"
           >
             <BrandLockup compact />
           </Link>

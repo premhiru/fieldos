@@ -31,7 +31,7 @@ export default function SignupPage() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["me"] });
       await queryClient.invalidateQueries({ queryKey: ["organizations"] });
-      router.push(inviteToken ? "/projects" : "/");
+      router.push(inviteToken ? "/projects" : "/dashboard");
     }
   });
 
