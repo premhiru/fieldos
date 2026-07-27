@@ -29,6 +29,7 @@ Caladrona public website launch, pilot onboarding, and AI Decision Layer v2 qual
   - Added a data-only migration for existing visible WhatsApp system-participant names while preserving internal `@fieldos/*` package scopes, service names, cookie names, storage keys, and database identifiers for compatibility.
   - Completed desktop and mobile visual QA of the authentication experience and verified browser metadata, icon delivery, and manifest content locally.
   - Completed repository-wide format, lint, typecheck, tests, and build validation.
+  - Deployed the branded dashboard, API, worker, transactional email sender names, and existing-data migration to production.
 
 - Recommendation priority triage and bulk dismissal.
   - Added All, High, and Medium recommendation views to the operations dashboard, with High selected by default to reduce review noise.
@@ -500,6 +501,13 @@ Caladrona public website launch, pilot onboarding, and AI Decision Layer v2 qual
 - AI Decision Layer v2 promotion decision: enable `v2` after the provider-backed recommendation gates passed, retain `legacy` for immediate rollback, and treat category and secondary-signal quality as monitored limitations rather than recommendation blockers.
 
 ## Deployment Status
+
+- Caladrona product brand migration deployed on 2026-07-27 from commit `2e4d756`.
+  - Vercel production deployment `dpl_HkBMEJoA2RKgFhKBKMBFJsCJXX7R` is Ready and aliased to `https://www.caladrona.com`; the apex domain redirects successfully.
+  - Railway API deployment `fbfb6763-93f6-49e4-875b-6fa6e1a3fc26` completed successfully and applied migration `20260727010000_caladrona_brand`.
+  - Railway worker deployment `95ad9534-e13c-44ef-8c1e-31a9acd5897c` completed successfully, retained the persistent WhatsApp volume, reached its job-waiting state, and reconnected an existing line.
+  - Production HTTP checks passed for the landing page, login, API health, Caladrona manifest, and the versioned amber-to-teal browser icon.
+  - Production email sender display names are configured as `Caladrona` for API and worker delivery; internal package, service, cookie, storage, and database identifiers remain unchanged for compatibility.
 
 - Recommendation priority triage deployed on 2026-07-27 from commit `5d8598d`.
   - Railway API deployment `2ad4409a-5b37-40e4-aba0-9b2ccc502fb5` completed successfully and is running in production.
