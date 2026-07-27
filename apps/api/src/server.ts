@@ -68,6 +68,7 @@ import {
   actionItemAssigneesQuerySchema,
   assignActionItemSchema,
   adminOperationsQuerySchema,
+  bulkDismissRecommendationsSchema,
   createOrganizationSchema,
   createMilestoneSchema,
   createProjectSchema,
@@ -151,6 +152,7 @@ type CoordinatorRuntimePort = Pick<
   | "cancelWhatsAppDraft"
   | "completeRecommendation"
   | "dismissRecommendation"
+  | "dismissRecommendations"
   | "getOperationsMetrics"
   | "getMilestone"
   | "getProjectState"
@@ -1145,6 +1147,31 @@ export function buildServer(options: BuildServerOptions = {}) {
       };
     }
   );
+
+  server.post("/recommendations/dismiss-bulk", { preHandler: requireAuth }, async (request) => {
+    const body = bulkDismissRecommendationsSchema.parse(request.body);
+    const user = requireCurrentUser(request);
+    const recommendationIds = [...new Set(body.recommendationIds)];
+    const recommendations = await Promise.all(
+      recommendationIds.map((recommendationId) =>
+        requireRecommendationAccess(user.id, recommendationId)
+      )
+    );
+
+    for (const organizationId of new Set(
+      recommendations.map((recommendation) => recommendation.organizationId)
+    )) {
+      await requireWritableOrganizationRole(user.id, organizationId);
+    }
+
+    return {
+      dismissed: await coordinatorRuntime.dismissRecommendations({
+        dismissReason: body.dismissReason ?? null,
+        recommendationIds,
+        userId: user.id
+      })
+    };
+  });
 
   server.get("/recommendations/:id", { preHandler: requireAuth }, async (request) => {
     const params = recommendationParamsSchema.parse(request.params);
@@ -2483,6 +2510,7 @@ function createNoopCoordinatorRuntime(): CoordinatorRuntimePort {
     createMilestone: async () => null as never,
     deleteMilestone: async () => undefined,
     dismissRecommendation: async () => null as never,
+    dismissRecommendations: async () => 0,
     getOperationsMetrics: async () => ({
       approvalRate: 0,
       candidatesByCoordinator: [],

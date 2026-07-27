@@ -11,6 +11,10 @@ import { AuthGuard } from "../components/auth-guard";
 import { OrganizationOnboarding } from "../components/organization-onboarding";
 import { OrganizationSelector } from "../components/organization-selector";
 import { RecommendationCard } from "../components/recommendation-card";
+import {
+  RecommendationPriorityControls,
+  type RecommendationPriorityFilter
+} from "../components/recommendation-priority-controls";
 import { api, type ActionItem, type Recommendation } from "../lib/api";
 import { useMe, useOperationsDashboard, useOrganizations } from "../lib/queries";
 import { useActiveOrganizationStore } from "../store/active-organization-store";
@@ -44,6 +48,8 @@ function DashboardContent() {
     retry: false
   });
   const [snoozed, setSnoozed] = React.useState<Record<string, number>>({});
+  const [recommendationPriority, setRecommendationPriority] =
+    React.useState<RecommendationPriorityFilter>("HIGH");
 
   React.useEffect(() => {
     if (!activeOrganizationId && organizations[0]) {
@@ -81,6 +87,14 @@ function DashboardContent() {
     mutationFn: (id: string) => api.dismissRecommendation(id),
     onSuccess: refresh
   });
+  const bulkDismissMutation = useMutation({
+    mutationFn: ({ ids, priority }: { ids: string[]; priority: "HIGH" | "MEDIUM" }) =>
+      api.dismissRecommendations(
+        ids,
+        `Bulk dismissed ${priority.toLowerCase()} recommendations from the dashboard.`
+      ),
+    onSuccess: refresh
+  });
   const completeMutation = useMutation({
     mutationFn: (id: string) => api.completeActionItem(id),
     onSuccess: refresh
@@ -103,6 +117,18 @@ function DashboardContent() {
   const recommendations = (recommendationsQuery.data?.recommendations ?? []).filter(
     (recommendation) => !snoozed[recommendation.id]
   );
+  const recommendationCounts = {
+    ALL: recommendations.length,
+    HIGH: recommendations.filter((recommendation) =>
+      isRecommendationInPriorityFilter(recommendation, "HIGH")
+    ).length,
+    MEDIUM: recommendations.filter((recommendation) => recommendation.priority === "MEDIUM").length
+  };
+  const visibleRecommendations = recommendations.filter(
+    (recommendation) =>
+      recommendationPriority === "ALL" ||
+      isRecommendationInPriorityFilter(recommendation, recommendationPriority)
+  );
   const actionItems = dashboard
     ? [
         ...dashboard.actionItems.urgent,
@@ -118,6 +144,23 @@ function DashboardContent() {
     const next = { ...snoozed, [id]: Date.now() + 24 * 60 * 60 * 1000 };
     setSnoozed(next);
     window.localStorage.setItem(snoozeStorageKey, JSON.stringify(next));
+  }
+
+  function dismissAllRecommendations(priority: "HIGH" | "MEDIUM") {
+    const recommendationIds = recommendations
+      .filter((recommendation) => isRecommendationInPriorityFilter(recommendation, priority))
+      .map((recommendation) => recommendation.id);
+
+    if (
+      recommendationIds.length === 0 ||
+      !window.confirm(
+        `Dismiss all ${recommendationIds.length} ${priority.toLowerCase()}-priority recommendations? This cannot be undone.`
+      )
+    ) {
+      return;
+    }
+
+    bulkDismissMutation.mutate({ ids: recommendationIds, priority });
   }
 
   return (
@@ -146,7 +189,7 @@ function DashboardContent() {
         <>
           <section id="recommendations" className="scroll-mt-24 space-y-4">
             <SectionHeader
-              count={recommendations.length}
+              count={visibleRecommendations.length}
               description="Review the next best actions suggested from project evidence."
               title="My Recommendations"
             />
@@ -162,18 +205,44 @@ function DashboardContent() {
                 title="You are all caught up"
               />
             ) : (
-              <div className="grid gap-4 xl:grid-cols-2">
-                {sortRecommendations(recommendations).map((recommendation) => (
-                  <RecommendationCard
-                    busy={approveMutation.isPending || dismissMutation.isPending}
-                    key={recommendation.id}
-                    onApprove={() => approveMutation.mutate(recommendation.id)}
-                    onDismiss={() => dismissMutation.mutate(recommendation.id)}
-                    onSnooze={() => snoozeRecommendation(recommendation.id)}
-                    recommendation={recommendation}
+              <>
+                <RecommendationPriorityControls
+                  activeFilter={recommendationPriority}
+                  counts={recommendationCounts}
+                  dismissing={bulkDismissMutation.isPending}
+                  onChange={setRecommendationPriority}
+                  onDismissAll={dismissAllRecommendations}
+                />
+                {bulkDismissMutation.isError ? (
+                  <p className="text-sm text-[var(--status-critical-text)]" role="alert">
+                    The recommendations could not be dismissed. Please try again.
+                  </p>
+                ) : null}
+                {visibleRecommendations.length === 0 ? (
+                  <EmptyState
+                    description={`There are no ${recommendationPriority.toLowerCase()}-priority recommendations to review.`}
+                    icon={<CheckCircle2 aria-hidden="true" className="size-5" />}
+                    title={`No ${recommendationPriority.toLowerCase()}-priority recommendations`}
                   />
-                ))}
-              </div>
+                ) : (
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    {sortRecommendations(visibleRecommendations).map((recommendation) => (
+                      <RecommendationCard
+                        busy={
+                          approveMutation.isPending ||
+                          dismissMutation.isPending ||
+                          bulkDismissMutation.isPending
+                        }
+                        key={recommendation.id}
+                        onApprove={() => approveMutation.mutate(recommendation.id)}
+                        onDismiss={() => dismissMutation.mutate(recommendation.id)}
+                        onSnooze={() => snoozeRecommendation(recommendation.id)}
+                        recommendation={recommendation}
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </section>
 
@@ -234,6 +303,15 @@ function DashboardContent() {
       )}
     </div>
   );
+}
+
+function isRecommendationInPriorityFilter(
+  recommendation: Recommendation,
+  priority: "HIGH" | "MEDIUM"
+) {
+  return priority === "HIGH"
+    ? recommendation.priority === "HIGH" || recommendation.priority === "URGENT"
+    : recommendation.priority === "MEDIUM";
 }
 
 function SummaryMetric({

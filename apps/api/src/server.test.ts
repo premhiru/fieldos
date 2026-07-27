@@ -2076,6 +2076,74 @@ describe("FieldOS API auth and tenancy", () => {
     expect(sendWhatsAppDraft).toHaveBeenCalledOnce();
   });
 
+  it("bulk dismisses accessible recommendations and blocks viewers", async () => {
+    const ownerCookie = await signup(server, "recommendation-owner@example.com");
+    const organization = await createOrganization(server, ownerCookie);
+    const project = await repository.createProject({
+      code: "REC-001",
+      name: "Recommendation pilot project",
+      organizationId: organization.id,
+      status: "ACTIVE"
+    });
+    const recommendations = ["recommendation_1", "recommendation_2"].map((id) => ({
+      id,
+      organizationId: organization.id,
+      project: { code: project.code, id: project.id, name: project.name },
+      projectId: project.id,
+      status: "PENDING",
+      whatsAppDrafts: []
+    }));
+    const dismissRecommendations = vi.fn().mockResolvedValue(2);
+
+    server = buildServer({
+      coordinatorRuntime: {
+        dismissRecommendations,
+        getRecommendation: vi
+          .fn()
+          .mockImplementation((id: string) =>
+            Promise.resolve(recommendations.find((recommendation) => recommendation.id === id))
+          )
+      } as never,
+      qrStore: new InMemoryQrStore(),
+      repository
+    });
+
+    const ownerResponse = await server.inject({
+      headers: { cookie: ownerCookie },
+      method: "POST",
+      payload: {
+        dismissReason: "Bulk dismissed from dashboard.",
+        recommendationIds: recommendations.map((recommendation) => recommendation.id)
+      },
+      url: "/recommendations/dismiss-bulk"
+    });
+
+    expect(ownerResponse.statusCode).toBe(200);
+    expect(ownerResponse.json()).toEqual({ dismissed: 2 });
+    expect(dismissRecommendations).toHaveBeenCalledWith({
+      dismissReason: "Bulk dismissed from dashboard.",
+      recommendationIds: ["recommendation_1", "recommendation_2"],
+      userId: expect.any(String)
+    });
+
+    const viewerCookie = await signup(server, "recommendation-viewer@example.com");
+    const viewer = repository.users.find(
+      (user) => user.email === "recommendation-viewer@example.com"
+    );
+    if (!viewer) throw new Error("recommendation viewer was not created");
+    repository.addMembership(viewer.id, organization.id, "VIEWER");
+
+    const viewerResponse = await server.inject({
+      headers: { cookie: viewerCookie },
+      method: "POST",
+      payload: { recommendationIds: [recommendations[0]!.id] },
+      url: "/recommendations/dismiss-bulk"
+    });
+
+    expect(viewerResponse.statusCode).toBe(403);
+    expect(dismissRecommendations).toHaveBeenCalledOnce();
+  });
+
   it("allows project contributors to manage milestone recommendations and blocks viewers", async () => {
     const ownerCookie = await signup(server, "milestone-owner@example.com");
     const organization = await createOrganization(server, ownerCookie);

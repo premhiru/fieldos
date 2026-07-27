@@ -1047,6 +1047,27 @@ export class ProjectCoordinatorRuntime {
     });
   }
 
+  async dismissRecommendations(input: {
+    dismissReason?: string | null;
+    recommendationIds: string[];
+    userId: string;
+  }): Promise<number> {
+    const result = await this.prisma.recommendation.updateMany({
+      data: {
+        dismissedAt: this.now(),
+        dismissedByUserId: input.userId,
+        dismissReason: input.dismissReason ?? null,
+        status: "DISMISSED"
+      },
+      where: {
+        id: { in: input.recommendationIds },
+        status: "PENDING"
+      }
+    });
+
+    return result.count;
+  }
+
   async completeRecommendation(recommendationId: string): Promise<Recommendation> {
     return this.prisma.recommendation.update({
       data: {

@@ -59,6 +59,32 @@ describe("ProjectCoordinatorRuntime", () => {
     expect(result.results.map((entry) => entry.coordinatorType)).toEqual(["MILESTONE"]);
   });
 
+  it("bulk dismisses only pending recommendations in one update", async () => {
+    const prisma = createPrismaStub();
+    prisma.recommendation.updateMany.mockResolvedValue({ count: 2 });
+    const runtime = new ProjectCoordinatorRuntime(prisma as never, { now: () => now });
+
+    const dismissed = await runtime.dismissRecommendations({
+      dismissReason: "Bulk dismissed from dashboard.",
+      recommendationIds: ["recommendation_1", "recommendation_2"],
+      userId: "user_1"
+    });
+
+    expect(dismissed).toBe(2);
+    expect(prisma.recommendation.updateMany).toHaveBeenCalledWith({
+      data: {
+        dismissedAt: now,
+        dismissedByUserId: "user_1",
+        dismissReason: "Bulk dismissed from dashboard.",
+        status: "DISMISSED"
+      },
+      where: {
+        id: { in: ["recommendation_1", "recommendation_2"] },
+        status: "PENDING"
+      }
+    });
+  });
+
   it("creates deterministic ProjectState snapshots", async () => {
     const prisma = createPrismaStub();
     const runtime = new ProjectCoordinatorRuntime(prisma as never, { now: () => now });
@@ -453,7 +479,8 @@ function createPrismaStub() {
       findFirst: vi.fn().mockResolvedValue(null),
       findMany: vi.fn().mockResolvedValue([]),
       findUnique: vi.fn().mockResolvedValue(null),
-      update: vi.fn().mockResolvedValue({})
+      update: vi.fn().mockResolvedValue({}),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 })
     },
     whatsAppChatMapping: {
       findUnique: vi.fn().mockResolvedValue(null)

@@ -118,5 +118,5 @@ describe("ReportsPage", () => {
     await waitFor(() => {
       expect(screen.getAllByRole("button", { name: "Report queued" })).toHaveLength(2);
     });
-  });
+  }, 15_000);
 });

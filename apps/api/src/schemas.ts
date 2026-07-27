@@ -205,6 +205,10 @@ export const dismissRecommendationSchema = z.object({
   dismissReason: z.string().trim().max(500).nullable().optional()
 });
 
+export const bulkDismissRecommendationsSchema = dismissRecommendationSchema.extend({
+  recommendationIds: z.array(z.string().trim().min(1)).min(1).max(500)
+});
+
 export const whatsappDraftsQuerySchema = z.object({
   organizationId: z.string().trim().min(1),
   projectId: z.string().trim().min(1).optional()

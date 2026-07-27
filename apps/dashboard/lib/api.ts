@@ -1206,6 +1206,14 @@ export const api = {
       body: JSON.stringify({ dismissReason: dismissReason ?? null }),
       method: "POST"
     }),
+  dismissRecommendations: (recommendationIds: string[], dismissReason?: string) =>
+    apiRequest<{ dismissed: number }>("/recommendations/dismiss-bulk", {
+      body: JSON.stringify({
+        dismissReason: dismissReason ?? null,
+        recommendationIds
+      }),
+      method: "POST"
+    }),
   completeRecommendation: (recommendationId: string) =>
     apiRequest<{ recommendation: Recommendation }>(
       `/recommendations/${recommendationId}/complete`,
