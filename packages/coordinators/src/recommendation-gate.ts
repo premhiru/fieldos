@@ -13,6 +13,16 @@ import type { RecommendationInput } from "./types.js";
 const engineVersion = "ai-decision-layer.v2";
 const dismissedCooldownMs = 30 * 24 * 60 * 60 * 1000;
 const actionedCooldownMs = 7 * 24 * 60 * 60 * 1000;
+const highPriorityProjectBudget = 12;
+const mediumPriorityProjectBudget = 6;
+const coordinatorBudgets: Record<string, number> = {
+  FOLLOW_UP: 3,
+  INSPECTION: 2,
+  MILESTONE: 4,
+  PROGRESS: 4,
+  REPORT: 1,
+  RUNTIME: 1
+};
 
 export interface RecommendationCandidateInput extends RecommendationInput {
   businessKey?: string | null;
@@ -149,6 +159,9 @@ export class RecommendationGate {
     if (input.materiality.length === 0) {
       return "NO_MATERIALITY";
     }
+    if (input.priority === "LOW") {
+      return "LOW_VALUE";
+    }
     if (!isActionable(input)) {
       return "NON_ACTIONABLE";
     }
@@ -196,7 +209,8 @@ export class RecommendationGate {
       orderBy: { createdAt: "desc" },
       where: {
         fingerprint,
-        projectId: input.projectId
+        projectId: input.projectId,
+        recommendationId: { not: null }
       }
     });
 
@@ -239,6 +253,28 @@ export class RecommendationGate {
     });
     if (ownedWork) {
       return "OWNERSHIP_EXISTS";
+    }
+
+    if (input.priority !== "URGENT") {
+      const pendingRecommendations = await this.prisma.recommendation.findMany({
+        orderBy: { createdAt: "desc" },
+        select: { sourceCoordinator: true },
+        take: highPriorityProjectBudget,
+        where: { projectId: input.projectId, status: "PENDING" }
+      });
+      const projectBudget =
+        input.priority === "MEDIUM" ? mediumPriorityProjectBudget : highPriorityProjectBudget;
+      const coordinatorBudget = coordinatorBudgets[input.sourceCoordinator] ?? 1;
+      const coordinatorPending = pendingRecommendations.filter(
+        (recommendation) => recommendation.sourceCoordinator === input.sourceCoordinator
+      ).length;
+
+      if (
+        pendingRecommendations.length >= projectBudget ||
+        coordinatorPending >= coordinatorBudget
+      ) {
+        return "QUEUE_SATURATED";
+      }
     }
 
     return null;
@@ -351,10 +387,12 @@ function decisionReason(reason: RecommendationSuppressionReason | "SHADOW_MODE" 
     DUPLICATE_PENDING: "An equivalent recommendation is already pending.",
     INSUFFICIENT_EVIDENCE: "The candidate does not cite sufficient evidence.",
     LOW_CONFIDENCE: "The candidate does not meet the policy-specific confidence threshold.",
+    LOW_VALUE: "The candidate does not justify taking space in the project review queue.",
     NON_ACTIONABLE: "The proposed action is not specific enough to execute.",
     NO_EXPECTED_VALUE: "The candidate does not demonstrate meaningful operational value.",
     NO_MATERIALITY: "The candidate does not materially affect project operations.",
     OWNERSHIP_EXISTS: "Equivalent work is already assigned and open.",
+    QUEUE_SATURATED: "Higher-value recommendations already fill the project review queue.",
     RECENTLY_ACTIONED: "Equivalent work was recently actioned without materially new evidence.",
     RECENTLY_DISMISSED: "Equivalent work was recently dismissed without materially new evidence.",
     SHADOW_MODE: "The candidate passed policy but shadow mode prevents customer-visible creation."
@@ -382,14 +420,8 @@ function isActionable(input: RecommendationCandidateInput): boolean {
 
 function meetsConfidencePolicy(input: RecommendationCandidateInput): boolean {
   if (input.confidence === "LOW") return false;
-  if (input.type === "INSPECTION" || input.proposedActionType === "COMPLETE_MILESTONE") {
-    return input.confidence === "HIGH";
-  }
-  if (input.type === "FOLLOW_UP") {
-    return input.confidence === "HIGH";
-  }
   if (input.materiality.includes("SAFETY") && input.priority === "URGENT") {
     return input.confidence === "HIGH" || input.confidence === "MEDIUM";
   }
-  return true;
+  return input.confidence === "HIGH";
 }

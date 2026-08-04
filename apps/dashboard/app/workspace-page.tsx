@@ -93,7 +93,7 @@ function DashboardContent() {
         ids,
         `Bulk dismissed ${priority.toLowerCase()} recommendations from the dashboard.`
       ),
-    onSuccess: refresh
+    onSettled: refresh
   });
   const completeMutation = useMutation({
     mutationFn: (id: string) => api.completeActionItem(id),

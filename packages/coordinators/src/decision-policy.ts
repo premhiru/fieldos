@@ -55,14 +55,19 @@ export function isInspectionEligible(input: InspectionDecisionInput): boolean {
 }
 
 export function isFollowUpEligible(input: FollowUpDecisionInput): boolean {
+  const overdueGraceMs = 24 * 60 * 60 * 1000;
+  const requestedItem = input.requestedItem.trim();
+
   return Boolean(
     input.projectStatus === "ACTIVE" &&
     input.conversationActive &&
     input.status === "OPEN" &&
-    input.confidence >= 0.75 &&
-    input.requestedItem.trim() &&
+    input.confidence >= 0.8 &&
+    input.expectedResponder?.trim() &&
+    requestedItem.length >= 6 &&
+    !/^(update|progress update|response|information|details|confirmation)$/i.test(requestedItem) &&
     input.dueAt &&
-    input.dueAt.getTime() < input.now.getTime()
+    input.dueAt.getTime() <= input.now.getTime() - overdueGraceMs
   );
 }
 

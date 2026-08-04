@@ -77,6 +77,32 @@ describe("AI decision policy regressions", () => {
     ).toBe(true);
   });
 
+  it("holds routine or newly overdue follow-ups out of the PM queue", () => {
+    const base = {
+      confidence: 0.9,
+      conversationActive: true,
+      expectedResponder: "Alex",
+      now: new Date("2026-07-18T00:00:00Z"),
+      projectStatus: "ACTIVE",
+      status: "OPEN"
+    };
+
+    expect(
+      isFollowUpEligible({
+        ...base,
+        dueAt: new Date("2026-07-17T12:00:00Z"),
+        requestedItem: "signed test sheet"
+      })
+    ).toBe(false);
+    expect(
+      isFollowUpEligible({
+        ...base,
+        dueAt: new Date("2026-07-16T00:00:00Z"),
+        requestedItem: "update"
+      })
+    ).toBe(false);
+  });
+
   it("deduplicates the same business action across different source messages", () => {
     const first = recommendationFingerprint({
       actionType: "SCHEDULE_INSPECTION_REMINDER",

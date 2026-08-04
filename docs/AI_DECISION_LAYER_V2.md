@@ -4,8 +4,8 @@
 | ------------ | ------------------------------------------------------------------------------------ |
 | Purpose      | Define the precision-first Caladrona classification and recommendation architecture. |
 | Owner        | Principal AI Engineering                                                             |
-| Status       | Shadow rollout                                                                       |
-| Last Updated | 2026-07-21                                                                           |
+| Status       | Active production policy                                                             |
+| Last Updated | 2026-08-04                                                                           |
 
 ## Table of Contents
 
@@ -18,6 +18,7 @@
 - [Photo Policy](#photo-policy)
 - [Milestone Policy](#milestone-policy)
 - [Deduplication](#deduplication)
+- [Review Queue Budget](#review-queue-budget)
 - [Shadow Rollout](#shadow-rollout)
 - [Evaluation](#evaluation)
 - [Limitations](#limitations)
@@ -67,14 +68,14 @@ Unlimited project-history scans are not used.
 
 ## Recommendation Flow
 
-Every v2 recommendation starts as a `RecommendationCandidate`. The central gate requires evidence, an active project, sufficient confidence, and a useful non-generic action. It records created, suppressed, and shadow decisions with a safe semantic fingerprint and reason code.
+Every v2 recommendation starts as a `RecommendationCandidate`. The central gate requires evidence, an active project, high confidence, non-low priority, and a useful non-generic action. Medium-confidence urgent safety evidence remains eligible so safety escalation does not depend on false precision. The gate records created, suppressed, and shadow decisions with a safe semantic fingerprint and reason code.
 
 No v2 coordinator writes a recommendation directly.
 
 ## Coordinator Policies
 
 - Progress: routine updates update knowledge only. A candidate requires a material delay, defect, safety issue, approval dependency, RFI, variation, material issue, or manpower issue.
-- Follow-up: silence is never sufficient. A persisted open expectation must identify the requested item and be overdue. Drafts reference that item and its source date.
+- Follow-up: silence is never sufficient. A persisted open expectation must identify a named responder and specific deliverable, exceed 0.8 confidence, and remain overdue beyond a 24-hour grace period. Drafts reference that item and its source date.
 - Inspection: requires explicit scope, claimed completion, explicit inspection intent, high confidence, no open inspection, and no unresolved prerequisite.
 - Report: requires the configured weekly reporting day, substantive events, a meaningful project summary, and no existing report for the period.
 - Milestone: actionable changes require explicit milestone scope. `NONE` may have null title, status, and dates.
@@ -89,7 +90,13 @@ Generic completion language does not create a milestone without clear scope. Exi
 
 ## Deduplication
 
-The gate fingerprints project, recommendation type, action, normalized scope, and source. Pending duplicates are suppressed. Dismissed recommendations receive a 30-day cooldown; approved or completed recommendations receive a seven-day cooldown. Later resolved expectations are marked resolved and no longer qualify for follow-up.
+The gate fingerprints project, recommendation type, action, normalized scope, and source. Duplicate checks deliberately inspect the latest candidate linked to a customer-visible recommendation; suppressed telemetry rows cannot hide that history. Pending duplicates are suppressed. Dismissed recommendations receive a 30-day cooldown; approved or completed recommendations receive a seven-day cooldown. Later resolved expectations are marked resolved and no longer qualify for follow-up.
+
+## Review Queue Budget
+
+Caladrona optimizes for PM attention, not recommendation volume. A project can hold at most twelve non-urgent pending recommendations, with six slots available to medium-priority work so higher-priority evidence retains capacity. Coordinator quotas are three follow-ups, four progress decisions, four milestone decisions, two inspections, one report, and one runtime recommendation. Urgent evidence bypasses these limits.
+
+When a queue is full, the candidate is retained as suppression telemetry with `QUEUE_SATURATED`; no customer-visible recommendation is created. `LOW_VALUE` records explain suppression of low-priority candidates. Migration `20260804010000_recommendation_quality_budget` consolidates the pre-policy backlog by semantic source, coordinator quota, and project budget, retaining the freshest highest-priority records.
 
 ## Shadow Rollout
 
@@ -99,7 +106,7 @@ The gate fingerprints project, recommendation type, action, normalized scope, an
 - `shadow`: legacy customer behavior plus persisted v2 classifications, candidates, and suppressions; no v2 customer-visible recommendations
 - `v2`: v2 compatibility classification plus gate-created recommendations
 
-Production starts in `shadow`. Switching the worker variable back to `legacy` is the rollback mechanism.
+Production runs in `v2`. Switching the worker variable back to `legacy` is the rollback mechanism.
 
 ## Evaluation
 

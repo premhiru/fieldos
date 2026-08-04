@@ -5,13 +5,21 @@
 | Purpose      | Track notable Caladrona product and platform work. |
 | Owner        | Engineering                                        |
 | Status       | Active                                             |
-| Last Updated | 2026-07-27                                         |
+| Last Updated | 2026-08-04                                         |
 
 ## Table of Contents
 
 - [Unreleased](#unreleased)
 
 ## Unreleased
+
+### Recommendation Quality and Dismissal Reliability
+
+- Fixed bulk dismissal for recommendation feeds larger than the API's 500-record request limit by batching transparently in the dashboard client.
+- Corrected recommendation-history lookup so suppressed audit candidates cannot hide an existing pending recommendation and allow duplicates on later scans.
+- Added precision-first confidence, specificity, overdue-grace, per-coordinator, and per-project recommendation budgets while preserving urgent safety escalation.
+- Added a one-time backlog consolidation that retains the freshest highest-priority recommendations and dismisses duplicate or excess pending records.
+- Added suppression telemetry for low-value and saturated-queue decisions.
 
 ### Caladrona Brand Migration
 

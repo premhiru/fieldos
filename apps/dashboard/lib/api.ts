@@ -975,6 +975,7 @@ class DashboardApiError extends Error {
 }
 
 const apiBaseUrl = "/api";
+const recommendationDismissBatchSize = 500;
 
 export async function apiRequest<TResponse>(
   path: string,
@@ -1041,6 +1042,27 @@ async function apiBlobRequest(path: string): Promise<Blob> {
   }
 
   return response.blob();
+}
+
+async function dismissRecommendations(
+  recommendationIds: string[],
+  dismissReason?: string
+): Promise<{ dismissed: number }> {
+  let dismissed = 0;
+
+  for (let index = 0; index < recommendationIds.length; index += recommendationDismissBatchSize) {
+    const batch = recommendationIds.slice(index, index + recommendationDismissBatchSize);
+    const result = await apiRequest<{ dismissed: number }>("/recommendations/dismiss-bulk", {
+      body: JSON.stringify({
+        dismissReason: dismissReason ?? null,
+        recommendationIds: batch
+      }),
+      method: "POST"
+    });
+    dismissed += result.dismissed;
+  }
+
+  return { dismissed };
 }
 
 export const api = {
@@ -1206,14 +1228,7 @@ export const api = {
       body: JSON.stringify({ dismissReason: dismissReason ?? null }),
       method: "POST"
     }),
-  dismissRecommendations: (recommendationIds: string[], dismissReason?: string) =>
-    apiRequest<{ dismissed: number }>("/recommendations/dismiss-bulk", {
-      body: JSON.stringify({
-        dismissReason: dismissReason ?? null,
-        recommendationIds
-      }),
-      method: "POST"
-    }),
+  dismissRecommendations,
   completeRecommendation: (recommendationId: string) =>
     apiRequest<{ recommendation: Recommendation }>(
       `/recommendations/${recommendationId}/complete`,

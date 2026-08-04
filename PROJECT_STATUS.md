@@ -5,7 +5,7 @@
 | Purpose      | Track Caladrona milestone progress, task completion, technical debt, architecture decisions, and deployment readiness. |
 | Owner        | Founding Engineering                                                                                                   |
 | Status       | Active                                                                                                                 |
-| Last Updated | 2026-07-27                                                                                                             |
+| Last Updated | 2026-08-04                                                                                                             |
 
 ## Table of Contents
 
@@ -22,6 +22,15 @@
 Caladrona public website launch, pilot onboarding, and AI Decision Layer v2 quality monitoring.
 
 ## Completed Tasks
+
+- Recommendation quality and dismissal reliability.
+  - Diagnosed the production feed at 1,793 pending recommendations, including 1,495 follow-ups generated from only 13 underlying expectations.
+  - Fixed large bulk dismissals by splitting dashboard requests into API-safe batches of 500 while preserving authorization on every record.
+  - Corrected central-gate history lookup so suppressed audit records no longer break duplicate prevention on subsequent coordinator scans.
+  - Added high-confidence and non-low-priority eligibility, a 24-hour follow-up grace period, named-responder and specific-deliverable requirements, per-coordinator quotas, and a twelve-item non-urgent project budget.
+  - Preserved uncapped urgent recommendations so safety-critical evidence cannot be hidden by queue capacity.
+  - Added a production migration that consolidates duplicate and excess pending recommendations while retaining the freshest highest-priority review items.
+  - Added focused dashboard, decision-policy, recommendation-gate, and migration coverage.
 
 - Caladrona product brand migration.
   - Replaced customer-facing FieldOS identity with Caladrona across the dashboard, authentication, transactional email, WhatsApp sender labels, API copy, AI prompts, and documentation.

@@ -35,6 +35,11 @@ describe("RecommendationGate", () => {
 
     expect(result.suppressionReason).toBe("DUPLICATE_PENDING");
     expect(prisma.recommendationCreate).not.toHaveBeenCalled();
+    expect(prisma.candidateFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ recommendationId: { not: null } })
+      })
+    );
   });
 
   it("protects a dismissed decision from immediate regeneration", async () => {
@@ -120,6 +125,57 @@ describe("RecommendationGate", () => {
 
     expect(result.reasonCode).toBe("OWNERSHIP_EXISTS");
   });
+
+  it("rejects low-value and medium-confidence queue candidates", async () => {
+    const lowPriority = await new RecommendationGate(fakePrisma().client as never).evaluate(
+      "organization_1",
+      "ACTIVE",
+      "V2",
+      candidate({ priority: "LOW" })
+    );
+    const mediumConfidence = await new RecommendationGate(fakePrisma().client as never).evaluate(
+      "organization_1",
+      "ACTIVE",
+      "V2",
+      candidate({ confidence: "MEDIUM" })
+    );
+
+    expect(lowPriority.reasonCode).toBe("LOW_VALUE");
+    expect(mediumConfidence.reasonCode).toBe("LOW_CONFIDENCE");
+  });
+
+  it("bounds pending recommendations by coordinator and project", async () => {
+    const prisma = fakePrisma(
+      null,
+      null,
+      Array.from({ length: 3 }, () => ({ sourceCoordinator: "FOLLOW_UP" }))
+    );
+    const result = await new RecommendationGate(prisma.client as never).evaluate(
+      "organization_1",
+      "ACTIVE",
+      "V2",
+      candidate()
+    );
+
+    expect(result.reasonCode).toBe("QUEUE_SATURATED");
+    expect(prisma.recommendationCreate).not.toHaveBeenCalled();
+  });
+
+  it("always allows urgent evidence through the queue budget", async () => {
+    const prisma = fakePrisma(
+      null,
+      null,
+      Array.from({ length: 12 }, () => ({ sourceCoordinator: "FOLLOW_UP" }))
+    );
+    const result = await new RecommendationGate(prisma.client as never).evaluate(
+      "organization_1",
+      "ACTIVE",
+      "V2",
+      candidate({ materiality: ["SAFETY", "RISK"], priority: "URGENT" })
+    );
+
+    expect(result.created).toBe(true);
+  });
 });
 
 function candidate(
@@ -148,18 +204,26 @@ function candidate(
   };
 }
 
-function fakePrisma(history: unknown = null, ownedWork: unknown = null) {
+function fakePrisma(
+  history: unknown = null,
+  ownedWork: unknown = null,
+  pendingRecommendations: unknown[] = []
+) {
   const candidateCreate = vi.fn().mockResolvedValue({ id: "candidate_1" });
+  const candidateFindFirst = vi.fn().mockResolvedValue(history);
   const recommendationCreate = vi.fn().mockResolvedValue({ id: "recommendation_1" });
   const client = {
     $transaction: async (callback: (tx: unknown) => Promise<unknown>) => callback(client),
     actionItem: { findFirst: vi.fn().mockResolvedValue(ownedWork) },
     outstandingExpectation: { findUnique: vi.fn().mockResolvedValue({ status: "OPEN" }) },
-    recommendation: { create: recommendationCreate },
+    recommendation: {
+      create: recommendationCreate,
+      findMany: vi.fn().mockResolvedValue(pendingRecommendations)
+    },
     recommendationCandidate: {
       create: candidateCreate,
-      findFirst: vi.fn().mockResolvedValue(history)
+      findFirst: candidateFindFirst
     }
   };
-  return { candidateCreate, client, recommendationCreate };
+  return { candidateCreate, candidateFindFirst, client, recommendationCreate };
 }
