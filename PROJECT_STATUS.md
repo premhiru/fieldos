@@ -511,6 +511,13 @@ Caladrona public website launch, pilot onboarding, and AI Decision Layer v2 qual
 
 ## Deployment Status
 
+- Recommendation quality and dismissal reliability deployed on 2026-08-04 from commit `3ce0135`.
+  - Railway API deployment `b69d81de-5af2-4fc8-b0e6-1ce3b4b3eb54` completed successfully and applied migration `20260804010000_recommendation_quality_budget`.
+  - Railway worker deployment `a167c8b3-3b21-4745-a77b-930df410569e` completed successfully, retained its persistent volume, reached its job-waiting state, and reconnected WhatsApp.
+  - Vercel production deployment `dpl_3rN72eL3xeRarpH7Lp6JUMEJNEY1` is Ready and aliased to `https://www.caladrona.com`, `https://caladrona.com`, and `https://fieldos-sand.vercel.app`.
+  - The production pending feed was reduced from 1,793 recommendations to 12: three follow-ups, four progress decisions, four milestone decisions, and one report.
+  - The queue remained at 12 through the observation window; API health and a no-op authenticated bulk-dismiss probe passed, with no API or worker errors after rollout.
+
 - Caladrona product brand migration deployed on 2026-07-27 from commit `2e4d756`.
   - Vercel production deployment `dpl_HkBMEJoA2RKgFhKBKMBFJsCJXX7R` is Ready and aliased to `https://www.caladrona.com`; the apex domain redirects successfully.
   - Railway API deployment `fbfb6763-93f6-49e4-875b-6fa6e1a3fc26` completed successfully and applied migration `20260727010000_caladrona_brand`.
