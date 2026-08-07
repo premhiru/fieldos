@@ -2,8 +2,10 @@
 
 import { Badge, Button, EmptyState, PageHeader, Skeleton } from "@fieldos/ui";
 import {
+  AlertTriangle,
   ArrowRight,
   CheckCircle2,
+  ChevronDown,
   FileText,
   Flag,
   History,
@@ -83,6 +85,7 @@ function ProjectCommandCenter() {
     onSuccess: refreshProject
   });
   const [snoozedRecommendationIds, setSnoozedRecommendationIds] = React.useState<string[]>([]);
+  const [healthDetailsOpen, setHealthDetailsOpen] = React.useState(false);
 
   async function refreshProject() {
     await Promise.all([
@@ -109,7 +112,11 @@ function ProjectCommandCenter() {
   const openActionItems = (actionItemsQuery.data?.actionItems ?? []).filter((item) =>
     ["PENDING", "ACCEPTED"].includes(item.status)
   );
+  const priorityActionItems = openActionItems.filter((item) =>
+    ["URGENT", "HIGH"].includes(item.priority)
+  );
   const significantEvents = (project.timelineEvents ?? []).filter(isSignificantEvent).slice(0, 5);
+  const healthCanExpand = ["CRITICAL", "NEEDS_ATTENTION"].includes(projectState?.health ?? "");
 
   return (
     <div className="space-y-8">
@@ -144,8 +151,25 @@ function ProjectCommandCenter() {
                 className={`mt-1.5 size-2.5 shrink-0 rounded-full ${healthDot(projectState?.health)}`}
               />
               <div>
-                <div className="font-medium text-[var(--text-primary)]">
-                  {healthLabel(projectState?.health)}
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="font-medium text-[var(--text-primary)]">
+                    {healthLabel(projectState?.health)}
+                  </div>
+                  {healthCanExpand ? (
+                    <button
+                      aria-controls="project-health-details"
+                      aria-expanded={healthDetailsOpen}
+                      className="inline-flex items-center gap-1 text-sm font-medium text-[var(--color-primary)] hover:underline"
+                      onClick={() => setHealthDetailsOpen((open) => !open)}
+                      type="button"
+                    >
+                      {healthDetailsOpen ? "Hide issue" : "View issue"}
+                      <ChevronDown
+                        aria-hidden="true"
+                        className={`size-4 transition-transform ${healthDetailsOpen ? "rotate-180" : ""}`}
+                      />
+                    </button>
+                  ) : null}
                 </div>
                 <p className="mt-0.5 text-sm text-[var(--text-secondary)]">
                   {projectState?.healthReason ??
@@ -162,6 +186,75 @@ function ProjectCommandCenter() {
             />
           </div>
         </div>
+        {healthCanExpand && healthDetailsOpen ? (
+          <div
+            className="mt-5 border-t border-[var(--border-subtle)] pt-5"
+            id="project-health-details"
+          >
+            <div className="flex items-start gap-3">
+              <AlertTriangle
+                aria-hidden="true"
+                className="mt-0.5 size-5 shrink-0 text-[var(--status-critical-text)]"
+              />
+              <div className="min-w-0 flex-1">
+                <h3 className="font-semibold text-[var(--text-primary)]">What needs attention</h3>
+                <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                  {projectState?.healthReason}
+                </p>
+
+                <dl className="mt-4 grid gap-4 lg:grid-cols-3">
+                  <HealthDetail label="Current risk" value={projectState?.recentRiskSummary} />
+                  <HealthDetail label="Blocker" value={projectState?.recentBlockerSummary} />
+                  <HealthDetail
+                    label="Pending decision"
+                    value={projectState?.pendingDecisionSummary}
+                  />
+                </dl>
+
+                {priorityActionItems.length > 0 ? (
+                  <div className="mt-4">
+                    <h4 className="text-xs font-semibold uppercase text-[var(--text-secondary)]">
+                      Priority actions
+                    </h4>
+                    <ul className="mt-2 space-y-2">
+                      {priorityActionItems.slice(0, 3).map((item) => (
+                        <li className="flex flex-wrap items-center gap-2 text-sm" key={item.id}>
+                          <Badge variant={item.priority === "URGENT" ? "warning" : "muted"}>
+                            {formatLabel(item.priority)}
+                          </Badge>
+                          <span className="font-medium text-[var(--text-primary)]">
+                            {item.title}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
+                <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-sm font-medium">
+                  <Link
+                    className="text-[var(--color-primary)] hover:underline"
+                    href={`/projects/${project.id}/evidence`}
+                  >
+                    Review evidence
+                  </Link>
+                  <Link
+                    className="text-[var(--color-primary)] hover:underline"
+                    href={`/projects/${project.id}/milestones`}
+                  >
+                    Review milestones
+                  </Link>
+                  <Link
+                    className="text-[var(--color-primary)] hover:underline"
+                    href={`/action-items?projectId=${project.id}`}
+                  >
+                    Review action items
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
         <p className="mt-5 text-xs text-[var(--text-secondary)]">
           Last meaningful activity {formatTime(projectState?.lastActivityAt ?? null)}
         </p>
@@ -292,6 +385,17 @@ function ProjectCommandCenter() {
           />
         </div>
       </section>
+    </div>
+  );
+}
+
+function HealthDetail({ label, value }: { label: string; value: string | null | undefined }) {
+  if (!value) return null;
+
+  return (
+    <div>
+      <dt className="text-xs font-semibold uppercase text-[var(--text-secondary)]">{label}</dt>
+      <dd className="mt-1 text-sm leading-6 text-[var(--text-primary)]">{value}</dd>
     </div>
   );
 }

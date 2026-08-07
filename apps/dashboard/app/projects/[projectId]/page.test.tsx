@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import * as React from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -97,6 +97,25 @@ vi.mock("@tanstack/react-query", () => ({
       };
     }
 
+    if (queryKey[0] === "project-state") {
+      return {
+        data: {
+          state: {
+            completionPercent: 62,
+            health: "CRITICAL",
+            healthReason: "A safety-related update requires immediate review.",
+            lastActivityAt: "2026-07-03T00:00:00.000Z",
+            nextMilestone: "Electrical inspection",
+            pendingDecisionSummary: "Confirm who will isolate the affected circuit.",
+            recentBlockerSummary: "Exposed uncapped electrical wires require verification.",
+            recentProgressSummary: "Interior renovation is in progress.",
+            recentRiskSummary: "Schedule an electrical safety inspection."
+          }
+        },
+        isLoading: false
+      };
+    }
+
     return {
       data: {
         actionItems: [
@@ -149,5 +168,22 @@ describe("ProjectDetailPage", () => {
     expect(screen.getByRole("button", { name: "Accept" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Ignore" })).toBeTruthy();
     expect(screen.getByRole("combobox", { name: /Assignee for Fix lobby light/ })).toBeTruthy();
+
+    const viewIssueButton = screen.getByRole("button", { name: "View issue" });
+    expect(viewIssueButton.getAttribute("aria-expanded")).toBe("false");
+    expect(
+      screen.queryByText("Exposed uncapped electrical wires require verification.")
+    ).toBeNull();
+
+    fireEvent.click(viewIssueButton);
+
+    expect(screen.getByRole("heading", { name: "What needs attention" })).toBeTruthy();
+    expect(
+      screen.getByText("Exposed uncapped electrical wires require verification.")
+    ).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Review evidence" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Hide issue" }).getAttribute("aria-expanded")).toBe(
+      "true"
+    );
   }, 15_000);
 });
