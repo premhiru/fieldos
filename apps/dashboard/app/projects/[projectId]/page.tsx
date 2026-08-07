@@ -29,6 +29,11 @@ import {
   type ProjectStateHealth,
   type ProjectTimelineEvent
 } from "../../../lib/api";
+import {
+  dismissProjectHealthWarning,
+  restoreProjectHealthWarning,
+  useDismissedProjectHealth
+} from "../../../lib/project-health-dismissals";
 
 export default function ProjectDetailPage() {
   return (
@@ -87,18 +92,24 @@ function ProjectCommandCenter() {
   });
   const [snoozedRecommendationIds, setSnoozedRecommendationIds] = React.useState<string[]>([]);
   const [healthDetailsOpen, setHealthDetailsOpen] = React.useState(false);
-  const healthDismissalKey = `caladrona:project-health-warning:${params.projectId}`;
-  const [dismissedHealthFingerprint, setDismissedHealthFingerprint] = React.useState<string | null>(
-    null
+  const dismissibleProjectHealth = React.useMemo(
+    () =>
+      projectStateQuery.data?.state
+        ? [
+            {
+              health: projectStateQuery.data.state.health,
+              healthReason: projectStateQuery.data.state.healthReason,
+              id: params.projectId
+            }
+          ]
+        : [],
+    [
+      params.projectId,
+      projectStateQuery.data?.state?.health,
+      projectStateQuery.data?.state?.healthReason
+    ]
   );
-
-  React.useEffect(() => {
-    try {
-      setDismissedHealthFingerprint(window.localStorage.getItem(healthDismissalKey));
-    } catch {
-      setDismissedHealthFingerprint(null);
-    }
-  }, [healthDismissalKey]);
+  const dismissedHealthProjectIds = useDismissedProjectHealth(dismissibleProjectHealth);
 
   async function refreshProject() {
     await Promise.all([
@@ -129,23 +140,13 @@ function ProjectCommandCenter() {
     ["URGENT", "HIGH"].includes(item.priority)
   );
   const significantEvents = (project.timelineEvents ?? []).filter(isSignificantEvent).slice(0, 5);
-  const healthFingerprint = projectState
-    ? JSON.stringify([
-        projectState.health,
-        projectState.healthReason,
-        projectState.recentRiskSummary,
-        projectState.recentBlockerSummary,
-        projectState.pendingDecisionSummary
-      ])
-    : null;
-  const healthDismissed =
-    healthFingerprint !== null && dismissedHealthFingerprint === healthFingerprint;
+  const healthDismissed = dismissedHealthProjectIds.has(params.projectId);
   const healthCanExpand =
     !healthDismissed && ["CRITICAL", "NEEDS_ATTENTION"].includes(projectState?.health ?? "");
 
   function dismissHealthWarning() {
     if (
-      !healthFingerprint ||
+      !dismissibleProjectHealth[0] ||
       !window.confirm(
         "Dismiss this warning from the Project Brief? It will return if the underlying issue changes."
       )
@@ -153,22 +154,12 @@ function ProjectCommandCenter() {
       return;
     }
 
-    try {
-      window.localStorage.setItem(healthDismissalKey, healthFingerprint);
-    } catch {
-      // The in-memory state still dismisses the warning when browser storage is unavailable.
-    }
-    setDismissedHealthFingerprint(healthFingerprint);
+    dismissProjectHealthWarning(dismissibleProjectHealth[0]);
     setHealthDetailsOpen(false);
   }
 
   function restoreHealthWarning() {
-    try {
-      window.localStorage.removeItem(healthDismissalKey);
-    } catch {
-      // The in-memory state remains authoritative for this page session.
-    }
-    setDismissedHealthFingerprint(null);
+    restoreProjectHealthWarning(params.projectId);
   }
 
   return (

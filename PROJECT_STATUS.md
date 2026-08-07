@@ -29,6 +29,7 @@ Caladrona WhatsApp-native operations production pilot, with daily connection, qu
   - Added direct routes to the project evidence, milestones, and filtered action-items views for follow-up.
   - Added dashboard regression coverage for opening and closing the health details.
   - Added confirmation-protected warning dismissal with browser persistence, automatic resurfacing when the underlying issue changes, and an explicit Restore action.
+  - Applied acknowledged warnings consistently to the Projects health badge, Critical and Needs Attention filters, and dashboard attention count.
 
 - Project People review-filter correction.
   - Corrected the Review tab to find pending reviews attached to WhatsApp identities instead of the unrelated suggested-person merge relationship.

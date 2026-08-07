@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import * as React from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import ProjectsPage from "./page";
 
@@ -66,6 +66,10 @@ vi.mock("@tanstack/react-query", async () => {
 });
 
 describe("ProjectsPage", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
   it("renders the guided project empty state", () => {
     projects = [];
     dashboardProjects = [];
@@ -108,6 +112,7 @@ describe("ProjectsPage", () => {
       },
       {
         health: "CRITICAL",
+        healthReason: "A safety-related update requires immediate review.",
         id: "project-critical",
         lastActivityAt: "2026-07-13T00:00:00.000Z"
       }
@@ -119,5 +124,40 @@ describe("ProjectsPage", () => {
     expect(screen.getByText("Critical Project")).toBeTruthy();
     expect(screen.queryByText("Active Project")).toBeNull();
     expect(screen.getByText(/Last activity/)).toBeTruthy();
+  });
+
+  it("excludes an acknowledged warning from critical project views", () => {
+    projects = [
+      {
+        code: "CRITICAL-1",
+        id: "project-critical",
+        name: "Critical Project",
+        organizationId: "organization_1",
+        status: "ACTIVE",
+        updatedAt: "2026-07-14T00:00:00.000Z"
+      }
+    ];
+    dashboardProjects = [
+      {
+        health: "CRITICAL",
+        healthReason: "A safety-related update requires immediate review.",
+        id: "project-critical",
+        lastActivityAt: "2026-07-13T00:00:00.000Z"
+      }
+    ];
+    window.localStorage.setItem(
+      "caladrona:project-health-warning:project-critical",
+      JSON.stringify(["CRITICAL", "A safety-related update requires immediate review."])
+    );
+
+    render(React.createElement(ProjectsPage));
+
+    expect(screen.getByText("Acknowledged")).toBeTruthy();
+    expect(screen.getByText("Health warning acknowledged")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Critical" }));
+
+    expect(screen.queryByText("Critical Project")).toBeNull();
+    expect(screen.getByText("No critical projects")).toBeTruthy();
   });
 });

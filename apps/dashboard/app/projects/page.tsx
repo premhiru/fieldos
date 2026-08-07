@@ -29,6 +29,7 @@ import {
   type ProjectStatus
 } from "../../lib/api";
 import { useOperationsDashboard, useOrganizations, useProjects } from "../../lib/queries";
+import { useDismissedProjectHealth } from "../../lib/project-health-dismissals";
 import { projectCode } from "../../lib/slug";
 import { useActiveOrganizationStore } from "../../store/active-organization-store";
 
@@ -71,15 +72,19 @@ function ProjectsContent() {
   const [view, setView] = React.useState<ProjectView>("all");
   const [showCreateForm, setShowCreateForm] = React.useState(false);
 
+  const dashboardProjectList = dashboardQuery.data?.dashboard.projects ?? [];
+  const dismissedHealthProjectIds = useDismissedProjectHealth(dashboardProjectList);
   const dashboardProjects = React.useMemo(
-    () =>
-      new Map(
-        (dashboardQuery.data?.dashboard.projects ?? []).map((project) => [project.id, project])
-      ),
-    [dashboardQuery.data?.dashboard.projects]
+    () => new Map(dashboardProjectList.map((project) => [project.id, project])),
+    [dashboardProjectList]
   );
   const visibleProjects = projects.filter((project) =>
-    matchesProjectView(project, dashboardProjects.get(project.id), view)
+    matchesProjectView(
+      project,
+      dashboardProjects.get(project.id),
+      view,
+      dismissedHealthProjectIds.has(project.id)
+    )
   );
 
   React.useEffect(() => {
@@ -266,7 +271,8 @@ function ProjectsContent() {
             <div className="divide-y divide-slate-200">
               {visibleProjects.map((project) => {
                 const dashboardProject = dashboardProjects.get(project.id);
-                const health = getProjectHealth(project, dashboardProject);
+                const healthDismissed = dismissedHealthProjectIds.has(project.id);
+                const health = getProjectHealth(project, dashboardProject, healthDismissed);
                 const lastActivityAt = dashboardProject?.lastActivityAt ?? project.updatedAt;
 
                 return (
@@ -276,21 +282,27 @@ function ProjectsContent() {
                     href={`/projects/${project.id}`}
                   >
                     <span
-                      aria-label={projectHealthLabel(health)}
-                      className={`size-2.5 shrink-0 rounded-full ${projectStatusDot(health)}`}
+                      aria-label={healthDismissed ? "Acknowledged" : projectHealthLabel(health)}
+                      className={`size-2.5 shrink-0 rounded-full ${healthDismissed ? "bg-[var(--text-disabled)]" : projectStatusDot(health)}`}
                       role="img"
                     />
                     <div className="min-w-0 flex-1">
                       <div className="truncate font-medium text-slate-950">{project.name}</div>
                       <div className="text-sm text-slate-500">{project.code}</div>
-                      {dashboardProject?.healthReason ? (
+                      {healthDismissed ? (
+                        <p className="mt-1 line-clamp-1 text-xs text-[var(--text-secondary)]">
+                          Health warning acknowledged
+                        </p>
+                      ) : dashboardProject?.healthReason ? (
                         <p className="mt-1 line-clamp-1 text-xs text-[var(--text-secondary)]">
                           {dashboardProject.healthReason}
                         </p>
                       ) : null}
                     </div>
                     <div className="shrink-0 text-right">
-                      <Badge variant="muted">{projectHealthLabel(health)}</Badge>
+                      <Badge variant="muted">
+                        {healthDismissed ? "Acknowledged" : projectHealthLabel(health)}
+                      </Badge>
                       {lastActivityAt ? (
                         <div
                           className="mt-1 text-xs text-[var(--text-secondary)]"
@@ -360,11 +372,12 @@ function ProjectListSkeleton() {
 function matchesProjectView(
   project: Project,
   dashboardProject: DashboardProject | undefined,
-  view: ProjectView
+  view: ProjectView,
+  healthDismissed: boolean
 ) {
   if (view === "all") return true;
 
-  const health = getProjectHealth(project, dashboardProject);
+  const health = getProjectHealth(project, dashboardProject, healthDismissed);
   if (view === "needs_attention") return health === "NEEDS_ATTENTION";
   if (view === "critical") return health === "CRITICAL";
   return health === "HEALTHY";
@@ -372,8 +385,10 @@ function matchesProjectView(
 
 function getProjectHealth(
   project: Project,
-  dashboardProject: DashboardProject | undefined
+  dashboardProject: DashboardProject | undefined,
+  healthDismissed = false
 ): ProjectStateHealth {
+  if (healthDismissed) return "HEALTHY";
   if (dashboardProject?.health) return dashboardProject.health;
   return project.status === "ACTIVE" ? "HEALTHY" : "UNKNOWN";
 }

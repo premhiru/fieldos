@@ -16,6 +16,10 @@ import {
   type RecommendationPriorityFilter
 } from "../components/recommendation-priority-controls";
 import { api, type ActionItem, type Recommendation } from "../lib/api";
+import {
+  countUndismissedHealthWarnings,
+  useDismissedProjectHealth
+} from "../lib/project-health-dismissals";
 import { useMe, useOperationsDashboard, useOrganizations } from "../lib/queries";
 import { useActiveOrganizationStore } from "../store/active-organization-store";
 
@@ -40,6 +44,9 @@ function DashboardContent() {
   const organization =
     organizations.find((item) => item.id === activeOrganizationId) ?? organizations[0];
   const dashboardQuery = useOperationsDashboard(organization?.id ?? null);
+  const dismissedHealthProjectIds = useDismissedProjectHealth(
+    dashboardQuery.data?.dashboard.projects ?? []
+  );
   const recommendationsQuery = useQuery({
     enabled: Boolean(organization?.id),
     queryFn: () => api.listRecommendations(organization?.id ?? "", "PENDING"),
@@ -139,6 +146,9 @@ function DashboardContent() {
     : [];
   const recentMessages =
     dashboard?.recentActivity.filter((item) => item.sourceType === "MESSAGE").length ?? 0;
+  const projectsNeedingAttention = dashboard
+    ? countUndismissedHealthWarnings(dashboard.projects, dismissedHealthProjectIds)
+    : 0;
 
   function snoozeRecommendation(id: string) {
     const next = { ...snoozed, [id]: Date.now() + 24 * 60 * 60 * 1000 };
@@ -252,9 +262,7 @@ function DashboardContent() {
               icon={TriangleAlert}
               label="Projects needing attention"
               tone="amber"
-              value={
-                dashboard.summary.projectsNeedingAttention + dashboard.summary.criticalProjects
-              }
+              value={projectsNeedingAttention}
             />
             <SummaryMetric
               href="/inbox"
