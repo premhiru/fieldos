@@ -5,7 +5,7 @@
 | Purpose      | Track Caladrona milestone progress, task completion, technical debt, architecture decisions, and deployment readiness. |
 | Owner        | Founding Engineering                                                                                                   |
 | Status       | Active                                                                                                                 |
-| Last Updated | 2026-08-04                                                                                                             |
+| Last Updated | 2026-08-07                                                                                                             |
 
 ## Table of Contents
 
@@ -22,6 +22,11 @@
 Caladrona public website launch, pilot onboarding, and AI Decision Layer v2 quality monitoring.
 
 ## Completed Tasks
+
+- Public signup CTA contrast repair.
+  - Corrected the landing-page CSS cascade that rendered the primary signup text and button background in the same color.
+  - Updated both primary signup calls to action to use Caladrona amber with dark text, plus explicit hover and keyboard-focus states.
+  - Verified the deployed buttons at 390 px mobile and 1440 px desktop widths with a 7.15:1 foreground-to-background contrast ratio.
 
 - Recommendation quality and dismissal reliability.
   - Diagnosed the production feed at 1,793 pending recommendations, including 1,495 follow-ups generated from only 13 underlying expectations.
@@ -510,6 +515,10 @@ Caladrona public website launch, pilot onboarding, and AI Decision Layer v2 qual
 - AI Decision Layer v2 promotion decision: enable `v2` after the provider-backed recommendation gates passed, retain `legacy` for immediate rollback, and treat category and secondary-signal quality as monitored limitations rather than recommendation blockers.
 
 ## Deployment Status
+
+- Signup CTA contrast repair deployed to Vercel production on 2026-08-07 from commit `90fa2ca`.
+  - Vercel deployment `CFir8HFmDqJLgU7zsZ2MhSDYwVDW` completed successfully and is aliased to `https://www.caladrona.com`.
+  - Live mobile and desktop checks confirmed visible amber signup buttons with dark text; no Railway deployment was required.
 
 - Recommendation quality and dismissal reliability deployed on 2026-08-04 from commit `3ce0135`.
   - Railway API deployment `b69d81de-5af2-4fc8-b0e6-1ce3b4b3eb54` completed successfully and applied migration `20260804010000_recommendation_quality_budget`.
