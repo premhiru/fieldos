@@ -176,10 +176,19 @@
 .cal-btn:hover {
   transform: translateY(-2px);
 }
-.cal-btn-ink {
-  background: var(--cal-ink);
-  color: var(--cal-paper);
-  box-shadow: 0 14px 30px rgba(21, 19, 13, 0.18);
+.caladrona-page .cal-btn-ink {
+  background: var(--cal-amber);
+  color: var(--cal-ink);
+  box-shadow: 0 14px 30px rgba(255, 122, 51, 0.24);
+}
+.caladrona-page .cal-btn-ink:hover {
+  background: #f06a22;
+  color: var(--cal-ink);
+  box-shadow: 0 17px 34px rgba(255, 122, 51, 0.3);
+}
+.caladrona-page .cal-btn-ink:focus-visible {
+  outline: 3px solid rgba(15, 157, 134, 0.45);
+  outline-offset: 3px;
 }
 .cal-btn-ghost {
   background: rgba(21, 19, 13, 0.04);
