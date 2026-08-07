@@ -68,7 +68,12 @@ test("renders WhatsApp recommendation settings and the project People directory"
                             }
                           ],
                           identityReviews: [
-                            { id: "review-1", reason: "MANUAL_REVIEW", status: "PENDING" }
+                            {
+                              id: "review-1",
+                              personIdentityId: "identity-1",
+                              reason: "MANUAL_REVIEW",
+                              status: "PENDING"
+                            }
                           ],
                           phoneNumber: "6590000000",
                           roleTitle: null,

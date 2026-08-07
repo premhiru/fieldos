@@ -35,6 +35,14 @@ describe("WhatsApp native operations tenancy", () => {
                   displayName: "Supervisor",
                   groupParticipants: [],
                   id: "identity-1",
+                  identityReviews: [
+                    {
+                      id: "review-1",
+                      personIdentityId: "identity-1",
+                      reason: "MANUAL_REVIEW",
+                      status: "PENDING"
+                    }
+                  ],
                   jid: "6590000000@s.whatsapp.net",
                   lastSeenAt: new Date("2026-08-07T00:00:00.000Z"),
                   lid: "123@lid",
@@ -43,7 +51,6 @@ describe("WhatsApp native operations tenancy", () => {
                   verificationStatus: "OBSERVED"
                 }
               ],
-              identityReviews: [],
               phoneNumber: "6590000000",
               roleTitle: null,
               status: "ACTIVE",
@@ -72,11 +79,44 @@ describe("WhatsApp native operations tenancy", () => {
             pushName: "Site Supervisor"
           }
         ],
+        identityReviews: [
+          {
+            id: "review-1",
+            personIdentityId: "identity-1",
+            status: "PENDING"
+          }
+        ],
         phoneNumber: "6590000000"
       }
     });
     expect(JSON.stringify(people[0])).not.toContain("@s.whatsapp.net");
     expect(JSON.stringify(people[0])).not.toContain("@lid");
+  });
+
+  it("finds reviewable people through pending WhatsApp identity reviews", async () => {
+    const client = {
+      project: { findFirst: vi.fn().mockResolvedValue({ id: "project-1" }) },
+      projectParticipant: { findMany: vi.fn().mockResolvedValue([]) }
+    };
+    const service = createPrismaWhatsAppNativeService(client as never);
+
+    await service.listPeople({
+      filter: "review",
+      organizationId: "org-1",
+      projectId: "project-1"
+    });
+
+    expect(client.projectParticipant.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          person: {
+            identities: {
+              some: { identityReviews: { some: { status: "PENDING" } } }
+            }
+          }
+        })
+      })
+    );
   });
 
   it("confirms a reviewed identity as a distinct person", async () => {

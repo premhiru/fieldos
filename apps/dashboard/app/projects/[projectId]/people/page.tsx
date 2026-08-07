@@ -436,8 +436,10 @@ function PersonRow({
   participant: ProjectPerson;
 }) {
   const person = participant.person;
-  const identity = person.identities[0];
   const review = person.identityReviews[0];
+  const identity =
+    person.identities.find((candidate) => candidate.id === review?.personIdentityId) ??
+    person.identities[0];
   const invitation = person.whatsAppInvitations[0];
   const whatsAppName = identity?.pushName ?? identity?.displayName;
   const whatsAppNumber = identity?.phoneNumber ?? person.phoneNumber;

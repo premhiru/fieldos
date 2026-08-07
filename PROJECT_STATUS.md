@@ -23,6 +23,12 @@ Caladrona WhatsApp-native operations production pilot, with daily connection, qu
 
 ## Completed Tasks
 
+- Project People review-filter correction.
+  - Corrected the Review tab to find pending reviews attached to WhatsApp identities instead of the unrelated suggested-person merge relationship.
+  - Returned each pending review with its identity ID so the UI displays the WhatsApp number belonging to the identity under review.
+  - Added API regression coverage for the identity-review query path and browser coverage for the visible review controls.
+  - Completed repository-wide lint, tests, production build, API and dashboard typechecks, and Playwright smoke verification.
+
 - WhatsApp participant identity review completion.
   - Exposed tenant-scoped WhatsApp display names, push names, and normalized phone numbers in the Project People API without returning raw JID or LID provider identifiers.
   - Added visible WhatsApp identity details beside each project participant and a dedicated administrator action to confirm a reviewed identity as a distinct person.

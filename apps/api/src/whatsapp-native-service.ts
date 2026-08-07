@@ -330,10 +330,10 @@ export function createPrismaWhatsAppNativeService(
                 include: {
                   groupParticipants: {
                     where: { whatsappChatMapping: { projectId: input.projectId } }
-                  }
+                  },
+                  identityReviews: { where: { status: "PENDING" } }
                 }
               },
-              identityReviews: { where: { status: "PENDING" } },
               user: {
                 include: { memberships: { where: { organizationId: input.organizationId } } }
               },
@@ -352,7 +352,13 @@ export function createPrismaWhatsAppNativeService(
           ...(filter === "platform" ? { person: { userId: { not: null } } } : {}),
           ...(filter === "external" ? { person: { type: "EXTERNAL" } } : {}),
           ...(filter === "review"
-            ? { person: { identityReviews: { some: { status: "PENDING" } } } }
+            ? {
+                person: {
+                  identities: {
+                    some: { identityReviews: { some: { status: "PENDING" } } }
+                  }
+                }
+              }
             : {}),
           ...(filter === "invited"
             ? {
@@ -392,11 +398,14 @@ export function createPrismaWhatsAppNativeService(
             pushName: identity.pushName,
             verificationStatus: identity.verificationStatus
           })),
-          identityReviews: participant.person.identityReviews.map((review) => ({
-            id: review.id,
-            reason: review.reason,
-            status: review.status
-          })),
+          identityReviews: participant.person.identities.flatMap((identity) =>
+            identity.identityReviews.map((review) => ({
+              id: review.id,
+              personIdentityId: review.personIdentityId,
+              reason: review.reason,
+              status: review.status
+            }))
+          ),
           roleTitle: participant.person.roleTitle,
           phoneNumber: participant.person.phoneNumber,
           status: participant.person.status,

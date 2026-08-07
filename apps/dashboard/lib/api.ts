@@ -1011,7 +1011,12 @@ export interface ProjectPerson {
       lastSeenAt: string;
       groupParticipants: Array<{ isGroupAdmin: boolean; participantStatus: "ACTIVE" | "INACTIVE" }>;
     }>;
-    identityReviews: Array<{ id: string; reason: string; status: string }>;
+    identityReviews: Array<{
+      id: string;
+      personIdentityId: string;
+      reason: string;
+      status: string;
+    }>;
     whatsAppInvitations: Array<{
       expiresAt: string;
       failureReason: string | null;
