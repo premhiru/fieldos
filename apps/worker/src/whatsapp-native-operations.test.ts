@@ -228,7 +228,7 @@ function buildDelivery(overrides: Record<string, unknown> = {}) {
   return {
     confirmationExpiresAt: null,
     deliveryStatus: "SENT",
-    expiresAt: new Date("2026-07-30T00:00:00.000Z"),
+    expiresAt: new Date(Date.now() + 60 * 60 * 1000),
     id: "delivery-1",
     impact: "STANDARD",
     organizationId: "org-1",
