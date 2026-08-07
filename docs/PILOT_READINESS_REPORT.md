@@ -1,11 +1,11 @@
 # Pilot Readiness Report
 
-| Field        | Value                                                  |
-| ------------ | ------------------------------------------------------ |
-| Purpose      | Summarize Sprint 14 readiness work and remaining risk. |
-| Owner        | Principal Product Engineering                          |
-| Status       | Active                                                 |
-| Last Updated | 2026-07-21                                             |
+| Field        | Value                                                                      |
+| ------------ | -------------------------------------------------------------------------- |
+| Purpose      | Summarize controlled-pilot readiness, launch controls, and remaining risk. |
+| Owner        | Principal Product Engineering                                              |
+| Status       | Controlled Pilot Active                                                    |
+| Last Updated | 2026-08-07                                                                 |
 
 ## Table of Contents
 
@@ -15,59 +15,83 @@
 - [Security Review](#security-review)
 - [Performance Review](#performance-review)
 - [Scalability Review](#scalability-review)
+- [Launch Controls](#launch-controls)
+- [Production Verification](#production-verification)
 - [Readiness Scores](#readiness-scores)
 - [Postponed](#postponed)
 
 ## Summary
 
-Caladrona is ready for a controlled first customer pilot after deployment and production smoke testing. Sprint 14 adds onboarding, demo data, demo reset, feedback, notifications, product analytics, and clearer pilot-facing UX.
+Caladrona entered a controlled production pilot on 2026-08-07. The approved scope uses a dedicated WhatsApp business/test number, named workspace administrators, explicit chat activation, and monitored background processing.
 
-AI Decision Layer v2 is suitable for a shadow pilot only. Its additive schema, bounded contexts, suppression telemetry, and one-variable rollback reduce rollout risk, but customer-visible v2 recommendations must wait for live shadow review.
+AI Decision Layer v2 is customer-visible in production with high-value recommendation gates, duplicate suppression, cooldowns, bounded project budgets, and `legacy` retained as the immediate rollback mode.
 
-The 86-case provider-backed Kimi evaluation completed with no provider failures, 100% recommendation precision and recall, and zero inspection, follow-up, or duplicate false positives. Lower category and multi-signal extraction metrics remain an explicit shadow-review concern.
+The 86-case provider-backed Kimi evaluation completed with no provider failures, 100% recommendation precision and recall, and zero inspection, follow-up, or duplicate false positives. Lower category and multi-signal extraction metrics remain an explicit live-review concern.
 
 ## Strengths
 
 - Core workflows are tenant-scoped.
-- Demo workspace is resettable and isolated from production organizations.
 - R2 durable storage is in place for new media and generated reports.
 - Background jobs and worker heartbeat provide operational visibility.
-- AI features are asynchronous and bounded by retry/rate-limit controls.
+- AI features are asynchronous and bounded by retry and rate-limit controls.
+- WhatsApp discovery does not ingest content until an administrator explicitly activates a chat.
+- Recommendations and WhatsApp drafts retain human approval boundaries.
 
 ## Weaknesses
 
 - Baileys remains a WhatsApp Web adapter and is not the final enterprise WhatsApp architecture.
-- Voice transcription still depends on OpenAI audio capability, not OpenRouter chat models.
+- The active session experienced short recoverable `428` and `503` disconnects during preflight. Each reconnected automatically within seconds, but connection stability remains a monitored pilot risk.
+- Voice transcription still depends on a provider with audio transcription support.
 - Analytics are internal database events, not yet a full analytics dashboard.
-- Demo screenshots are static references and should be replaced with production captures after deployment.
-- The Operations view includes retained historical failures; it does not yet separate all-time errors from the current health window clearly enough.
+- The Operations view retains historical failures and does not yet distinguish them clearly from the current health window.
 
 ## Security Review
 
-Sensitive media access uses authorization plus short-lived signed URLs. The sprint avoids storing secrets in docs or UI. Feedback and notifications are organization-scoped. Baileys auth storage is isolated on a persistent worker volume; automated backup and restoration remain hardening work.
+Sensitive media access uses authorization plus short-lived signed URLs. Feedback and notifications are organization-scoped. Baileys auth storage is isolated on a persistent worker volume, while media and reports use R2. Automated Baileys credential backup and restoration remain hardening work.
 
 ## Performance Review
 
-Pilot endpoints use indexed organization/user access paths. Demo reset is intentionally transactional and should be used sparingly. Dashboard polling remains lightweight but should be revisited for larger pilots.
+Pilot endpoints use indexed organization and user access paths. Dashboard polling remains lightweight, AI work is queued, and provider calls are throttled. These controls are appropriate for the limited pilot scope and should be revisited before larger onboarding waves.
 
 ## Scalability Review
 
-The modular monolith remains appropriate for the next pilot stage. Background processing is database-backed and simple; a dedicated queue can be introduced once job throughput data proves the need.
+The modular monolith remains appropriate for the pilot stage. Database-backed background processing is simple and observable. A dedicated queue, server-side WhatsApp catalog pagination, and the official Meta connector should be introduced when measured traffic justifies them.
+
+## Launch Controls
+
+- Use only a dedicated business/test WhatsApp number during the pilot.
+- Activate only approved project chats and groups; discovery alone does not ingest message content.
+- Keep a named organization owner responsible for chat activation, project mapping, and connection recovery.
+- Review Operations health daily for worker heartbeat, recent failed jobs, queue depth, WhatsApp status, and coordinator activity.
+- Keep recommendations human-approved; WhatsApp drafts require an explicit send action.
+- Pause onboarding and investigate if the line cannot reconnect, recent failed jobs appear, or organization isolation is in doubt.
+
+## Production Verification
+
+The launch preflight on 2026-08-07 confirmed:
+
+- Public site, login, API, PostgreSQL, Redis, worker, and coordinator services healthy.
+- One active pilot WhatsApp line connected with eight explicitly active chat mappings.
+- Twenty-one WhatsApp messages ingested in the preceding 24 hours.
+- Twenty-one AI classifications, one photo analysis, and ninety-seven total background jobs completed in that window.
+- Zero recent failed jobs and an online worker heartbeat.
+- GitHub lint, typecheck, tests, and build checks passed on the release baseline.
 
 ## Readiness Scores
 
+- Controlled-pilot readiness: 85%.
+- Broad enterprise rollout readiness: 65%.
 - Onboarding: 85%.
-- Demo quality: 86%.
-- Observability: 78%.
-- Error UX: 76%.
-- Mobile readiness: 74%.
-- Accessibility: 76%.
-- Deployment readiness: 78%.
+- Observability: 82%.
+- Error UX: 80%.
+- Mobile readiness: 82%.
+- Accessibility: 80%.
+- Deployment readiness: 86%.
 
 ## Postponed
 
 - Full product analytics dashboard.
-- Full interactive guided tour overlay.
 - Official Meta WhatsApp Cloud API.
-- Production screenshot refresh.
-- Multi-user organization administration.
+- Automated Baileys credential backup and restoration.
+- Server-side pagination for very large WhatsApp discovery catalogs.
+- Broader customer rollout until pilot telemetry is reviewed.

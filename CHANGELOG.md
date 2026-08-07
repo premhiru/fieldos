@@ -5,11 +5,20 @@
 | Purpose      | Track notable Caladrona product and platform work. |
 | Owner        | Engineering                                        |
 | Status       | Active                                             |
-| Last Updated | 2026-08-04                                         |
+| Last Updated | 2026-08-07                                         |
 
 ## Table of Contents
 
 - [Unreleased](#unreleased)
+- [v0.1.0-pilot](#v010-pilot---2026-08-07)
+
+## v0.1.0-pilot - 2026-08-07
+
+- Launched the controlled WhatsApp-native operations pilot on the production Caladrona environment.
+- Verified the dedicated pilot line is connected with eight active chat mappings and an online worker heartbeat.
+- Verified twenty-one WhatsApp messages, twenty-one AI classifications, one photo analysis, and ninety-seven completed jobs in the preceding 24 hours with zero recent failures.
+- Retained explicit chat activation, human-approved recommendations, explicit WhatsApp draft sending, and daily Operations health review as launch controls.
+- Kept the official Meta WhatsApp Cloud API, automated Baileys credential backup, and broad enterprise rollout outside the controlled-pilot scope.
 
 ## Unreleased
 

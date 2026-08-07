@@ -19,9 +19,15 @@
 
 ## Current Milestone
 
-Caladrona public website launch, pilot onboarding, and AI Decision Layer v2 quality monitoring.
+Controlled WhatsApp-native operations pilot, with daily connection, queue, AI-quality, and recommendation-value monitoring.
 
 ## Completed Tasks
+
+- Controlled pilot production rollout.
+  - Approved and launched the monitored pilot on 2026-08-07 using the connected dedicated WhatsApp line and explicit chat activation controls.
+  - Verified the public site, login, API, PostgreSQL, Redis, worker, coordinator, and GitHub release baseline.
+  - Confirmed eight active chat mappings, twenty-one WhatsApp messages, twenty-one AI classifications, one photo analysis, ninety-seven completed jobs, and zero recent failures during the 24-hour launch window.
+  - Preserved the connected Railway worker without an unnecessary deployment restart.
 
 - Public signup CTA contrast repair.
   - Corrected the landing-page CSS cascade that rendered the primary signup text and button background in the same color.
@@ -425,7 +431,8 @@ Caladrona public website launch, pilot onboarding, and AI Decision Layer v2 qual
 ## In-Progress Tasks
 
 - Monitor customer-visible v2 decisions, recommendation acceptance, suppression reasons, and extraction quality with pilot traffic.
-- Confirm the first post-promotion inbound classification persists a `V2` decision; no new inbound message arrived during the deployment verification window.
+- Monitor recoverable Baileys disconnect frequency and confirm that each outage reconnects without message loss or duplicate ingestion.
+- Complete one controlled outbound WhatsApp draft-send test and one mixed-evidence voice/document test during the pilot.
 
 ## Known Technical Debt
 
@@ -467,20 +474,18 @@ Caladrona public website launch, pilot onboarding, and AI Decision Layer v2 qual
 
 ## Upcoming Milestones
 
+- Review the first three days of controlled-pilot telemetry before expanding the participant or chat scope.
 - Review customer-visible v2 classifications, recommendation candidates, suppression reasons, and human decisions after the first representative pilot traffic window.
 - Validate the redesigned product shell with pilot users and prioritize findings from real workflows.
 - Add server-backed unread state, Action Item due dates, and durable recommendation snoozes when workflow telemetry confirms the required semantics.
 - Monitor transactional-email delivery and suppression rates during pilot onboarding.
 - Capture refreshed production quick-start screenshots for the Milestone Intelligence workflow.
-- Pair the dedicated pilot WhatsApp line and verify one live `WHATSAPP_DRAFT_SEND` job reaches `COMPLETED`.
+- Verify one live `WHATSAPP_DRAFT_SEND` job reaches `COMPLETED` on the connected pilot line.
 - Reset the demo workspace in production through the dashboard after Vercel deployment is confirmed.
-- Pair the WhatsApp line again and validate live photo analysis, mixed-evidence ingestion, voice transcription, AI classification, project intelligence, evidence viewing, and search indexing.
+- Validate mixed-evidence ingestion, voice transcription, project intelligence, evidence viewing, and search indexing with controlled pilot traffic.
 - Configure `OPENAI_API_KEY` for production voice transcription if voice transcript generation is required.
 - Configure branch protection for `main` and `develop`.
 - Create `develop` branch after remote setup.
-- Add invite and membership management after the basic auth/org/project slice is verified.
-- Validate WhatsApp QR pairing, chat discovery, explicit activation, and inbound message ingestion with a dedicated business test number.
-- Validate AI classifications and project suggestions with real active WhatsApp project messages.
 - Convert accepted Action Items into first-class operational task records after the task domain exists.
 - Build Task 008 activity timeline on top of the generic `Event` model.
 - Extend milestones with dependencies and recurrence only after pilot scheduling telemetry demonstrates the need.
@@ -515,6 +520,11 @@ Caladrona public website launch, pilot onboarding, and AI Decision Layer v2 qual
 - AI Decision Layer v2 promotion decision: enable `v2` after the provider-backed recommendation gates passed, retain `legacy` for immediate rollback, and treat category and secondary-signal quality as monitored limitations rather than recommendation blockers.
 
 ## Deployment Status
+
+- Controlled pilot launched on 2026-08-07 from the `v0.1.0-pilot` release baseline.
+  - Production preflight confirmed `https://www.caladrona.com`, login, and API health at HTTP 200.
+  - Railway API, worker, PostgreSQL, Redis, and coordinator services were healthy; the worker heartbeat was online and the active pilot WhatsApp line was connected.
+  - The prior 24 hours contained ninety-seven completed jobs and zero recent failures. Railway was intentionally not restarted because no backend code changed and preserving the active WhatsApp session reduced rollout risk.
 
 - Signup CTA contrast repair deployed to Vercel production on 2026-08-07 from commit `90fa2ca`.
   - Vercel deployment `CFir8HFmDqJLgU7zsZ2MhSDYwVDW` completed successfully and is aliased to `https://www.caladrona.com`.
