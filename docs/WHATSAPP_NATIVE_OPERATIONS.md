@@ -1,11 +1,11 @@
 # WhatsApp-Native Operations
 
-| Field        | Value                                                                                       |
-| ------------ | ------------------------------------------------------------------------------------------- |
-| Purpose      | Define FieldOS WhatsApp recommendation, identity, participant, invitation, and audit flows. |
-| Owner        | Platform Engineering                                                                        |
-| Status       | Implemented, Dark Launch                                                                    |
-| Last Updated | 2026-07-24                                                                                  |
+| Field        | Value                                                                                         |
+| ------------ | --------------------------------------------------------------------------------------------- |
+| Purpose      | Define Caladrona WhatsApp recommendation, identity, participant, invitation, and audit flows. |
+| Owner        | Platform Engineering                                                                          |
+| Status       | Production Pilot                                                                              |
+| Last Updated | 2026-08-07                                                                                    |
 
 ## Table of Contents
 
@@ -72,7 +72,7 @@ Commands are case-insensitive but exact: `APPROVE`, `REJECT`, `DETAILS`, three b
 
 ## Authorization Model
 
-A state-changing reply requires a confirmed identity, linked Person and FieldOS user, owner or administrator organization role, project access, correct addressed recipient, pending unexpired recommendation, and the configured group-approval policy where applicable. Group replies are limited to explicitly selected named approvers even when group approval is enabled. Named approvers still need platform access. WhatsApp group-admin status is metadata only and never grants FieldOS permission.
+A state-changing reply requires a confirmed identity, linked Person and Caladrona user, owner or administrator organization role, project access, correct addressed recipient, pending unexpired recommendation, and the configured group-approval policy where applicable. Group replies are limited to explicitly selected named approvers even when group approval is enabled. Named approvers still need platform access. WhatsApp group-admin status is metadata only and never grants Caladrona permission.
 
 ## High-Impact Confirmation
 
@@ -111,7 +111,7 @@ The design denies unverified, forwarded, replayed, expired, superseded, cross-pr
 - Disconnected account: delivery retries and remains failed/observable after bounded attempts.
 - Metadata unavailable or partial: participant sync preserves existing people and does not infer removals.
 - Ambiguous identity: a review item is created and authorization remains denied.
-- Missing recipient: the recommendation remains available in FieldOS.
+- Missing recipient: the recommendation remains available in Caladrona.
 - Quiet hours or limits: work is deferred; urgent policy can bypass quiet hours.
 - Unknown result after worker interruption: no automatic resend; inspect the provider/account state and retry only when safe.
 - Baileys identifier changes: no authorization transfer without deterministic resolution.

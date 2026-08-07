@@ -19,9 +19,19 @@
 
 ## Current Milestone
 
-Controlled WhatsApp-native operations pilot, with daily connection, queue, AI-quality, and recommendation-value monitoring.
+Caladrona WhatsApp-native operations production pilot, with daily connection, queue, identity-review, recommendation-value, and authorization monitoring.
 
 ## Completed Tasks
+
+- Advanced WhatsApp-native operations production launch.
+  - Rebased the advanced operations branch onto `main`, resolved brand and authentication-flow conflicts, and merged pull request 3 at commit `0e1d471` after all GitHub checks passed.
+  - Replayed all 30 Prisma migrations against a disposable PostgreSQL database with zero unhealthy migrations, then applied `20260724120000_whatsapp_native_hardening` to production.
+  - Completed uncached format, lint, typecheck, unit/integration, production build, and Playwright smoke verification.
+  - Dark-launched API and worker with all four native-operation switches disabled and verified API health, worker connection, migration state, and zero outbound deliveries.
+  - Activated participant synchronization first, syncing 11 members from the Reno pilot group and creating eight observed identities for explicit review.
+  - Activated recommendation delivery and replies for one pilot project using private connected-owner routing, urgent-only filtering, two-per-day caps, a 120-minute cooldown, high-impact confirmation, and disabled group approvals.
+  - Verified a live medium-priority canary job was safely suppressed with no outbound delivery, then enabled invitations as an owner-triggered capability.
+  - Confirmed one connected WhatsApp account, one enabled pilot setting, an online worker heartbeat, no failed native jobs, and production availability on Caladrona and Railway.
 
 - Controlled pilot production rollout.
   - Approved and launched the monitored pilot on 2026-08-07 using the connected dedicated WhatsApp line and explicit chat activation controls.
@@ -520,6 +530,14 @@ Controlled WhatsApp-native operations pilot, with daily connection, queue, AI-qu
 - AI Decision Layer v2 promotion decision: enable `v2` after the provider-backed recommendation gates passed, retain `legacy` for immediate rollback, and treat category and secondary-signal quality as monitored limitations rather than recommendation blockers.
 
 ## Deployment Status
+
+- Advanced WhatsApp-native operations is active in the controlled production pilot.
+  - GitHub `main` commit `0e1d471` passed build, lint, tests, and typecheck; pull request 3 is merged.
+  - Vercel production deployment `dpl_BmQfaZ2Zbh2SYfNiJrphstpRyc96` is Ready on `https://caladrona.com` and `https://fieldos-sand.vercel.app`.
+  - Railway API deployment `79297ef0-b27d-4446-b33e-d37662578b94` and worker deployment `98da2bda-8caf-4bdb-a6d8-7f9e806b65c4` are successful.
+  - `WHATSAPP_RECOMMENDATION_DELIVERY_ENABLED`, `WHATSAPP_RECOMMENDATION_REPLY_ENABLED`, `WHATSAPP_PARTICIPANT_SYNC_ENABLED`, and `WHATSAPP_INVITATIONS_ENABLED` are enabled on API and worker.
+  - Production migration `20260724120000_whatsapp_native_hardening` is applied; the worker is online and the connected WhatsApp line is healthy.
+  - Rollback remains immediate through the four Railway feature switches; project settings remain the second delivery boundary.
 
 - Controlled pilot launched on 2026-08-07 from the `v0.1.0-pilot` release baseline.
   - Production preflight confirmed `https://www.caladrona.com`, login, and API health at HTTP 200.

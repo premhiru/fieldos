@@ -326,7 +326,7 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
       const result = await this.options.sendText({
         destinationJid,
         organizationId: invitation.organizationId,
-        text: `${invitation.person.displayName}, you have been invited to join ${invitation.project.name} in FieldOS.\n\nReply JOIN to continue.\n\nThis invitation expires ${formatDate(invitation.expiresAt, invitation.project.timezone)}.`,
+        text: `${invitation.person.displayName}, you have been invited to join ${invitation.project.name} in Caladrona.\n\nReply JOIN to continue.\n\nThis invitation expires ${formatDate(invitation.expiresAt, invitation.project.timezone)}.`,
         whatsappAccountId: invitation.whatsappAccountId
       });
       await this.prisma.$transaction([
@@ -390,7 +390,7 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
       });
       return {
         handled: true,
-        replyText: "This WhatsApp identity is not authorized to review FieldOS recommendations."
+        replyText: "This WhatsApp identity is not authorized to review Caladrona recommendations."
       };
     }
 
@@ -411,7 +411,7 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
       return {
         handled: true,
         replyText:
-          "I could not identify which FieldOS recommendation you are responding to.\n\nPlease reply directly to the original recommendation message."
+          "I could not identify which Caladrona recommendation you are responding to.\n\nPlease reply directly to the original recommendation message."
       };
     }
 
@@ -541,10 +541,10 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
       );
       const evidence =
         delivery.recommendation.decisionCandidate?.evidenceSummary ||
-        "Evidence is available in FieldOS.";
+        "Evidence is available in Caladrona.";
       return {
         handled: true,
-        replyText: `${delivery.recommendation.title}\n\n${delivery.recommendation.description}\n\nEvidence: ${evidence.slice(0, 800)}\n\nReview securely in FieldOS: ${this.options.appUrl}/recommendations/${delivery.recommendationId}`
+        replyText: `${delivery.recommendation.title}\n\n${delivery.recommendation.description}\n\nEvidence: ${evidence.slice(0, 800)}\n\nReview securely in Caladrona: ${this.options.appUrl}/recommendations/${delivery.recommendationId}`
       };
     }
     if (command.type === "SNOOZE") {
@@ -757,8 +757,8 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
     const detail = result.actionItemId
       ? "An Action Item was created."
       : result.draft
-        ? "A WhatsApp draft was prepared for review in FieldOS. No external message was sent."
-        : "The approved action was recorded in FieldOS.";
+        ? "A WhatsApp draft was prepared for review in Caladrona. No external message was sent."
+        : "The approved action was recorded in Caladrona.";
     return {
       handled: true,
       replyText: `Approved.\n\n${detail}\n\nProject: ${delivery.project.name}`
@@ -769,7 +769,10 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
     input: WhatsAppControlMessageInput
   ): Promise<{ handled: true; replyText: string }> {
     if (!this.options.invitationsEnabled || !input.quotedMessageId) {
-      return { handled: true, replyText: "Please reply JOIN directly to your FieldOS invitation." };
+      return {
+        handled: true,
+        replyText: "Please reply JOIN directly to your Caladrona invitation."
+      };
     }
     const identity = await this.resolveSenderIdentity(input, false);
     const invitation = identity
@@ -811,7 +814,7 @@ export class WhatsAppNativeOperationsService implements WhatsAppControlMessageHa
     });
     return {
       handled: true,
-      replyText: `Continue securely in FieldOS:\n${this.options.appUrl}/whatsapp-invite#token=${token}\n\nThis single-use link expires ${formatDate(invitation.expiresAt, invitation.project.timezone)}.`
+      replyText: `Continue securely in Caladrona:\n${this.options.appUrl}/whatsapp-invite#token=${token}\n\nThis single-use link expires ${formatDate(invitation.expiresAt, invitation.project.timezone)}.`
     };
   }
 
@@ -1215,7 +1218,7 @@ function formatRecommendation(
   expiresAt: Date
 ): string {
   const evidence = recommendation.decisionCandidate?.evidenceSummary?.trim();
-  return `FieldOS Recommendation - ${recommendationReference(recommendation.id)}\n\nProject: ${project.name}\n\nWhat happened:\n${recommendation.description}\n\nWhy it matters:\n${recommendation.reason}\n\nRecommended action:\n${recommendation.title}\n\nEvidence:\n${evidence ? evidence.slice(0, 700) : "Open FieldOS for the supporting project evidence."}\n\nReply to this message with:\nAPPROVE\nREJECT\nDETAILS\nSNOOZE 1 DAY\n\nExpires: ${formatDate(expiresAt, project.timezone)}`;
+  return `Caladrona Recommendation - ${recommendationReference(recommendation.id)}\n\nProject: ${project.name}\n\nWhat happened:\n${recommendation.description}\n\nWhy it matters:\n${recommendation.reason}\n\nRecommended action:\n${recommendation.title}\n\nEvidence:\n${evidence ? evidence.slice(0, 700) : "Open Caladrona for the supporting project evidence."}\n\nReply to this message with:\nAPPROVE\nREJECT\nDETAILS\nSNOOZE 1 DAY\n\nExpires: ${formatDate(expiresAt, project.timezone)}`;
 }
 
 function formatDate(date: Date, timezone: string): string {

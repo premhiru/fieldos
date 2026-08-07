@@ -24,7 +24,7 @@ test("renders WhatsApp recommendation settings and the project People directory"
                 {
                   id: "org-1",
                   membershipId: "membership-1",
-                  name: "FieldOS Test",
+                  name: "Caladrona Test",
                   role: "OWNER",
                   slug: "fieldos-test"
                 }

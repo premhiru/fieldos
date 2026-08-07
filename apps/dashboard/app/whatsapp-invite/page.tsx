@@ -39,7 +39,7 @@ export default function WhatsAppInvitationPage() {
     <PageContainer className="flex min-h-screen items-center justify-center py-8">
       <Card className="w-full max-w-lg">
         <CardHeader>
-          <CardTitle>Join FieldOS</CardTitle>
+          <CardTitle>Join Caladrona</CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
           {!token || invitation.isLoading ? (
@@ -73,8 +73,8 @@ export default function WhatsAppInvitationPage() {
                       onChange={(event) => setAcceptedTerms(event.target.checked)}
                       type="checkbox"
                     />{" "}
-                    I confirm this invitation was sent to my WhatsApp account and authorize FieldOS
-                    to link that identity to this signed-in account.
+                    I confirm this invitation was sent to my WhatsApp account and authorize
+                    Caladrona to link that identity to this signed-in account.
                   </label>
                   <Button
                     className="w-full"

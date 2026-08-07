@@ -1,11 +1,11 @@
 # WhatsApp Recommendation Runbook
 
-| Field        | Value                                                      |
-| ------------ | ---------------------------------------------------------- |
-| Purpose      | Operate and investigate WhatsApp-native FieldOS workflows. |
-| Owner        | Platform Engineering                                       |
-| Status       | Active                                                     |
-| Last Updated | 2026-07-24                                                 |
+| Field        | Value                                                        |
+| ------------ | ------------------------------------------------------------ |
+| Purpose      | Operate and investigate WhatsApp-native Caladrona workflows. |
+| Owner        | Platform Engineering                                         |
+| Status       | Active                                                       |
+| Last Updated | 2026-08-07                                                   |
 
 ## Table of Contents
 
@@ -23,7 +23,7 @@ Keep all flags false for migration and initial deployment. For a designated demo
 
 ## Recipient Configuration
 
-The recipient must have a confirmed WhatsApp identity, linked FieldOS user, active organization membership, project access, and an eligible route. Named approvers do not bypass project permissions. Do not use project-group routing for sensitive recommendations.
+The recipient must have a confirmed WhatsApp identity, linked Caladrona user, active organization membership, project access, and an eligible route. Named approvers do not bypass project permissions. Do not use project-group routing for sensitive recommendations.
 
 ## Test Procedure
 

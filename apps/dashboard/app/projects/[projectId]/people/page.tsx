@@ -189,7 +189,7 @@ function ProjectPeople() {
               WhatsApp recommendations
             </h2>
             <p className="mt-1 text-sm text-[var(--text-secondary)]">
-              Route selected operational decisions privately to verified FieldOS users.
+              Route selected operational decisions privately to verified Caladrona users.
             </p>
           </div>
           <div className="grid gap-4 md:grid-cols-3">
@@ -433,7 +433,7 @@ function PersonRow({
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium text-[var(--text-primary)]">{person.displayName}</span>
           <Badge variant={person.userId ? "success" : "muted"}>
-            {person.userId ? "FieldOS user" : "Contact"}
+            {person.userId ? "Caladrona user" : "Contact"}
           </Badge>
           {review ? <Badge variant="warning">Needs review</Badge> : null}
         </div>

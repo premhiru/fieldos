@@ -10,7 +10,17 @@
 ## Table of Contents
 
 - [Unreleased](#unreleased)
+- [v0.2.0-native-operations](#v020-native-operations---2026-08-07)
 - [v0.1.0-pilot](#v010-pilot---2026-08-07)
+
+## v0.2.0-native-operations - 2026-08-07
+
+- Added private WhatsApp delivery for policy-approved Caladrona recommendations with quoted deterministic reply commands.
+- Added sender-bound high-impact confirmation, membership and project authorization, idempotent response handling, immutable audits, delivery claims, bounded retries, expiry, cooldowns, daily limits, quiet hours, and environment kill switches.
+- Added WhatsApp group participant discovery, Person and identity review, project participation, and an owner-managed People directory.
+- Added secure, expiring WhatsApp invitations with explicit `JOIN` confirmation and authenticated single-use activation.
+- Replayed all 30 migrations, passed the full uncached verification suite, dark-launched with flags disabled, then activated capabilities in stages.
+- Limited the initial recommendation pilot to one project with private connected-owner routing, urgent-only delivery, two-per-day caps, a 120-minute cooldown, high-impact confirmation, and group approvals disabled.
 
 ## v0.1.0-pilot - 2026-08-07
 
