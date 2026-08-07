@@ -1493,6 +1493,15 @@ export function buildServer(options: BuildServerOptions = {}) {
     return { merged: true };
   });
 
+  server.post("/identity-reviews/:id/confirm", { preHandler: requireAuth }, async (request) => {
+    const { id } = recommendationParamsSchema.parse(request.params);
+    const query = whatsappAccountsQuerySchema.parse(request.query);
+    const user = requireCurrentUser(request);
+    await requireWritableOrganizationRole(user.id, query.organizationId);
+    await whatsAppNativeService.confirmIdentity(id, query.organizationId, user.id);
+    return { confirmed: true };
+  });
+
   server.post("/identity-reviews/:id/ignore", { preHandler: requireAuth }, async (request) => {
     const { id } = recommendationParamsSchema.parse(request.params);
     const query = whatsappAccountsQuerySchema.parse(request.query);

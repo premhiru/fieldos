@@ -32,6 +32,12 @@
 
 ## Unreleased
 
+### WhatsApp Participant Identity Review
+
+- Added recognizable WhatsApp names and normalized phone numbers to the project People directory while keeping raw provider identifiers private.
+- Added an administrator action to confirm a reviewed WhatsApp identity as a distinct person, alongside the existing merge and ignore controls.
+- Added Baileys LID-to-phone mapping during group synchronization so supported linked-device identities resolve to usable numbers.
+
 ### Recommendation Quality and Dismissal Reliability
 
 - Fixed bulk dismissal for recommendation feeds larger than the API's 500-record request limit by batching transparently in the dashboard client.

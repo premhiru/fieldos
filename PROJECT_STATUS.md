@@ -23,6 +23,13 @@ Caladrona WhatsApp-native operations production pilot, with daily connection, qu
 
 ## Completed Tasks
 
+- WhatsApp participant identity review completion.
+  - Exposed tenant-scoped WhatsApp display names, push names, and normalized phone numbers in the Project People API without returning raw JID or LID provider identifiers.
+  - Added visible WhatsApp identity details beside each project participant and a dedicated administrator action to confirm a reviewed identity as a distinct person.
+  - Added LID-to-phone-JID resolution during Baileys group synchronization so privacy-mode group identifiers can resolve to usable WhatsApp numbers when the linked-device mapping is available.
+  - Preserved merge and ignore actions for duplicate or invalid identities and kept project role assignment separate from identity verification.
+  - Added API privacy and confirmation tests plus browser coverage for the visible number and confirmation control.
+
 - Advanced WhatsApp-native operations production launch.
   - Rebased the advanced operations branch onto `main`, resolved brand and authentication-flow conflicts, and merged pull request 3 at commit `0e1d471` after all GitHub checks passed.
   - Replayed all 30 Prisma migrations against a disposable PostgreSQL database with zero unhealthy migrations, then applied `20260724120000_whatsapp_native_hardening` to production.

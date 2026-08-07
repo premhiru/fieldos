@@ -17,6 +17,105 @@ describe("WhatsApp native operations tenancy", () => {
     expect(client.projectParticipant.findMany).not.toHaveBeenCalled();
   });
 
+  it("returns recognizable WhatsApp identity details without raw provider identifiers", async () => {
+    const client = {
+      project: { findFirst: vi.fn().mockResolvedValue({ id: "project-1" }) },
+      projectParticipant: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: "participant-1",
+            lastSeenAt: new Date("2026-08-07T00:00:00.000Z"),
+            participantStatus: "ACTIVE",
+            person: {
+              company: null,
+              displayName: "Site Supervisor",
+              id: "person-1",
+              identities: [
+                {
+                  displayName: "Supervisor",
+                  groupParticipants: [],
+                  id: "identity-1",
+                  jid: "6590000000@s.whatsapp.net",
+                  lastSeenAt: new Date("2026-08-07T00:00:00.000Z"),
+                  lid: "123@lid",
+                  phoneNumber: "6590000000",
+                  pushName: "Site Supervisor",
+                  verificationStatus: "OBSERVED"
+                }
+              ],
+              identityReviews: [],
+              phoneNumber: "6590000000",
+              roleTitle: null,
+              status: "ACTIVE",
+              type: "UNKNOWN",
+              userId: null,
+              whatsAppInvitations: []
+            },
+            role: null
+          }
+        ])
+      }
+    };
+    const service = createPrismaWhatsAppNativeService(client as never);
+
+    const people = (await service.listPeople({
+      organizationId: "org-1",
+      projectId: "project-1"
+    })) as Array<Record<string, unknown>>;
+
+    expect(people[0]).toMatchObject({
+      person: {
+        identities: [
+          {
+            displayName: "Supervisor",
+            phoneNumber: "6590000000",
+            pushName: "Site Supervisor"
+          }
+        ],
+        phoneNumber: "6590000000"
+      }
+    });
+    expect(JSON.stringify(people[0])).not.toContain("@s.whatsapp.net");
+    expect(JSON.stringify(people[0])).not.toContain("@lid");
+  });
+
+  it("confirms a reviewed identity as a distinct person", async () => {
+    const transactionClient = {
+      identityReview: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 })
+      },
+      personIdentity: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      whatsAppOperationAudit: { create: vi.fn().mockResolvedValue({ id: "audit-1" }) }
+    };
+    const client = {
+      ...transactionClient,
+      $transaction: vi.fn(async (callback) => callback(transactionClient)),
+      identityReview: {
+        ...transactionClient.identityReview,
+        findFirst: vi.fn().mockResolvedValue({
+          id: "review-1",
+          personIdentity: { id: "identity-1" },
+          personIdentityId: "identity-1"
+        })
+      }
+    };
+    const service = createPrismaWhatsAppNativeService(client as never);
+
+    await service.confirmIdentity("review-1", "org-1", "admin-1");
+
+    expect(client.personIdentity.updateMany).toHaveBeenCalledWith({
+      data: { verificationStatus: "CONFIRMED" },
+      where: { id: "identity-1", organizationId: "org-1" }
+    });
+    expect(client.whatsAppOperationAudit.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        actorUserId: "admin-1",
+        eventType: "IDENTITY_CONFIRMED",
+        personIdentityId: "identity-1"
+      })
+    });
+  });
+
   it("does not activate an expired WhatsApp invitation", async () => {
     const transactionClient = {
       whatsAppInvitation: {

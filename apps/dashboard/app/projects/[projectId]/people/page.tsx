@@ -1,7 +1,7 @@
 "use client";
 
 import { Badge, Button, EmptyState, PageHeader, Skeleton } from "@fieldos/ui";
-import { Check, RefreshCw, Send, Users } from "lucide-react";
+import { Check, Phone, RefreshCw, Send, Users } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -152,6 +152,10 @@ function ProjectPeople() {
   });
   const ignoreReview = useMutation({
     mutationFn: (reviewId: string) => api.ignoreIdentityReview(reviewId, organization?.id ?? ""),
+    onSuccess: refresh
+  });
+  const confirmReview = useMutation({
+    mutationFn: (reviewId: string) => api.confirmIdentityReview(reviewId, organization?.id ?? ""),
     onSuccess: refresh
   });
   const mergeReview = useMutation({
@@ -382,7 +386,14 @@ function ProjectPeople() {
           <div className="divide-y divide-[var(--border-subtle)] border-y border-[var(--border-subtle)]">
             {peopleQuery.data?.people.map((participant) => (
               <PersonRow
-                actions={{ ignoreReview, invite, mergeReview, updateParticipant, updatePerson }}
+                actions={{
+                  confirmReview,
+                  ignoreReview,
+                  invite,
+                  mergeReview,
+                  updateParticipant,
+                  updatePerson
+                }}
                 admin={isAdmin}
                 allPeople={allPeopleQuery.data?.people ?? []}
                 canInviteAdmin={organization?.role === "OWNER"}
@@ -398,6 +409,7 @@ function ProjectPeople() {
 }
 
 interface PersonRowActions {
+  confirmReview: { mutate(id: string): void };
   ignoreReview: { mutate(id: string): void };
   invite: {
     isPending: boolean;
@@ -424,8 +436,11 @@ function PersonRow({
   participant: ProjectPerson;
 }) {
   const person = participant.person;
+  const identity = person.identities[0];
   const review = person.identityReviews[0];
   const invitation = person.whatsAppInvitations[0];
+  const whatsAppName = identity?.pushName ?? identity?.displayName;
+  const whatsAppNumber = identity?.phoneNumber ?? person.phoneNumber;
   const [inviteRole, setInviteRole] = React.useState<MembershipRole>("MEMBER");
   return (
     <div className="grid gap-4 py-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
@@ -439,9 +454,14 @@ function PersonRow({
         </div>
         <p className="mt-1 text-sm text-[var(--text-secondary)]">
           {person.company ?? "Company not set"} | {participant.role ?? "Role not assigned"} |
-          WhatsApp{" "}
-          {person.identities[0]?.verificationStatus.toLowerCase().replaceAll("_", " ") ??
-            "not linked"}
+          WhatsApp {identity?.verificationStatus.toLowerCase().replaceAll("_", " ") ?? "not linked"}
+        </p>
+        <p className="mt-1 flex items-center gap-1.5 text-sm text-[var(--text-primary)]">
+          <Phone aria-hidden="true" className="size-4 text-[var(--text-secondary)]" />
+          <span>
+            {whatsAppName && whatsAppName !== person.displayName ? `${whatsAppName} | ` : ""}
+            {formatWhatsAppNumber(whatsAppNumber) ?? "WhatsApp number unavailable"}
+          </span>
         </p>
         <p className="mt-1 text-xs text-[var(--text-secondary)]">
           Last seen {new Date(participant.lastSeenAt).toLocaleString()}{" "}
@@ -526,6 +546,16 @@ function PersonRow({
           ) : null}
           {review ? (
             <>
+              <Button
+                onClick={() =>
+                  window.confirm(
+                    `Confirm ${person.displayName}${whatsAppNumber ? ` (${formatWhatsAppNumber(whatsAppNumber)})` : ""} as a new WhatsApp contact?`
+                  ) && actions.confirmReview.mutate(review.id)
+                }
+                variant="secondary"
+              >
+                <Check className="size-4" /> Confirm identity
+              </Button>
               <select
                 aria-label={`Merge identity for ${person.displayName}`}
                 className="h-10 rounded-md border border-[var(--border-subtle)] bg-[var(--surface)] px-2 text-sm text-[var(--text-primary)]"
@@ -597,6 +627,11 @@ function invitationStatusLabel(status: string): string {
     default:
       return "Invitation status unavailable";
   }
+}
+
+function formatWhatsAppNumber(value: string | null | undefined): string | null {
+  if (!value) return null;
+  return value.startsWith("+") ? value : `+${value}`;
 }
 
 function label(value: string) {

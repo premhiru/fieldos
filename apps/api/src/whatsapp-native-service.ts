@@ -31,6 +31,7 @@ export interface WhatsAppNativeService {
     userId: string;
   }): Promise<{ organizationId: string; projectId: string }>;
   cancelDelivery(deliveryId: string, organizationId: string): Promise<void>;
+  confirmIdentity(reviewId: string, organizationId: string, userId: string): Promise<void>;
   createInvitation(input: {
     invitedByUserId: string;
     organizationId: string;
@@ -380,12 +381,15 @@ export function createPrismaWhatsAppNativeService(
           displayName: participant.person.displayName,
           id: participant.person.id,
           identities: participant.person.identities.map((identity) => ({
+            displayName: identity.displayName,
             groupParticipants: identity.groupParticipants.map((groupParticipant) => ({
               isGroupAdmin: groupParticipant.isGroupAdmin,
               participantStatus: groupParticipant.participantStatus
             })),
             id: identity.id,
             lastSeenAt: identity.lastSeenAt,
+            phoneNumber: identity.phoneNumber,
+            pushName: identity.pushName,
             verificationStatus: identity.verificationStatus
           })),
           identityReviews: participant.person.identityReviews.map((review) => ({
@@ -394,6 +398,7 @@ export function createPrismaWhatsAppNativeService(
             status: review.status
           })),
           roleTitle: participant.person.roleTitle,
+          phoneNumber: participant.person.phoneNumber,
           status: participant.person.status,
           type: participant.person.type,
           userId: participant.person.userId,
@@ -406,6 +411,44 @@ export function createPrismaWhatsAppNativeService(
         },
         role: participant.role
       }));
+    },
+
+    async confirmIdentity(reviewId, organizationId, userId) {
+      const review = await client.identityReview.findFirst({
+        include: { personIdentity: true },
+        where: { id: reviewId, organizationId, status: "PENDING" }
+      });
+      if (!review) throw new WhatsAppNativeServiceError("NOT_FOUND", "Identity review not found.");
+      await client.$transaction(async (tx) => {
+        const resolved = await tx.identityReview.updateMany({
+          data: {
+            resolution: "CONFIRMED_AS_NEW_PERSON",
+            resolvedAt: new Date(),
+            resolvedByUserId: userId,
+            status: "RESOLVED"
+          },
+          where: { id: review.id, organizationId, status: "PENDING" }
+        });
+        if (resolved.count !== 1) {
+          throw new WhatsAppNativeServiceError(
+            "INVALID_STATE",
+            "Identity review is already resolved."
+          );
+        }
+        await tx.personIdentity.updateMany({
+          data: { verificationStatus: "CONFIRMED" },
+          where: { id: review.personIdentityId, organizationId }
+        });
+        await tx.whatsAppOperationAudit.create({
+          data: {
+            actorUserId: userId,
+            eventType: "IDENTITY_CONFIRMED",
+            organizationId,
+            personIdentityId: review.personIdentityId,
+            reasonCode: "ADMIN_CONFIRMED"
+          }
+        });
+      });
     },
 
     async mergeIdentity(input) {

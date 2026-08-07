@@ -35,7 +35,8 @@ import {
   isDirectContactJid,
   isDiscoverableChatJid,
   isGroupJid,
-  isLidJid
+  isLidJid,
+  isPhoneJid
 } from "./jid.js";
 import { normalizeWhatsAppMessage } from "./normalizer.js";
 import { WhatsAppParticipantSyncService } from "./identity-sync.js";
@@ -293,21 +294,36 @@ export class BaileysWhatsAppSessionManager {
       throw new Error("WhatsApp account is not connected in the active worker.");
     }
     const metadata = await session.socket.groupMetadata(mapping.jid);
-    const participants = metadata.participants.map((participant) => {
-      const record = participant as unknown as Record<string, unknown>;
-      const id = typeof record.id === "string" ? record.id : null;
-      const lid = typeof record.lid === "string" ? record.lid : null;
-      return {
-        displayName: null,
-        isAdmin: record.admin === "admin" || record.admin === "superadmin",
-        jid: id,
-        lid,
-        metadata: {
-          admin: typeof record.admin === "string" ? record.admin : null
-        },
-        pushName: null
-      };
-    });
+    const participants = await Promise.all(
+      metadata.participants.map(async (participant) => {
+        const record = participant as unknown as Record<string, unknown>;
+        const id = typeof record.id === "string" ? record.id : null;
+        const recordLid = typeof record.lid === "string" ? record.lid : null;
+        const lid = id && isLidJid(id) ? id : recordLid && isLidJid(recordLid) ? recordLid : null;
+        let jid = id && isPhoneJid(id) ? id : null;
+        if (!jid && lid) {
+          try {
+            const mappedJid = await session.socket.signalRepository.lidMapping.getPNForLID(lid);
+            jid = mappedJid && isPhoneJid(mappedJid) ? mappedJid : null;
+          } catch (error: unknown) {
+            this.logger.warn(
+              { accountId: mapping.whatsappAccountId, error, mappingId: mapping.id },
+              "WhatsApp group participant phone mapping lookup failed"
+            );
+          }
+        }
+        return {
+          displayName: null,
+          isAdmin: record.admin === "admin" || record.admin === "superadmin",
+          jid,
+          lid,
+          metadata: {
+            admin: typeof record.admin === "string" ? record.admin : null
+          },
+          pushName: null
+        };
+      })
+    );
     const expectedParticipantCount = (metadata as unknown as { size?: number }).size;
     return this.participantSyncService.syncGroup(mapping.id, participants, {
       authoritative:

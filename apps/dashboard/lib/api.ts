@@ -998,11 +998,15 @@ export interface ProjectPerson {
     displayName: string;
     company: string | null;
     roleTitle: string | null;
+    phoneNumber: string | null;
     type: "INTERNAL" | "EXTERNAL" | "UNKNOWN";
     status: "ACTIVE" | "INACTIVE" | "MERGED" | "IGNORED";
     userId: string | null;
     identities: Array<{
+      displayName: string | null;
       id: string;
+      phoneNumber: string | null;
+      pushName: string | null;
       verificationStatus: "OBSERVED" | "CONFIRMED" | "NEEDS_REVIEW" | "REVOKED";
       lastSeenAt: string;
       groupParticipants: Array<{ isGroupAdmin: boolean; participantStatus: "ACTIVE" | "INACTIVE" }>;
@@ -1642,6 +1646,11 @@ export const api = {
   ignoreIdentityReview: (reviewId: string, organizationId: string) =>
     apiRequest<{ ignored: true }>(
       `/identity-reviews/${reviewId}/ignore?organizationId=${organizationId}`,
+      { method: "POST" }
+    ),
+  confirmIdentityReview: (reviewId: string, organizationId: string) =>
+    apiRequest<{ confirmed: true }>(
+      `/identity-reviews/${reviewId}/confirm?organizationId=${organizationId}`,
       { method: "POST" }
     ),
   mergeIdentityReview: (reviewId: string, organizationId: string, targetPersonId: string) =>
