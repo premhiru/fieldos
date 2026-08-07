@@ -175,6 +175,14 @@ describe("RecommendationGate", () => {
     );
 
     expect(result.created).toBe(true);
+    expect(prisma.processingJobCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          sourceId: "recommendation_1",
+          type: "WHATSAPP_RECOMMENDATION_DELIVERY"
+        })
+      })
+    );
   });
 });
 
@@ -211,11 +219,18 @@ function fakePrisma(
 ) {
   const candidateCreate = vi.fn().mockResolvedValue({ id: "candidate_1" });
   const candidateFindFirst = vi.fn().mockResolvedValue(history);
+  const processingJobCreate = vi.fn().mockResolvedValue({ id: "delivery_job_1" });
   const recommendationCreate = vi.fn().mockResolvedValue({ id: "recommendation_1" });
   const client = {
     $transaction: async (callback: (tx: unknown) => Promise<unknown>) => callback(client),
     actionItem: { findFirst: vi.fn().mockResolvedValue(ownedWork) },
     outstandingExpectation: { findUnique: vi.fn().mockResolvedValue({ status: "OPEN" }) },
+    processingJob: {
+      create: processingJobCreate,
+      findUnique: vi.fn().mockResolvedValue(null),
+      findUniqueOrThrow: vi.fn().mockResolvedValue({ id: "delivery_job_1" }),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 })
+    },
     recommendation: {
       create: recommendationCreate,
       findMany: vi.fn().mockResolvedValue(pendingRecommendations)
@@ -223,7 +238,14 @@ function fakePrisma(
     recommendationCandidate: {
       create: candidateCreate,
       findFirst: candidateFindFirst
-    }
+    },
+    whatsAppOperationAudit: { create: vi.fn().mockResolvedValue({ id: "audit_1" }) }
   };
-  return { candidateCreate, candidateFindFirst, client, recommendationCreate };
+  return {
+    candidateCreate,
+    candidateFindFirst,
+    client,
+    processingJobCreate,
+    recommendationCreate
+  };
 }

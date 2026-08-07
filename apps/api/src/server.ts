@@ -1,5 +1,6 @@
 import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
+import rateLimit from "@fastify/rate-limit";
 import { RedisWhatsAppQrStore, type WhatsAppQrStore } from "@fieldos/baileys-whatsapp/qr-store";
 import { ProjectCoordinatorRuntime, QueuedWhatsAppDraftSender } from "@fieldos/coordinators";
 import { Prisma, prisma } from "@fieldos/db";
@@ -111,7 +112,15 @@ import {
   whatsappAccountsQuerySchema,
   whatsappDraftParamsSchema,
   whatsappDraftsQuerySchema,
-  whatsappChatMappingParamsSchema
+  whatsappChatMappingParamsSchema,
+  whatsappRecommendationSettingSchema,
+  projectPeopleQuerySchema,
+  updatePersonSchema,
+  updateProjectParticipantSchema,
+  identityMergeSchema,
+  createWhatsAppInvitationSchema,
+  whatsappInvitationTokenSchema,
+  acceptWhatsAppInvitationSchema
 } from "./schemas.js";
 import {
   createTeamInvitationEmailSender,
@@ -124,6 +133,11 @@ import {
   type TeamInvitationDelivery,
   type TeamService
 } from "./team-service.js";
+import {
+  createPrismaWhatsAppNativeService,
+  WhatsAppNativeServiceError,
+  type WhatsAppNativeService
+} from "./whatsapp-native-service.js";
 
 const writableRoles = new Set<Role>(["OWNER", "ADMIN"]);
 
@@ -139,6 +153,7 @@ export interface BuildServerOptions {
   storageProvider?: StorageProvider;
   teamInvitationEmailSender?: TeamInvitationEmailSender;
   teamService?: TeamService;
+  whatsAppNativeService?: WhatsAppNativeService;
 }
 
 export interface CoordinatorScanLock {
@@ -194,6 +209,8 @@ export function buildServer(options: BuildServerOptions = {}) {
       apiKey: apiEnv.RESEND_API_KEY,
       from: apiEnv.EMAIL_FROM
     });
+  const whatsAppNativeService =
+    options.whatsAppNativeService ?? createPrismaWhatsAppNativeService();
   const conversationService = new ConversationService(repository);
   const messageService = new MessageService(repository);
   const attachmentService = new AttachmentService(repository);
@@ -227,12 +244,19 @@ export function buildServer(options: BuildServerOptions = {}) {
           }
         });
   const server = fastify({
+    disableRequestLogging: true,
     logger: {
       level: process.env.LOG_LEVEL ?? "info"
-    }
+    },
+    trustProxy: true
   });
 
   server.register(cookie);
+  server.register(rateLimit, {
+    global: true,
+    max: 300,
+    timeWindow: "1 minute"
+  });
   server.register(cors, {
     credentials: true,
     origin: apiEnv.CORS_ORIGIN
@@ -273,6 +297,21 @@ export function buildServer(options: BuildServerOptions = {}) {
                   error.code === "OWNER_PROTECTED"
                 ? 403
                 : 400;
+      return reply.status(statusCode).send({
+        error: { code: error.code, message: error.message },
+        requestId: request.id
+      });
+    }
+
+    if (error instanceof WhatsAppNativeServiceError) {
+      const statusCode =
+        error.code === "NOT_FOUND"
+          ? 404
+          : error.code === "EXPIRED"
+            ? 410
+            : error.code === "CONFLICT"
+              ? 409
+              : 400;
       return reply.status(statusCode).send({
         error: { code: error.code, message: error.message },
         requestId: request.id
@@ -367,43 +406,51 @@ export function buildServer(options: BuildServerOptions = {}) {
     }
   });
 
-  server.post("/auth/signup", async (request, reply) => {
-    const body = signupSchema.parse(request.body);
-    const email = normalizeEmail(body.email);
-    const existingUser = await repository.findUserByEmail(email);
+  server.post(
+    "/auth/signup",
+    { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const body = signupSchema.parse(request.body);
+      const email = normalizeEmail(body.email);
+      const existingUser = await repository.findUserByEmail(email);
 
-    if (existingUser) {
-      throw conflict("A user with this email already exists.");
+      if (existingUser) {
+        throw conflict("A user with this email already exists.");
+      }
+
+      const user = await repository.createUser({
+        email,
+        name: body.name.trim(),
+        passwordHash: await hashPassword(body.password)
+      });
+
+      setAuthCookie(reply, { ...user, sessionVersion: 0 });
+
+      return {
+        user
+      };
     }
+  );
 
-    const user = await repository.createUser({
-      email,
-      name: body.name.trim(),
-      passwordHash: await hashPassword(body.password)
-    });
+  server.post(
+    "/auth/login",
+    { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const body = loginSchema.parse(request.body);
+      const user = await repository.findUserByEmail(normalizeEmail(body.email));
 
-    setAuthCookie(reply, { ...user, sessionVersion: 0 });
+      if (!user || !(await verifyPassword(body.password, user.passwordHash))) {
+        throw unauthorized("Invalid email or password.");
+      }
 
-    return {
-      user
-    };
-  });
+      const safeUser = toSafeUser(user);
+      setAuthCookie(reply, user);
 
-  server.post("/auth/login", async (request, reply) => {
-    const body = loginSchema.parse(request.body);
-    const user = await repository.findUserByEmail(normalizeEmail(body.email));
-
-    if (!user || !(await verifyPassword(body.password, user.passwordHash))) {
-      throw unauthorized("Invalid email or password.");
+      return {
+        user: safeUser
+      };
     }
-
-    const safeUser = toSafeUser(user);
-    setAuthCookie(reply, user);
-
-    return {
-      user: safeUser
-    };
-  });
+  );
 
   server.post("/auth/logout", async (_request, reply) => {
     reply.clearCookie(AUTH_COOKIE_NAME, getCookieBaseOptions());
@@ -435,72 +482,83 @@ export function buildServer(options: BuildServerOptions = {}) {
     return { ok: true };
   });
 
-  server.post("/auth/forgot-password", async (request) => {
-    const body = forgotPasswordSchema.parse(request.body);
-    const user = await repository.findUserByEmail(normalizeEmail(body.email));
-    let developmentResetUrl: string | undefined;
+  server.post(
+    "/auth/forgot-password",
+    { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } },
+    async (request) => {
+      const body = forgotPasswordSchema.parse(request.body);
+      const user = await repository.findUserByEmail(normalizeEmail(body.email));
+      let developmentResetUrl: string | undefined;
 
-    if (user) {
-      const token = randomBytes(32).toString("base64url");
-      const tokenHash = hashResetToken(token);
-      const resetUrl = `${apiEnv.WEB_APP_URL}/reset-password?token=${encodeURIComponent(token)}`;
-      developmentResetUrl = resetUrl;
-      await repository.createPasswordResetToken({
-        expiresAt: new Date(Date.now() + passwordResetDurationMs),
-        tokenHash,
-        userId: user.id
-      });
-
-      try {
-        const delivery = await passwordResetEmailSender.send({
-          idempotencyKey: `password-reset/${tokenHash}`,
-          recipient: user.email,
-          resetUrl
+      if (user) {
+        const token = randomBytes(32).toString("base64url");
+        const tokenHash = hashResetToken(token);
+        const resetUrl = `${apiEnv.WEB_APP_URL}/reset-password?token=${encodeURIComponent(token)}`;
+        developmentResetUrl = resetUrl;
+        await repository.createPasswordResetToken({
+          expiresAt: new Date(Date.now() + passwordResetDurationMs),
+          tokenHash,
+          userId: user.id
         });
 
-        if (delivery === "NOT_CONFIGURED") {
-          server.log.warn({ userId: user.id }, "password reset email delivery is not configured");
-        }
-      } catch (error) {
-        if (error instanceof PasswordResetEmailDeliveryError) {
-          server.log.error(
-            {
-              providerCode: error.providerCode,
-              statusCode: error.statusCode,
-              userId: user.id
-            },
-            "password reset email delivery failed"
-          );
-        } else {
-          server.log.error({ err: error, userId: user.id }, "password reset email delivery failed");
+        try {
+          const delivery = await passwordResetEmailSender.send({
+            idempotencyKey: `password-reset/${tokenHash}`,
+            recipient: user.email,
+            resetUrl
+          });
+
+          if (delivery === "NOT_CONFIGURED") {
+            server.log.warn({ userId: user.id }, "password reset email delivery is not configured");
+          }
+        } catch (error) {
+          if (error instanceof PasswordResetEmailDeliveryError) {
+            server.log.error(
+              {
+                providerCode: error.providerCode,
+                statusCode: error.statusCode,
+                userId: user.id
+              },
+              "password reset email delivery failed"
+            );
+          } else {
+            server.log.error(
+              { err: error, userId: user.id },
+              "password reset email delivery failed"
+            );
+          }
         }
       }
+
+      return {
+        ...(apiEnv.NODE_ENV === "development" && developmentResetUrl
+          ? { resetUrl: developmentResetUrl }
+          : {}),
+        message: "If an account exists for that email, a password reset link has been sent.",
+        ok: true
+      };
     }
+  );
 
-    return {
-      ...(apiEnv.NODE_ENV === "development" && developmentResetUrl
-        ? { resetUrl: developmentResetUrl }
-        : {}),
-      message: "If an account exists for that email, a password reset link has been sent.",
-      ok: true
-    };
-  });
+  server.post(
+    "/auth/reset-password",
+    { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const body = resetPasswordSchema.parse(request.body);
+      const reset = await repository.resetPasswordWithToken({
+        now: new Date(),
+        passwordHash: await hashPassword(body.newPassword),
+        tokenHash: hashResetToken(body.token)
+      });
 
-  server.post("/auth/reset-password", async (request, reply) => {
-    const body = resetPasswordSchema.parse(request.body);
-    const reset = await repository.resetPasswordWithToken({
-      now: new Date(),
-      passwordHash: await hashPassword(body.newPassword),
-      tokenHash: hashResetToken(body.token)
-    });
+      if (!reset) {
+        throw badRequest("This password reset link is invalid or has expired.");
+      }
 
-    if (!reset) {
-      throw badRequest("This password reset link is invalid or has expired.");
+      reply.clearCookie(AUTH_COOKIE_NAME, getCookieBaseOptions());
+      return { ok: true };
     }
-
-    reply.clearCookie(AUTH_COOKIE_NAME, getCookieBaseOptions());
-    return { ok: true };
-  });
+  );
 
   server.get("/organizations", { preHandler: requireAuth }, async (request) => ({
     organizations: await repository.listOrganizations(requireCurrentUser(request).id)
@@ -966,10 +1024,25 @@ export function buildServer(options: BuildServerOptions = {}) {
         type: "PROJECT_CREATED",
         userId: user.id
       });
-
       return {
         project
       };
+    }
+  );
+
+  server.post(
+    "/whatsapp/chat-mappings/:id/sync-participants",
+    { preHandler: requireAuth },
+    async (request) => {
+      const { id } = whatsappChatMappingParamsSchema.parse(request.params);
+      const user = requireCurrentUser(request);
+      const mapping = await findWhatsAppChatMappingForUser(user.id, id);
+      await requireWritableOrganizationRole(user.id, mapping.organizationId);
+      if (!apiEnv.WHATSAPP_PARTICIPANT_SYNC_ENABLED) {
+        throw forbidden("WhatsApp participant synchronization is disabled.");
+      }
+      await whatsAppNativeService.syncParticipants(mapping.id, mapping.organizationId);
+      return { status: "QUEUED" };
     }
   );
 
@@ -1262,6 +1335,226 @@ export function buildServer(options: BuildServerOptions = {}) {
     };
   });
 
+  server.get(
+    "/projects/:projectId/whatsapp-recommendation-settings",
+    { preHandler: requireAuth },
+    async (request) => {
+      const { projectId } = projectParamsSchema.parse(request.params);
+      const project = await requireProjectForRequest(request, projectId);
+      return {
+        setting: await whatsAppNativeService.getSetting(project.id, project.organizationId)
+      };
+    }
+  );
+
+  server.put(
+    "/projects/:projectId/whatsapp-recommendation-settings",
+    { preHandler: requireAuth },
+    async (request) => {
+      const { projectId } = projectParamsSchema.parse(request.params);
+      const body = whatsappRecommendationSettingSchema.parse(request.body);
+      const user = requireCurrentUser(request);
+      const project = await requireProjectForRequest(request, projectId);
+      await requireWritableOrganizationRole(user.id, project.organizationId);
+      return {
+        setting: await whatsAppNativeService.upsertSetting({
+          ...body,
+          organizationId: project.organizationId,
+          projectId
+        })
+      };
+    }
+  );
+
+  server.get("/recommendations/:id/deliveries", { preHandler: requireAuth }, async (request) => {
+    const { id } = recommendationParamsSchema.parse(request.params);
+    const recommendation = await requireRecommendationAccess(requireCurrentUser(request).id, id);
+    return {
+      deliveries: await whatsAppNativeService.listDeliveries(id, recommendation.organizationId)
+    };
+  });
+
+  server.post(
+    "/projects/:projectId/whatsapp-recommendation-settings/test",
+    { preHandler: requireAuth },
+    async (request) => {
+      const { projectId } = projectParamsSchema.parse(request.params);
+      const user = requireCurrentUser(request);
+      const project = await requireProjectForRequest(request, projectId);
+      await requireWritableOrganizationRole(user.id, project.organizationId);
+      if (!apiEnv.WHATSAPP_RECOMMENDATION_DELIVERY_ENABLED) {
+        throw forbidden("WhatsApp recommendation delivery is disabled.");
+      }
+      return {
+        test: await whatsAppNativeService.testDelivery(projectId, project.organizationId)
+      };
+    }
+  );
+
+  server.get(
+    "/recommendations/:id/response-audit",
+    { preHandler: requireAuth },
+    async (request) => {
+      const { id } = recommendationParamsSchema.parse(request.params);
+      const user = requireCurrentUser(request);
+      const recommendation = await requireRecommendationAccess(user.id, id);
+      await requireAdminOrganizationMembership(user.id, recommendation.organizationId);
+      return { audit: await whatsAppNativeService.listAudits(id, recommendation.organizationId) };
+    }
+  );
+
+  server.get("/admin/whatsapp-operations", { preHandler: requireAuth }, async (request) => {
+    const query = adminOperationsQuerySchema.parse(request.query);
+    await requireAdminOrganizationMembership(requireCurrentUser(request).id, query.organizationId);
+    return { metrics: await whatsAppNativeService.getMetrics(query.organizationId) };
+  });
+
+  server.post(
+    "/recommendation-deliveries/:id/retry",
+    { preHandler: requireAuth },
+    async (request) => {
+      const { id } = recommendationParamsSchema.parse(request.params);
+      const query = whatsappAccountsQuerySchema.parse(request.query);
+      const user = requireCurrentUser(request);
+      await requireWritableOrganizationRole(user.id, query.organizationId);
+      if (!apiEnv.WHATSAPP_RECOMMENDATION_DELIVERY_ENABLED)
+        throw forbidden("WhatsApp recommendation delivery is disabled.");
+      await whatsAppNativeService.retryDelivery(id, query.organizationId);
+      return { status: "QUEUED" };
+    }
+  );
+
+  server.post(
+    "/recommendation-deliveries/:id/cancel",
+    { preHandler: requireAuth },
+    async (request) => {
+      const { id } = recommendationParamsSchema.parse(request.params);
+      const query = whatsappAccountsQuerySchema.parse(request.query);
+      const user = requireCurrentUser(request);
+      await requireWritableOrganizationRole(user.id, query.organizationId);
+      await whatsAppNativeService.cancelDelivery(id, query.organizationId);
+      return { status: "CANCELLED" };
+    }
+  );
+
+  server.get("/projects/:projectId/people", { preHandler: requireAuth }, async (request) => {
+    const { projectId } = projectParamsSchema.parse(request.params);
+    const query = projectPeopleQuerySchema.parse(request.query ?? {});
+    const project = await requireProjectForRequest(request, projectId);
+    return {
+      people: await whatsAppNativeService.listPeople({
+        filter: query.filter,
+        organizationId: project.organizationId,
+        projectId
+      })
+    };
+  });
+
+  server.patch("/people/:id", { preHandler: requireAuth }, async (request) => {
+    const { id } = recommendationParamsSchema.parse(request.params);
+    const query = whatsappAccountsQuerySchema.parse(request.query);
+    const body = updatePersonSchema.parse(request.body);
+    const user = requireCurrentUser(request);
+    await requireWritableOrganizationRole(user.id, query.organizationId);
+    await whatsAppNativeService.updatePerson({
+      ...body,
+      organizationId: query.organizationId,
+      personId: id
+    });
+    return { updated: true };
+  });
+
+  server.patch("/project-participants/:id", { preHandler: requireAuth }, async (request) => {
+    const { id } = recommendationParamsSchema.parse(request.params);
+    const query = whatsappAccountsQuerySchema.parse(request.query);
+    const body = updateProjectParticipantSchema.parse(request.body);
+    const user = requireCurrentUser(request);
+    await requireWritableOrganizationRole(user.id, query.organizationId);
+    await whatsAppNativeService.updateParticipant({
+      organizationId: query.organizationId,
+      participantId: id,
+      ...body
+    });
+    return { updated: true };
+  });
+
+  server.post("/identity-reviews/:id/merge", { preHandler: requireAuth }, async (request) => {
+    const { id } = recommendationParamsSchema.parse(request.params);
+    const query = whatsappAccountsQuerySchema.parse(request.query);
+    const body = identityMergeSchema.parse(request.body);
+    const user = requireCurrentUser(request);
+    await requireWritableOrganizationRole(user.id, query.organizationId);
+    await whatsAppNativeService.mergeIdentity({
+      organizationId: query.organizationId,
+      reviewId: id,
+      targetPersonId: body.targetPersonId,
+      userId: user.id
+    });
+    return { merged: true };
+  });
+
+  server.post("/identity-reviews/:id/ignore", { preHandler: requireAuth }, async (request) => {
+    const { id } = recommendationParamsSchema.parse(request.params);
+    const query = whatsappAccountsQuerySchema.parse(request.query);
+    const user = requireCurrentUser(request);
+    await requireWritableOrganizationRole(user.id, query.organizationId);
+    await whatsAppNativeService.ignoreIdentity(id, query.organizationId, user.id);
+    return { ignored: true };
+  });
+
+  server.post(
+    "/projects/:projectId/whatsapp-invitations",
+    { preHandler: requireAuth },
+    async (request) => {
+      const { projectId } = projectParamsSchema.parse(request.params);
+      const body = createWhatsAppInvitationSchema.parse(request.body);
+      const user = requireCurrentUser(request);
+      const project = await requireProjectForRequest(request, projectId);
+      const membership = await requireWritableOrganizationRole(user.id, project.organizationId);
+      if (body.role === "ADMIN" && membership.role !== "OWNER") {
+        throw forbidden("Only the organization owner can invite administrators.");
+      }
+      if (!apiEnv.WHATSAPP_INVITATIONS_ENABLED)
+        throw forbidden("WhatsApp invitations are disabled.");
+      return {
+        invitation: await whatsAppNativeService.createInvitation({
+          ...body,
+          invitedByUserId: user.id,
+          organizationId: project.organizationId,
+          projectId
+        })
+      };
+    }
+  );
+
+  server.post(
+    "/whatsapp-invitations/preview",
+    { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
+    async (request) => {
+      const { token } = whatsappInvitationTokenSchema.parse(request.body);
+      const invitation = await whatsAppNativeService.getInvitation(token);
+      if (!invitation) throw notFound("Invitation not found.");
+      return { invitation };
+    }
+  );
+
+  server.post(
+    "/whatsapp-invitations/activate",
+    {
+      config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
+      preHandler: requireAuth
+    },
+    async (request) => {
+      const { token } = acceptWhatsAppInvitationSchema.parse(request.body);
+      return {
+        activation: await whatsAppNativeService.acceptInvitation({
+          token,
+          userId: requireCurrentUser(request).id
+        })
+      };
+    }
+  );
+
   server.get("/whatsapp/drafts", { preHandler: requireAuth }, async (request) => {
     const query = whatsappDraftsQuerySchema.parse(request.query);
     const user = requireCurrentUser(request);
@@ -1542,7 +1835,6 @@ export function buildServer(options: BuildServerOptions = {}) {
         type: "REPORT_READY",
         userId: user.id
       });
-
       return {
         report
       };
@@ -1857,7 +2149,10 @@ export function buildServer(options: BuildServerOptions = {}) {
     const body = createWhatsAppAccountSchema.parse(request.body);
     const user = requireCurrentUser(request);
     await requireWritableOrganizationRole(user.id, body.organizationId);
-    const account = await repository.createWhatsAppAccount(body);
+    const account = await repository.createWhatsAppAccount({
+      ...body,
+      connectedByUserId: user.id
+    });
     await trackProductEvent({
       eventName: "whatsapp_account_created",
       metadata: {
@@ -1886,7 +2181,7 @@ export function buildServer(options: BuildServerOptions = {}) {
     const user = requireCurrentUser(request);
     const account = await requireWhatsAppAccountAccess(user.id, params.id);
     await requireWritableOrganizationRole(user.id, account.organizationId);
-    const nextAccount = await repository.rotateWhatsAppAccountSession(account.id);
+    const nextAccount = await repository.rotateWhatsAppAccountSession(account.id, user.id);
     await trackProductEvent({
       eventName: "whatsapp_connected",
       metadata: {
@@ -1922,7 +2217,9 @@ export function buildServer(options: BuildServerOptions = {}) {
 
   server.get("/whatsapp/accounts/:id/qr", { preHandler: requireAuth }, async (request) => {
     const params = whatsappAccountParamsSchema.parse(request.params);
-    const account = await requireWhatsAppAccountAccess(requireCurrentUser(request).id, params.id);
+    const user = requireCurrentUser(request);
+    const account = await requireWhatsAppAccountAccess(user.id, params.id);
+    await requireWritableOrganizationRole(user.id, account.organizationId);
 
     return {
       qr: await qrStore.get(account.id),
@@ -1996,6 +2293,9 @@ export function buildServer(options: BuildServerOptions = {}) {
         type: "WHATSAPP_CHAT_ACTIVATED",
         userId: user.id
       });
+      if (apiEnv.WHATSAPP_PARTICIPANT_SYNC_ENABLED && chat.isGroup) {
+        await whatsAppNativeService.syncParticipants(chat.id, chat.organizationId);
+      }
 
       return {
         chat

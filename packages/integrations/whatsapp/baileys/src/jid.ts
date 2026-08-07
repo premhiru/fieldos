@@ -40,3 +40,9 @@ export function isLidJid(jid: string): boolean {
 export function isPhoneJid(jid: string): boolean {
   return jid.endsWith("@s.whatsapp.net");
 }
+
+export function getPhoneNumberFromWhatsAppJid(jid: string | null | undefined): string | null {
+  if (!jid || !isPhoneJid(jid)) return null;
+  const phoneNumber = jid.split("@")[0]?.split(":")[0]?.replace(/\D/g, "");
+  return phoneNumber || null;
+}
