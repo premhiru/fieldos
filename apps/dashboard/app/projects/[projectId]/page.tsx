@@ -11,7 +11,8 @@ import {
   History,
   Images,
   ListTodo,
-  Users
+  Users,
+  X
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
@@ -86,6 +87,18 @@ function ProjectCommandCenter() {
   });
   const [snoozedRecommendationIds, setSnoozedRecommendationIds] = React.useState<string[]>([]);
   const [healthDetailsOpen, setHealthDetailsOpen] = React.useState(false);
+  const healthDismissalKey = `caladrona:project-health-warning:${params.projectId}`;
+  const [dismissedHealthFingerprint, setDismissedHealthFingerprint] = React.useState<string | null>(
+    null
+  );
+
+  React.useEffect(() => {
+    try {
+      setDismissedHealthFingerprint(window.localStorage.getItem(healthDismissalKey));
+    } catch {
+      setDismissedHealthFingerprint(null);
+    }
+  }, [healthDismissalKey]);
 
   async function refreshProject() {
     await Promise.all([
@@ -116,7 +129,47 @@ function ProjectCommandCenter() {
     ["URGENT", "HIGH"].includes(item.priority)
   );
   const significantEvents = (project.timelineEvents ?? []).filter(isSignificantEvent).slice(0, 5);
-  const healthCanExpand = ["CRITICAL", "NEEDS_ATTENTION"].includes(projectState?.health ?? "");
+  const healthFingerprint = projectState
+    ? JSON.stringify([
+        projectState.health,
+        projectState.healthReason,
+        projectState.recentRiskSummary,
+        projectState.recentBlockerSummary,
+        projectState.pendingDecisionSummary
+      ])
+    : null;
+  const healthDismissed =
+    healthFingerprint !== null && dismissedHealthFingerprint === healthFingerprint;
+  const healthCanExpand =
+    !healthDismissed && ["CRITICAL", "NEEDS_ATTENTION"].includes(projectState?.health ?? "");
+
+  function dismissHealthWarning() {
+    if (
+      !healthFingerprint ||
+      !window.confirm(
+        "Dismiss this warning from the Project Brief? It will return if the underlying issue changes."
+      )
+    ) {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(healthDismissalKey, healthFingerprint);
+    } catch {
+      // The in-memory state still dismisses the warning when browser storage is unavailable.
+    }
+    setDismissedHealthFingerprint(healthFingerprint);
+    setHealthDetailsOpen(false);
+  }
+
+  function restoreHealthWarning() {
+    try {
+      window.localStorage.removeItem(healthDismissalKey);
+    } catch {
+      // The in-memory state remains authoritative for this page session.
+    }
+    setDismissedHealthFingerprint(null);
+  }
 
   return (
     <div className="space-y-8">
@@ -170,11 +223,25 @@ function ProjectCommandCenter() {
                       />
                     </button>
                   ) : null}
+                  {healthDismissed ? (
+                    <>
+                      <Badge variant="muted">Warning dismissed</Badge>
+                      <button
+                        className="text-sm font-medium text-[var(--color-primary)] hover:underline"
+                        onClick={restoreHealthWarning}
+                        type="button"
+                      >
+                        Restore
+                      </button>
+                    </>
+                  ) : null}
                 </div>
-                <p className="mt-0.5 text-sm text-[var(--text-secondary)]">
-                  {projectState?.healthReason ??
-                    "Project health will appear after the first update."}
-                </p>
+                {!healthDismissed ? (
+                  <p className="mt-0.5 text-sm text-[var(--text-secondary)]">
+                    {projectState?.healthReason ??
+                      "Project health will appear after the first update."}
+                  </p>
+                ) : null}
               </div>
             </div>
           </div>
@@ -250,6 +317,16 @@ function ProjectCommandCenter() {
                   >
                     Review action items
                   </Link>
+                </div>
+                <div className="mt-4 border-t border-[var(--border-subtle)] pt-3">
+                  <Button
+                    className="text-[var(--status-critical-text)]"
+                    onClick={dismissHealthWarning}
+                    variant="ghost"
+                  >
+                    <X aria-hidden="true" className="size-4" />
+                    Dismiss warning
+                  </Button>
                 </div>
               </div>
             </div>

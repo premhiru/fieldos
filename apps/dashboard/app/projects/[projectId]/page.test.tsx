@@ -154,6 +154,8 @@ vi.mock("@tanstack/react-query", () => ({
 
 describe("ProjectDetailPage", () => {
   it("renders the simplified project command center", () => {
+    window.localStorage.clear();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
     render(React.createElement(ProjectDetailPage));
 
     expect(screen.getByRole("heading", { name: "Project Brief" })).toBeTruthy();
@@ -185,5 +187,16 @@ describe("ProjectDetailPage", () => {
     expect(screen.getByRole("button", { name: "Hide issue" }).getAttribute("aria-expanded")).toBe(
       "true"
     );
+
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss warning" }));
+
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("heading", { name: "What needs attention" })).toBeNull();
+    expect(screen.getByText("Warning dismissed")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Restore" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Restore" }));
+
+    expect(screen.getByRole("button", { name: "View issue" })).toBeTruthy();
   }, 15_000);
 });
